@@ -1,9 +1,9 @@
 import {
     ModelProviderError,
-    motionlyGenerationSchema,
+    motifyGenerationSchema,
     type ChatRequest,
     type ModelGenerationResult,
-    type MotionlyGeneration,
+    type MotifyGeneration,
     type MotionModelProvider,
     type MotionModelRequest,
     parseStructured,
@@ -28,11 +28,11 @@ export class FakeMotionModelProvider implements MotionModelProvider {
             ? await this.script.generation(request)
             : this.script.generation;
         const candidate = isGenerationResult(value) ? value.generation : value;
-        const parsed = motionlyGenerationSchema.safeParse(candidate);
+        const parsed = motifyGenerationSchema.safeParse(candidate);
         if (!parsed.success) {
             throw new ModelProviderError(
                 'PROVIDER_OUTPUT_INVALID',
-                'The fake model output does not match the Motionly generation schema.',
+                'The fake model output does not match the Motify generation schema.',
                 false,
             );
         }

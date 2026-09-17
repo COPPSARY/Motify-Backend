@@ -3,14 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { TransactionRollbackError } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 
-import type { MotionlyGeneration } from '../../packages/ai/providers/model.provider.js';
+import type { MotifyGeneration } from '../../packages/ai/providers/model.provider.js';
 import { createDatabase, type Database } from '../../packages/database/client.js';
 import { generationRuns, users, workspaceMembers, workspaces } from '../../packages/database/schema.js';
 import { DatabaseMotionGraphRepository } from '../../src/repositories/motion-graph.repository.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 
-const generation: MotionlyGeneration = {
+const generation: MotifyGeneration = {
     title: 'Launch Film',
     duration: 8,
     width: 1920,
@@ -22,7 +22,7 @@ const generation: MotionlyGeneration = {
     reply: 'Built the launch film.',
 };
 
-const edited: MotionlyGeneration = { ...generation, title: 'Launch Film v2', reply: 'Slowed the intro.' };
+const edited: MotifyGeneration = { ...generation, title: 'Launch Film v2', reply: 'Slowed the intro.' };
 
 describe.skipIf(!databaseUrl)('DatabaseMotionGraphRepository', () => {
     it('creates, reads, and revision-checks a generated project inside one transaction', async () => {
@@ -56,7 +56,7 @@ describe.skipIf(!databaseUrl)('DatabaseMotionGraphRepository', () => {
                     message: 'Make me a launch film.',
                     generation,
                     model: 'test-model',
-                    selectedSkills: ['core', 'write-motionly'],
+                    selectedSkills: ['core', 'write-motify'],
                     repairAttempts: 0,
                     latencyMs: 1_234,
                     inputTokens: 1_200,

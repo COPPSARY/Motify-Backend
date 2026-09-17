@@ -1,6 +1,6 @@
 ---
 name: scene-components
-description: Use when composing Motionly scenes from the mounted scene kit, themes, icons, surfaces, layouts, and beat templates.
+description: Use when composing Motify scenes from the mounted scene kit, themes, icons, surfaces, layouts, and beat templates.
 ---
 
 # The scene kit

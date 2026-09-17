@@ -9,7 +9,7 @@ const provider = new GeminiMotionModelProvider({ apiKey });
 const startedAt = performance.now();
 const generation = await provider.generate({
   model,
-  systemInstructions: 'Return a valid minimal Motionly composition. Use no external assets.',
+  systemInstructions: 'Return a valid minimal Motify composition. Use no external assets.',
   prompt: 'Create a one-second composition containing a single text scene and no animation tracks.',
   limits: { maxOutputTokens: 512 },
 });
@@ -22,7 +22,7 @@ const report = {
   passed,
   provider: provider.name,
   model,
-  capabilities: { structuredMotionlyGeneration: passed },
+  capabilities: { structuredMotifyGeneration: passed },
   sceneCount: generation.scenes.length,
   compositionHtmlBytes: Buffer.byteLength(generation.compositionHtml, 'utf8'),
   timelineJsBytes: Buffer.byteLength(generation.timelineJs, 'utf8'),

@@ -28,7 +28,7 @@ export function createReportFailureNode(dependencies: ResolvedMotionGraphDepende
             response: {
                 type: 'error',
                 code: 'GENERATION_INVALID',
-                message: 'Motionly could not produce a valid composition for that request.',
+                message: 'Motify could not produce a valid composition for that request.',
                 errors: state.validationErrors,
             },
         };

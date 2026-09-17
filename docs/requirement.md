@@ -1,4 +1,4 @@
-# Motionly Cloud Backend V1
+# Motify Cloud Backend V1
 
 ## 1. Authentication
 
@@ -22,7 +22,7 @@
 ## 4. AI
 
 - AI generation
-- Load Motionly skills
+- Load Motify skills
 - Project context
 - Generate code
 - Validate generated code

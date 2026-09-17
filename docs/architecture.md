@@ -1,6 +1,6 @@
 # Architecture
 
-Motionly Backend is an optional, provider-independent service for the Motionly editor. Motionly remains usable as a local, frontend-only editor when no API URL is configured.
+Motify Backend is an optional, provider-independent service for the Motify editor. Motify remains usable as a local, frontend-only editor when no API URL is configured.
 
 ## Source of truth
 
@@ -18,11 +18,11 @@ The initial deployment is a modular monolith with two processes:
 The renderer is intentionally separate from the API because user-authored source is untrusted and rendering is resource intensive.
 
 ```text
-Motionly web editor
+Motify web editor
         |
         | HTTPS / JSON
         v
-Motionly API ----> PostgreSQL
+Motify API ----> PostgreSQL
        |             users, workspaces, projects,
        |             source snapshots and job state
        |

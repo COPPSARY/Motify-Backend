@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { validateMotionlySource } from '../../packages/generation-tools/source-policy.js';
-import { STARTER_SOURCE_FILES } from '../../packages/motionly-runtime/starter.js';
+import { validateMotifySource } from '../../packages/generation-tools/source-policy.js';
+import { STARTER_SOURCE_FILES } from '../../packages/motify-runtime/starter.js';
 import type { ProjectSourceFiles, ProjectSourcePath } from '../../src/services/project.service.js';
 
 interface EvalCase {
@@ -20,7 +20,7 @@ const cases = JSON.parse(await readFile(path.join(directory, 'cases.json'), 'utf
 const results = cases.map((testCase) => {
   const files: ProjectSourceFiles = { ...STARTER_SOURCE_FILES };
   if (testCase.kind === 'append' && testCase.file && testCase.content) files[testCase.file] = `${files[testCase.file]}\n${testCase.content}`;
-  const report = validateMotionlySource(files);
+  const report = validateMotifySource(files);
   const passed = testCase.expectedValid === true
     ? report.valid
     : !report.valid && Boolean(testCase.expectedCode && report.diagnostics.some((diagnostic) => diagnostic.code === testCase.expectedCode));

@@ -7,7 +7,7 @@ import type {
 import { ModelProviderError, type ProviderErrorCode } from '../../packages/ai/providers/model.provider.js';
 import { AppError } from '../errors.js';
 
-/** The compiled Motionly graph, narrowed to what this service needs. */
+/** The compiled Motify graph, narrowed to what this service needs. */
 export interface MotionGraphRunner {
     invoke(input: MotionGraphInput): Promise<{ response?: MotionGraphResponse | undefined }>;
 }
@@ -36,17 +36,17 @@ const PROVIDER_STATUS: Record<ProviderErrorCode, number> = {
 };
 
 const PROVIDER_MESSAGE: Record<ProviderErrorCode, string> = {
-    PROVIDER_RATE_LIMITED: 'Motionly is handling too many generations right now. Try again shortly.',
+    PROVIDER_RATE_LIMITED: 'Motify is handling too many generations right now. Try again shortly.',
     PROVIDER_TIMEOUT: 'The model took too long to answer. Try again.',
     PROVIDER_UNAVAILABLE: 'The model is temporarily unavailable. Try again shortly.',
     PROVIDER_MODEL_UNAVAILABLE: 'The configured model is unavailable.',
     PROVIDER_OUTPUT_INVALID: 'The model returned an unusable response. Try again.',
-    PROVIDER_AUTH_FAILED: 'Motionly cannot reach the model right now.',
+    PROVIDER_AUTH_FAILED: 'Motify cannot reach the model right now.',
     PROVIDER_ERROR: 'The generation could not be completed. Try again.',
 };
 
 /**
- * Runs one Motionly turn against one project. Project access is checked here so a
+ * Runs one Motify turn against one project. Project access is checked here so a
  * message never reaches the model for a project the caller cannot edit, and every
  * graph outcome becomes an HTTP result.
  */
@@ -75,7 +75,7 @@ export class GenerationService {
         state: { response?: MotionGraphResponse | undefined },
     ): MessageResult {
         const response = state.response;
-        if (!response) throw new Error('The Motionly graph finished without a response.');
+        if (!response) throw new Error('The Motify graph finished without a response.');
         if (response.type === 'error') throw toAppError(response);
         if (response.type !== 'generation') return { type: response.type, response: response.message };
         return {

@@ -16,7 +16,7 @@ export function createClassifyIntentNode(dependencies: ResolvedMotionGraphDepend
             model: dependencies.model,
             systemInstructions: INTENT_SYSTEM_PROMPT,
             prompt: buildIntentPrompt(state.message),
-            schemaName: 'motionly_intent',
+            schemaName: 'motify_intent',
             schema: intentSchema,
             limits: INTENT_LIMITS,
         });

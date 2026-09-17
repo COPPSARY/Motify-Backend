@@ -10,6 +10,6 @@ describe('production TypeScript configuration', () => {
             exclude?: string[];
         };
 
-        expect(config.exclude).toContain('packages/motionly-runtime/reference');
+        expect(config.exclude).toContain('packages/motify-runtime/reference');
     });
 });

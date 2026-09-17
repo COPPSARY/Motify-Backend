@@ -15,12 +15,12 @@ describe('OpenAIMotionModelProvider', () => {
         const provider = new OpenAIMotionModelProvider({ apiKey: 'test-key', client: { responses: { create } } });
 
         await expect(provider.generate({
-            model: 'gpt-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
+            model: 'gpt-test', systemInstructions: 'Motify rules', prompt: 'Create it',
             limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
-            model: 'gpt-test', instructions: 'Motionly rules', input: 'Create it',
-            text: { format: expect.objectContaining({ type: 'json_schema', name: 'motionly_generation', strict: true }) },
+            model: 'gpt-test', instructions: 'Motify rules', input: 'Create it',
+            text: { format: expect.objectContaining({ type: 'json_schema', name: 'motify_generation', strict: true }) },
         }));
     });
 
@@ -37,7 +37,7 @@ describe('OpenAIMotionModelProvider', () => {
     it('uses JSON Schema for structured intent output', async () => {
         const create = vi.fn().mockResolvedValue({ output_text: '{"intent":"CHAT"}' });
         const provider = new OpenAIMotionModelProvider({ apiKey: 'test-key', client: { responses: { create } } });
-        await expect(provider.structured({ model: 'gpt-test', systemInstructions: 'Classify.', prompt: 'Hello', schemaName: 'motionly_intent', schema: intentSchema, limits: { maxOutputTokens: 128 } })).resolves.toEqual({ intent: 'CHAT' });
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({ text: { format: expect.objectContaining({ type: 'json_schema', name: 'motionly_intent', strict: true }) } }));
+        await expect(provider.structured({ model: 'gpt-test', systemInstructions: 'Classify.', prompt: 'Hello', schemaName: 'motify_intent', schema: intentSchema, limits: { maxOutputTokens: 128 } })).resolves.toEqual({ intent: 'CHAT' });
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ text: { format: expect.objectContaining({ type: 'json_schema', name: 'motify_intent', strict: true }) } }));
     });
 });

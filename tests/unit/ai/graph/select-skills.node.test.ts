@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ResolvedMotionGraphDependencies } from '../../../../packages/ai/graph/dependencies.js';
 import { createSelectSkillsNode } from '../../../../packages/ai/graph/nodes/select-skills.node.js';
 import type { MotionGraphState } from '../../../../packages/ai/graph/state.js';
-import type { RoutedSkill } from '../../../../packages/motionly-skills/router.js';
+import type { RoutedSkill } from '../../../../packages/motify-skills/router.js';
 
 describe('createSelectSkillsNode', () => {
     const skills = [
         { id: 'runtime-contract', content: 'Runtime contract' },
-        { id: 'write-motionly', content: 'Write contract' },
+        { id: 'write-motify', content: 'Write contract' },
         { id: 'scene-components', content: 'Components' },
         { id: 'editorial-brutalist', content: 'Editorial direction' },
         { id: 'technical-data', content: 'Technical direction' },
@@ -37,12 +37,12 @@ describe('createSelectSkillsNode', () => {
         const selectedSkills = update.selectedSkills as RoutedSkill[];
         expect(selectedSkills.map((skill) => skill.id)).toEqual([
             'runtime-contract',
-            'write-motionly',
+            'write-motify',
             'scene-components',
             'editorial-brutalist',
         ]);
         expect(structured).toHaveBeenCalledWith(expect.objectContaining({
-            schemaName: 'motionly_skill_selection',
+            schemaName: 'motify_skill_selection',
             prompt: expect.stringContaining('bold editorial poster'),
         }));
         expect(onSkillsSelected).toHaveBeenCalledWith(expect.objectContaining({
@@ -66,7 +66,7 @@ describe('createSelectSkillsNode', () => {
 
         expect((update.selectedSkills as RoutedSkill[]).map((skill) => skill.id)).toEqual([
             'runtime-contract',
-            'write-motionly',
+            'write-motify',
             'technical-data',
         ]);
     });

@@ -6,9 +6,9 @@ import {
 import { z } from 'zod';
 
 import {
-    motionlyGenerationJsonSchema,
+    motifyGenerationJsonSchema,
     normalizeProviderError,
-    parseMotionlyGeneration,
+    parseMotifyGeneration,
     parseStructured,
     requireModelText,
     tokenUsage,
@@ -50,11 +50,11 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                     maxOutputTokens: request.limits.maxOutputTokens,
 
                     responseMimeType: 'application/json',
-                    responseJsonSchema: motionlyGenerationJsonSchema,
+                    responseJsonSchema: motifyGenerationJsonSchema,
                 },
             });
             return {
-                generation: parseMotionlyGeneration(requireModelText(response.text)),
+                generation: parseMotifyGeneration(requireModelText(response.text)),
                 usage: tokenUsage(response.usageMetadata?.promptTokenCount, response.usageMetadata?.candidatesTokenCount),
             };
         } catch (error) {

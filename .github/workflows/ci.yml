@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify Motionly skills
+      - name: Verify Motify skills
         run: npm run skills:verify
 
       - name: Run tests

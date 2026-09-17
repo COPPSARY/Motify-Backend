@@ -10,13 +10,13 @@ export function createQualityStarterSource(settings: QualityStarterProjectSettin
   const title = JSON.stringify(settings.name);
   const duration = Number(settings.duration);
   return {
-    'composition.html': `<template id="motionly-template">
-  <main class="motionly-stage" data-edit="stage">
+    'composition.html': `<template id="motify-template">
+  <main class="motify-stage" data-edit="stage">
     <div class="ambient ambient-a" data-edit="ambient-a" aria-hidden="true"></div>
     <div class="ambient ambient-b" data-edit="ambient-b" aria-hidden="true"></div>
     <div class="grid" data-edit="grid" aria-hidden="true"></div>
     <div class="topline" data-edit="topline">
-      <span class="eyebrow" data-edit="eyebrow">MOTIONLY / ORIGINAL</span>
+      <span class="eyebrow" data-edit="eyebrow">MOTIFY / ORIGINAL</span>
       <span class="counter" data-edit="counter">01</span>
     </div>
     <section class="hero-beat" data-edit="hero-beat" aria-label="Main statement">
@@ -36,12 +36,12 @@ export function createQualityStarterSource(settings: QualityStarterProjectSettin
       <p class="closing-label" data-edit="closing-label">YOUR NEXT FRAME</p>
       <h2 data-edit="closing-headline">Make it unmistakably yours.</h2>
     </section>
-    <div class="footer-line" data-edit="footer-line"><span>CREATE / EDIT / REPEAT</span><span>(C) MOTIONLY</span></div>
+    <div class="footer-line" data-edit="footer-line"><span>CREATE / EDIT / REPEAT</span><span>(C) MOTIFY</span></div>
   </main>
 </template>`,
     'styles.css': `:root { color-scheme: light; }
-.motionly-stage { position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate; color: #17202b; background: #f4f0e7; font-family: Georgia, 'Times New Roman', serif; }
-.motionly-stage * { box-sizing: border-box; }
+.motify-stage { position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate; color: #17202b; background: #f4f0e7; font-family: Georgia, 'Times New Roman', serif; }
+.motify-stage * { box-sizing: border-box; }
 .ambient, .grid { position: absolute; inset: 0; pointer-events: none; }
 .ambient { z-index: -2; border-radius: 50%; filter: blur(70px); opacity: .75; transform-origin: center; }
 .ambient-a { width: 58%; height: 84%; left: -15%; top: 28%; background: #87d9c8; }
@@ -101,22 +101,22 @@ export function buildTimeline({ root, timeline, register }) {
   timeline.fromTo(closing, { autoAlpha: 0, scale: .84, xPercent: -50, yPercent: -50 }, { autoAlpha: 1, scale: 1, duration: .82, ease: 'back.out(1.25)' }, ${Math.max(2.2, duration * .72)});
   timeline.to(closing, { autoAlpha: 0, scale: 1.04, duration: .5, ease: 'power3.in' }, ${Math.max(2.8, duration * .92)});
 }`,
-    'index.ts': `import { defineComposition, type CompositionContext } from '@motionly/runtime';
+    'index.ts': `import { defineComposition, type CompositionContext } from '@motify/runtime';
 import compositionHtml from './composition.html?raw';
 import './styles.css';
 import { buildTimeline } from './timeline.js';
 
 function mount(context: CompositionContext) {
   const documentNode = new DOMParser().parseFromString(compositionHtml, 'text/html');
-  const template = documentNode.querySelector<HTMLTemplateElement>('#motionly-template');
-  if (!template) throw new Error('Motionly template was not found.');
+  const template = documentNode.querySelector<HTMLTemplateElement>('#motify-template');
+  if (!template) throw new Error('Motify template was not found.');
   context.root.replaceChildren(template.content.cloneNode(true));
 }
 
 export default defineComposition({
   id: 'generated-composition',
   title: ${title},
-  description: 'Editorial Motionly composition starter',
+  description: 'Editorial Motify composition starter',
   width: ${settings.width},
   height: ${settings.height},
   fps: ${settings.fps},

@@ -1,7 +1,7 @@
 import {
     requireCandidate,
     requireGenerationIntent,
-    type MotionlyProject,
+    type MotifyProject,
     type ResolvedMotionGraphDependencies,
 } from '../dependencies.js';
 import type { MotionGraphState, MotionGraphUpdate } from '../state.js';
@@ -65,7 +65,7 @@ export function createSaveProjectNode(dependencies: ResolvedMotionGraphDependenc
     };
 }
 
-function saved(project: MotionlyProject, message: string, created: boolean): MotionGraphUpdate {
+function saved(project: MotifyProject, message: string, created: boolean): MotionGraphUpdate {
     return {
         savedRevision: project.revision,
         response: { type: 'generation', message, projectId: project.id, revision: project.revision, created },

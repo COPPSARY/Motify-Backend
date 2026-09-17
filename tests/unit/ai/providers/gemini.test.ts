@@ -15,13 +15,13 @@ describe('GeminiMotionModelProvider', () => {
         const provider = new GeminiMotionModelProvider({ apiKey: 'test-key', client: { models: { generateContent } } });
 
         await expect(provider.generate({
-            model: 'gemini-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
+            model: 'gemini-test', systemInstructions: 'Motify rules', prompt: 'Create it',
             limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({
             model: 'gemini-test', contents: 'Create it',
             config: expect.objectContaining({
-                systemInstruction: 'Motionly rules', responseMimeType: 'application/json',
+                systemInstruction: 'Motify rules', responseMimeType: 'application/json',
                 responseJsonSchema: expect.objectContaining({ type: 'object' }),
             }),
         }));
@@ -46,7 +46,7 @@ describe('GeminiMotionModelProvider', () => {
 
         await expect(provider.structured({
             model: 'gemini-test', systemInstructions: 'Classify requests.', prompt: 'Plan it.',
-            schemaName: 'motionly_intent', schema: intentSchema,
+            schemaName: 'motify_intent', schema: intentSchema,
             limits: { maxOutputTokens: 128 },
         })).resolves.toEqual({ intent: 'PLAN' });
         expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({

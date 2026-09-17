@@ -13,7 +13,7 @@ afterEach(async () => Promise.all(temporaryDirectories.splice(0).map((directory)
 
 describe('AssetService completion', () => {
   it('re-verifies stored size and checksum before changing an upload to READY', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'motionly-asset-complete-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'motify-asset-complete-'));
     temporaryDirectories.push(root);
     const storage = await LocalFilesystemObjectStorage.create(root);
     const bytes = Buffer.from('89504e470d0a1a0a', 'hex');
@@ -26,7 +26,7 @@ describe('AssetService completion', () => {
   });
 
   it('marks a fully verified safe asset READY', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'motionly-asset-ready-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'motify-asset-ready-'));
     temporaryDirectories.push(root);
     const storage = await LocalFilesystemObjectStorage.create(root);
     const bytes = Buffer.from('89504e470d0a1a0a', 'hex');
@@ -39,7 +39,7 @@ describe('AssetService completion', () => {
   });
 
   it('returns an already-ready asset when completion is retried', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'motionly-asset-retry-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'motify-asset-retry-'));
     temporaryDirectories.push(root);
     const storage = await LocalFilesystemObjectStorage.create(root);
     const repository = fakeRepository({ byteSize: 8, checksum: '0'.repeat(64), objectKey: 'missing/not-needed' }, 'READY');
@@ -50,7 +50,7 @@ describe('AssetService completion', () => {
   });
 
   it('does not complete an upload through a different workspace route', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'motionly-asset-workspace-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'motify-asset-workspace-'));
     temporaryDirectories.push(root);
     const storage = await LocalFilesystemObjectStorage.create(root);
     const repository = fakeRepository({ byteSize: 8, checksum: '0'.repeat(64), objectKey: 'missing/not-needed' });

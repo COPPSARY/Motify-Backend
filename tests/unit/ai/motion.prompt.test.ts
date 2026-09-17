@@ -14,14 +14,14 @@ describe('buildMotionSystemPrompt', () => {
             id: 'preset-reference',
             version: '3.0.0',
             reason: 'Required for generation',
-            content: '# The Motionly runtime API\n\n- `cameraPush(timeline, target, options?)`',
+            content: '# The Motify runtime API\n\n- `cameraPush(timeline, target, options?)`',
         },
     ];
 
     it('assembles the system prompt from routed skills in their supplied order', () => {
         const prompt = buildMotionSystemPrompt(skills);
 
-        expect(prompt).toContain('MOTIONLY SKILL BUNDLE VERSION: 3.0.0');
+        expect(prompt).toContain('MOTIFY SKILL BUNDLE VERSION: 3.0.0');
         expect(prompt.indexOf('SKILL: runtime-contract')).toBeLessThan(
             prompt.indexOf('SKILL: preset-reference'),
         );
@@ -30,13 +30,13 @@ describe('buildMotionSystemPrompt', () => {
     });
 
     it('rejects an empty routed skill bundle', () => {
-        expect(() => buildMotionSystemPrompt([])).toThrow('Motionly system prompt requires routed skills.');
+        expect(() => buildMotionSystemPrompt([])).toThrow('Motify system prompt requires routed skills.');
     });
 
     it('removes YAML frontmatter while preserving skill content', () => {
         const prompt = buildMotionSystemPrompt([{
             ...skills[0]!,
-            content: '---\nname: runtime-contract\ndescription: Use when generating Motionly compositions.\n---\n\nRuntime instructions',
+            content: '---\nname: runtime-contract\ndescription: Use when generating Motify compositions.\n---\n\nRuntime instructions',
         }]);
 
         expect(prompt).not.toContain('description: Use when');

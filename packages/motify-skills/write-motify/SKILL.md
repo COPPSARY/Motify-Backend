@@ -1,9 +1,9 @@
 ---
-name: write-motionly
-description: Create, edit, retime, review, and repair Motionly HTML/CSS and GSAP product films, SaaS ads, kinetic typography, physical transitions, UI cinematography, and deterministic preview/export compositions.
+name: write-motify
+description: Create, edit, retime, review, and repair Motify HTML/CSS and GSAP product films, SaaS ads, kinetic typography, physical transitions, UI cinematography, and deterministic preview/export compositions.
 ---
 
-# Write Motionly compositions
+# Write Motify compositions
 
 You are filming **what a product does to the world**, not what its interface looks like.
 
@@ -40,7 +40,7 @@ For a general SaaS ad, build a shot progression from the request: editorial hook
 - During a reading hold, let a meaningful secondary action or bounded camera movement continue. Tiny global drift cannot substitute for the scene's primary action. Shorten a beat whose work is already complete.
 - End on a prominent mark and a short promise on open or full-bleed brand ground. Do not put the ending inside a small rounded pill.
 
-Borrow the reference shot design while obeying Motionly's MORPH, MATCH-CUT and PARTICLE-REASSEMBLE boundary rules. Recreate any reference edit that would break continuity with a real shared carrier.
+Borrow the reference shot design while obeying Motify's MORPH, MATCH-CUT and PARTICLE-REASSEMBLE boundary rules. Recreate any reference edit that would break continuity with a real shared carrier.
 
 ## Step 1 — Write the transformation chain
 
@@ -628,7 +628,7 @@ Every `seams[].carrier` must be a `data-edit` id that exists in compositionHtml 
       "type": "array",
       "minItems": 1,
       "maxItems": 1,
-      "items": { "const": "write-motionly" }
+      "items": { "const": "write-motify" }
     },
     "scenes": {
       "type": "array",
@@ -740,7 +740,7 @@ Every `seams[].carrier` must be a `data-edit` id that exists in compositionHtml 
         "required": [
           "beat",
           "registryReference",
-          "motionlyPresets",
+          "motifyPresets",
           "sustainedMotion",
           "handoff"
         ],
@@ -750,7 +750,7 @@ Every `seams[].carrier` must be a `data-edit` id that exists in compositionHtml 
             "type": "string",
             "description": "Actual reused registry name, or none with a brief reason."
           },
-          "motionlyPresets": {
+          "motifyPresets": {
             "type": "array",
             "items": { "type": "string", "minLength": 1 }
           },

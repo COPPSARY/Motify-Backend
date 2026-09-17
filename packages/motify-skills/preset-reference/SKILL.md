@@ -1,9 +1,9 @@
 ---
 name: preset-reference
-description: Use when authoring Motionly GSAP timelines with the runtime EASE vocabulary or callable motion presets.
+description: Use when authoring Motify GSAP timelines with the runtime EASE vocabulary or callable motion presets.
 ---
 
-# The Motionly runtime API
+# The Motify runtime API
 
 Every name below is already destructured into the scope of your `buildTimeline(context)` — alongside `gsap` — by the compiler. Call these directly. Do not import them, do not redeclare them, and do not re-implement one by hand as a chain of raw tweens: the tuned version is the house style, and the quality pass scores a film on whether it used them.
 

@@ -24,7 +24,7 @@ function dependencies() {
 }
 
 function authenticated(test: request.Test) {
-  return test.set('Cookie', ['motionly_session=session']).set('X-CSRF-Token', 'csrf-token');
+  return test.set('Cookie', ['motify_session=session']).set('X-CSRF-Token', 'csrf-token');
 }
 
 describe('Asset API', () => {
@@ -53,7 +53,7 @@ describe('Asset API', () => {
       fileName: 'file.exe', contentType: 'application/x-msdownload', byteSize: 1, checksum: 'bad',
     });
     const noCsrf = await request(app).post(`/v1/workspaces/${workspaceId}/assets/uploads`)
-      .set('Cookie', ['motionly_session=session']).send({ fileName: 'x.png', contentType: 'image/png', byteSize: 1, checksum: 'a'.repeat(64) });
+      .set('Cookie', ['motify_session=session']).send({ fileName: 'x.png', contentType: 'image/png', byteSize: 1, checksum: 'a'.repeat(64) });
     expect(invalid.status).toBe(400);
     expect(noCsrf.status).toBe(403);
   });

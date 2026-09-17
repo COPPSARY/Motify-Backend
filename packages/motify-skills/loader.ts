@@ -37,7 +37,7 @@ export function computeSkillHash(content: string): string {
 }
 
 export async function loadSkillBundle(version = 'v1', root = packageRoot) {
-    if (version !== 'v1') throw new Error('Unsupported Motionly skill bundle version.');
+    if (version !== 'v1') throw new Error('Unsupported Motify skill bundle version.');
 
     const skillRoot = path.resolve(root);
     const manifest = manifestSchema.parse(JSON.parse(
@@ -53,25 +53,25 @@ export async function loadSkillBundle(version = 'v1', root = packageRoot) {
         .sort();
     const declaredFiles = manifest.skills.map((entry) => entry.file).sort();
     if (JSON.stringify(diskFiles) !== JSON.stringify(declaredFiles)) {
-        throw new Error('Motionly skill files do not match the manifest.');
+        throw new Error('Motify skill files do not match the manifest.');
     }
 
     for (const entry of manifest.skills) {
-        if (ids.has(entry.id)) throw new Error(`Duplicate Motionly skill id: ${entry.id}`);
-        if (files.has(entry.file)) throw new Error(`Duplicate Motionly skill file: ${entry.file}`);
+        if (ids.has(entry.id)) throw new Error(`Duplicate Motify skill id: ${entry.id}`);
+        if (files.has(entry.file)) throw new Error(`Duplicate Motify skill file: ${entry.file}`);
         ids.add(entry.id);
         files.add(entry.file);
 
         const skillFile = path.resolve(skillRoot, entry.file);
         const relativePath = path.relative(skillRoot, skillFile);
         if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-            throw new Error('Invalid Motionly skill path.');
+            throw new Error('Invalid Motify skill path.');
         }
 
         const content = normalizeSkillContent(await readFile(skillFile, 'utf8'));
         const actualHash = computeSkillHash(content);
         if (actualHash !== entry.sha256) {
-            throw new Error(`Motionly skill hash mismatch: ${entry.file}`);
+            throw new Error(`Motify skill hash mismatch: ${entry.file}`);
         }
         skills.push({ id: entry.id, content });
     }

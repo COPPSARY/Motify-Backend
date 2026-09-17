@@ -19,18 +19,18 @@ describe('SpCambodiaMotionModelProvider', () => {
 
         await expect(provider.generate({
             model: 'claude-opus-5',
-            systemInstructions: 'Motionly rules',
+            systemInstructions: 'Motify rules',
             prompt: 'Create it',
             limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             model: 'claude-opus-5',
-            instructions: 'Motionly rules',
+            instructions: 'Motify rules',
             input: 'Create it',
             text: {
                 format: expect.objectContaining({
                     type: 'json_schema',
-                    name: 'motionly_generation',
+                    name: 'motify_generation',
                     strict: true,
                 }),
             },
@@ -63,7 +63,7 @@ describe('SpCambodiaMotionModelProvider', () => {
             model: 'claude-opus-5',
             systemInstructions: 'Classify.',
             prompt: 'Hello',
-            schemaName: 'motionly_intent',
+            schemaName: 'motify_intent',
             schema: intentSchema,
             limits: { maxOutputTokens: 128 },
         })).resolves.toEqual({ intent: 'CHAT' });

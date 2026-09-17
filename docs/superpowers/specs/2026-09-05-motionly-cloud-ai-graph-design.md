@@ -1,8 +1,8 @@
-# Motionly Cloud AI Graph Design
+# Motify Cloud AI Graph Design
 
 ## Scope
 
-Build the V1 Motionly Cloud AI workflow in this backend. Express runs the graph during the request. The frontend remains the only renderer. Do not add queues, workers, generated assets, rendering, or immutable project versions.
+Build the V1 Motify Cloud AI workflow in this backend. Express runs the graph during the request. The frontend remains the only renderer. Do not add queues, workers, generated assets, rendering, or immutable project versions.
 
 This specification resolves one change from `docs/cloud-ai-implementation.md`: V1 uses one project message route, including runtime repair.
 
@@ -95,22 +95,22 @@ State contains the authenticated user and workspace IDs, optional project ID, in
 The graph remains provider-neutral. Gemini, OpenAI, and Anthropic adapters expose:
 
 - schema-constrained intent output;
-- schema-constrained `MotionlyGeneration` output;
+- schema-constrained `MotifyGeneration` output;
 - plain text chat/plan output.
 
 The provider factory selects the configured official provider and validates that its API key exists. Model calls receive request cancellation and configured token limits.
 
 The graph sends only the message, a bounded recent message history, a short project summary, current project fields, and selected skill content. It never sends secrets, sessions, database credentials, or all skills.
 
-The existing Motionly skill loader remains the source of skill content. `core` is always selected; routing is extended for `CREATE`, `EDIT`, and `FIX`.
+The existing Motify skill loader remains the source of skill content. `core` is always selected; routing is extended for `CREATE`, `EDIT`, and `FIX`.
 
 ## Candidate Validation and Repair
 
-`MotionlyGeneration` requires title, positive duration/dimensions/fps, scenes, `compositionHtml`, `timelineJs`, and reply. The validator then performs:
+`MotifyGeneration` requires title, positive duration/dimensions/fps, scenes, `compositionHtml`, `timelineJs`, and reply. The validator then performs:
 
 1. HTML parsing with a required `<template>`, embedded styles, unique `data-edit` IDs, and no external/dynamic scripts.
 2. JavaScript parsing with a required `buildTimeline` export and no imports or unsupported dependencies.
-3. Motionly safety checks rejecting `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, cookies, browser storage, `window.open`, and dynamic script injection.
+3. Motify safety checks rejecting `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, cookies, browser storage, `window.open`, and dynamic script injection.
 
 Validation does not execute generated JavaScript. A failed candidate is passed with its diagnostics to the repair prompt. At most two repairs are attempted. A final validation failure writes a failed direct-run diagnostic and returns a safe validation error; it never overwrites the project.
 

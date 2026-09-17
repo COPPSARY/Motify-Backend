@@ -2,7 +2,7 @@ import { transformSync } from 'esbuild';
 import { parse } from 'acorn';
 import { parseFragment, type DefaultTreeAdapterMap } from 'parse5';
 
-import type { MotionlyGeneration } from '../providers/model.provider.js';
+import type { MotifyGeneration } from '../providers/model.provider.js';
 
 export interface ValidationError {
     code: string;
@@ -21,7 +21,7 @@ type HtmlTemplate = DefaultTreeAdapterMap['template'];
 
 const forbiddenApiPattern = /\b(fetch|XMLHttpRequest|WebSocket|EventSource|localStorage|sessionStorage)\b|document\s*\.\s*cookie|window\s*\.\s*open|createElement\s*\(\s*['"]script['"]\s*\)/;
 
-export function validateMotionlyGeneration(generation: MotionlyGeneration): ValidationReport {
+export function validateMotifyGeneration(generation: MotifyGeneration): ValidationReport {
     const errors: ValidationError[] = [];
     validateHtml(generation.compositionHtml, errors);
     validateTimeline(generation.timelineJs, errors);

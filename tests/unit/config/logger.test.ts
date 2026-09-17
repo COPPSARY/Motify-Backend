@@ -7,7 +7,7 @@ describe('logger configuration', () => {
     const logger = createLogger({ nodeEnv: 'production' });
 
     expect(logger.level).toBe('info');
-    expect(logger.bindings().service).toBe('motionly-api');
+    expect(logger.bindings().service).toBe('motify-api');
   });
 
   it('allows an explicit log level', () => {

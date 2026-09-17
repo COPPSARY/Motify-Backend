@@ -1,39 +1,39 @@
 {
   "version": "3.0.0",
   "runtimeRange": ">=2.0.0 <3.0.0",
-  "source": "Motionly frontend generation skills",
+  "source": "Motify frontend generation skills",
   "sourceVersion": "3.0.0",
   "hashAlgorithm": "sha256",
   "skills": [
     {
       "id": "runtime-contract",
       "file": "runtime-contract/SKILL.md",
-      "sha256": "c7fe89c3ce127b15de4e9ca18f94da914d6c30f23ca81cd7efc8f75211ecb219"
+      "sha256": "526e6f96b6b7fbe557d42aa05d38df952774b9d9ac424be6340278e01b40b682"
     },
     {
-      "id": "write-motionly",
-      "file": "write-motionly/SKILL.md",
-      "sha256": "1681276c2423093c73fa2336f71e3505b6d6df0e190c385541d19a19869e99b9"
+      "id": "write-motify",
+      "file": "write-motify/SKILL.md",
+      "sha256": "fc1a13ba147b87b52ee3d76ebe3e7b1784dd4b13ff46e0a013419043ba156a2c"
     },
     {
       "id": "scene-design",
       "file": "scene-design/SKILL.md",
-      "sha256": "95e45d8601747a0c678a684abe894397e20ca366782fae1c7f5639cccbdc6d6a"
+      "sha256": "41e1ab77be5c8c22956e532ac32c4c74b6f5dbd8976ea2fc87a4d1596d1df57e"
     },
     {
       "id": "scene-components",
       "file": "scene-components/SKILL.md",
-      "sha256": "f7447ca5e1c439c3ac24edf94da864f57f813e4e6a9b245a426a7788b521decd"
+      "sha256": "200621f27d42b3cc37ae70b02fa44b5ce8ef5bf2855a4970d3cefdb74f899bf4"
     },
     {
       "id": "preset-reference",
       "file": "preset-reference/SKILL.md",
-      "sha256": "d00fd24603e237e936fc18594ffe43ba6c0269d76952c0900afe25b69460edca"
+      "sha256": "a8523036d915bc8b0a34f7b6631838f0b678015282b306293bad6e0340e7a853"
     },
     {
       "id": "house-style",
       "file": "house-style/SKILL.md",
-      "sha256": "e9b903f98bfa709359b88eed31367b0846190c5cf8dc97cd55f80952326a0ea3"
+      "sha256": "c957b48bc141dc0b4e2e7f967dafaa1ce107b77bb6372c9a51c60833726b98b7"
     },
     {
       "id": "editorial-brutalist",

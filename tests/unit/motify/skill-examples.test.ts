@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { loadSkillBundle } from '../../../packages/motionly-skills/loader.js';
-import { validateMotionlyGeneration } from '../../../packages/ai/validation/generation-validator.js';
+import { loadSkillBundle } from '../../../packages/motify-skills/loader.js';
+import { validateMotifyGeneration } from '../../../packages/ai/validation/generation-validator.js';
 
 function extractCodeBlocks(markdown: string): { html: string | undefined; js: string | undefined } {
     const htmlMatch = markdown.match(/```html\s*\n([\s\S]*?)\n```/);
@@ -11,7 +11,7 @@ function extractCodeBlocks(markdown: string): { html: string | undefined; js: st
     };
 }
 
-describe('Motionly Skill Code Examples', () => {
+describe('Motify Skill Code Examples', () => {
     it('validates the canonical HTML and JS scene-kit example', async () => {
         const bundle = await loadSkillBundle();
         const skill = bundle.skills.find((candidate) => candidate.id === 'scene-components');
@@ -21,7 +21,7 @@ describe('Motionly Skill Code Examples', () => {
         expect(html).toBeDefined();
         expect(js).toBeDefined();
 
-        const result = validateMotionlyGeneration({
+        const result = validateMotifyGeneration({
             title: 'Testing scene-components',
             duration: 5,
             width: 1920,

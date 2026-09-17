@@ -1,11 +1,11 @@
 ---
 name: house-style
-description: Use when choosing Motionly motion durations, stagger values, easing curves, and preset usage that should match the measured house style.
+description: Use when choosing Motify motion durations, stagger values, easing curves, and preset usage that should match the measured house style.
 ---
 
 # Measured house style
 
-These are measurements taken from the finished Motionly films authored by hand for this product — KiriTTS, recoup, relay, tessera. They are the standard a generation is held to.
+These are measurements taken from the finished Motify films authored by hand for this product — KiriTTS, recoup, relay, tessera. They are the standard a generation is held to.
 
 The films are not shown to you and must not be reconstructed: their layouts, product chrome, copy and stories belong to them. What follows is how they *move*, which is what you are expected to match.
 
