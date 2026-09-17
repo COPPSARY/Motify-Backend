@@ -7,9 +7,9 @@ import type {
 import { z } from 'zod';
 
 import {
-    motionlyGenerationJsonSchema,
+    motifyGenerationJsonSchema,
     normalizeProviderError,
-    parseMotionlyGeneration,
+    parseMotifyGeneration,
     parseStructured,
     requireModelText,
     requestSignalOptions,
@@ -64,14 +64,14 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
                 response_format: {
                     type: 'json_schema',
                     json_schema: {
-                        name: 'motionly_generation',
+                        name: 'motify_generation',
                         strict: true,
-                        schema: motionlyGenerationJsonSchema,
+                        schema: motifyGenerationJsonSchema,
                     },
                 },
             }, ...requestSignalOptions(request.signal));
             return {
-                generation: parseMotionlyGeneration(extractText(response)),
+                generation: parseMotifyGeneration(extractText(response)),
                 usage: tokenUsage(response.usage?.prompt_tokens, response.usage?.completion_tokens),
             };
         } catch (error) {

@@ -1,8 +1,8 @@
-# Motionly Backend
+# Motify Backend
 
-The backend service for [Motionly](../motionly), a code-first motion graphics editor built around TypeScript compositions, HTML/SVG, GSAP timelines, and direct browser preview.
+The backend service for [Motify](../motionly), a code-first motion graphics editor built around TypeScript compositions, HTML/SVG, GSAP timelines, and direct browser preview.
 
-This repository will provide the optional server-side capabilities required for hosted and self-hosted Motionly installations: authentication, workspaces, project persistence, rolling source snapshots, asset storage, render jobs, and collaboration infrastructure.
+This repository will provide the optional server-side capabilities required for hosted and self-hosted Motify installations: authentication, workspaces, project persistence, rolling source snapshots, asset storage, render jobs, and collaboration infrastructure.
 
 > [!IMPORTANT]
 > The authored `composition.html`, `styles.css`, `timeline.js`, and `index.ts` files remain the only project source. The backend must not introduce a JSON animation document, a second project representation, an interpreter, or a separate rendering model. The TypeScript adapter must continue to provide `CompositionDefinition.build()` to preview and rendering.
@@ -11,11 +11,11 @@ This repository will provide the optional server-side capabilities required for 
 
 V1 Area 1, Authentication, has its core implementation in place. Real PostgreSQL/Supabase integration coverage and broader authentication lifecycle tests remain follow-up validation work.
 
-V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, one rolling four-file source snapshot per project, no-op save detection, optimistic concurrency, soft deletion, the database migration, and Motionly frontend Open/Save integration.
+V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, one rolling four-file source snapshot per project, no-op save detection, optimistic concurrency, soft deletion, the database migration, and Motify frontend Open/Save integration.
 
 ## Goals
 
-- Keep Motionly usable as a local, frontend-only open-source editor.
+- Keep Motify usable as a local, frontend-only open-source editor.
 - Add an optional backend for accounts, teams, saved projects, assets, and rendering.
 - Make the backend straightforward to self-host.
 - Keep infrastructure provider-independent through small adapters.
@@ -25,7 +25,7 @@ V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, on
 
 ## Non-goals
 
-- Replacing the existing Motionly composition runtime.
+- Replacing the existing Motify composition runtime.
 - Defining a JSON-based animation or project DSL.
 - Executing user-authored TypeScript inside the API process.
 - Storing large binary media directly in PostgreSQL.
@@ -37,7 +37,7 @@ V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, on
 | Concern | Default implementation | Portability boundary |
 | --- | --- | --- |
 | Runtime | Node.js 22.12 or newer | Standard Node.js deployment |
-| Language | TypeScript | Shared types with the Motionly ecosystem |
+| Language | TypeScript | Shared types with the Motify ecosystem |
 | HTTP API | Express.js | OpenAPI is the client contract |
 | Validation | Zod | Request and response schemas remain framework-neutral |
 | Database | Supabase PostgreSQL | Standard PostgreSQL accessed through Drizzle |
@@ -49,16 +49,16 @@ V1 Area 2, Projects, is implemented end to end: workspace-owned project CRUD, on
 | API documentation | OpenAPI | Used to generate or verify frontend contracts |
 | Testing | Vitest plus integration tests | Testcontainers or Docker Compose for infrastructure tests |
 
-Motionly uses one Supabase project for PostgreSQL and authentication. The API connects directly to the project's PostgreSQL endpoint through Drizzle and calls Supabase Auth through its HTTPS API.
+Motify uses one Supabase project for PostgreSQL and authentication. The API connects directly to the project's PostgreSQL endpoint through Drizzle and calls Supabase Auth through its HTTPS API.
 
 ## System architecture
 
 ```text
-Motionly web editor
+Motify web editor
         |
         | HTTPS / JSON
         v
-Motionly API
+Motify API
   |     |       |
   |     |       +--------> S3-compatible object storage
   |     |                    assets and render artifacts
@@ -88,7 +88,7 @@ Only the renderer is separated from the API initially. Additional microservices 
 The current backend source lives in the repository-root `src/` directory. The following diagram is retained as an earlier architecture proposal.
 
 ```text
-motionly_backend/
+motify_backend/
 ├─ apps/
 │  ├─ api/
 │  │  └─ src/
@@ -135,7 +135,7 @@ motionly_backend/
 
 ## Source-of-truth boundary
 
-A Motionly project is TypeScript source implementing `CompositionDefinition`. The backend stores the latest saved four-file snapshot as text and atomically replaces it on a changed save.
+A Motify project is TypeScript source implementing `CompositionDefinition`. The backend stores the latest saved four-file snapshot as text and atomically replaces it on a changed save.
 
 The visual editor may keep temporary overrides in browser memory while a user is interacting, but a saved edit must become a TypeScript source change. Persisting visual overrides as an independent animation document would create two competing sources of truth and is not permitted.
 
@@ -335,21 +335,21 @@ Render submission returns `202 Accepted`. Clients poll job state initially; serv
 
 ## Frontend integration
 
-The Motionly frontend remains independently runnable. Server features are enabled only when an API URL is configured.
+The Motify frontend remains independently runnable. Server features are enabled only when an API URL is configured.
 
 ```env
-VITE_MOTIONLY_API_URL=http://localhost:3000
+VITE_MOTIFY_API_URL=http://localhost:3000
 ```
 
 Expected behavior:
 
-- Without an API URL, Motionly continues to run as a local editor with browser downloads.
+- Without an API URL, Motify continues to run as a local editor with browser downloads.
 - With an API URL, Open and Save operate on each project's latest persisted snapshot.
 - Asset import uses the backend's signed-upload workflow.
 - Export can submit remote render jobs while retaining local PNG frame export.
 - The frontend never receives database credentials, storage service credentials, or authentication service secrets.
 
-Shared contracts should be published as a small versioned package such as `@motionly/contracts`, or generated from the backend OpenAPI document. The backend must not import frontend UI code.
+Shared contracts should be published as a small versioned package such as `@motify/contracts`, or generated from the backend OpenAPI document. The backend must not import frontend UI code.
 
 ## Security model
 
@@ -392,7 +392,7 @@ RENDER_MAX_ATTEMPTS=3
 
 Environment variables must be parsed and validated once at process startup. Invalid or missing production configuration should stop the process with a clear error.
 
-## Motionly Cloud Backend V1 implementation plan
+## Motify Cloud Backend V1 implementation plan
 
 The seven areas below are the shared V1 delivery plan and should be implemented in this order. Infrastructure work may be introduced earlier when another area depends on it, but Area 7 is not complete until every listed production capability is operational and documented.
 
@@ -423,7 +423,7 @@ The seven areas below are the shared V1 delivery plan and should be implemented 
 - Add revision-aware saving and optimistic concurrency checks.
 - Skip unchanged source saves using a deterministic hash.
 - Atomically replace the previous snapshot after a changed save.
-- Connect Motionly Open and Save actions to the API.
+- Connect Motify Open and Save actions to the API.
 
 **Exit condition:** an authorized user can create, open, edit, save, reload, and delete a project without accessing projects owned by another workspace, introducing a second source representation, or accumulating save history.
 
@@ -444,10 +444,10 @@ The seven areas below are the shared V1 delivery plan and should be implemented 
 
 ### 4. AI
 
-**Scope:** AI generation, Motionly skills, project context, code generation and validation, refinement, and conversation history.
+**Scope:** AI generation, Motify skills, project context, code generation and validation, refinement, and conversation history.
 
 - Define a provider-independent AI service interface.
-- Load the approved Motionly skills needed for generation.
+- Load the approved Motify skills needed for generation.
 - Build bounded project context from source, metadata, and conversation state.
 - Generate TypeScript composition code without introducing another project format.
 - Validate generated code before it can be saved or rendered.
@@ -455,14 +455,14 @@ The seven areas below are the shared V1 delivery plan and should be implemented 
 - Persist conversation history with project and workspace authorization.
 - Add usage limits, timeouts, safe error handling, and secret redaction.
 
-**Exit condition:** an authorized user can generate, validate, refine, and save a Motionly TypeScript composition using project-aware conversation history.
+**Exit condition:** an authorized user can generate, validate, refine, and save a Motify TypeScript composition using project-aware conversation history.
 
 ### 5. Rendering
 
 **Scope:** secure sandboxing, HTML/SVG and GSAP execution, a headless browser, FFmpeg, video rendering, and thumbnail generation.
 
 - Run rendering outside the API process in an isolated, disposable sandbox.
-- Compile and execute the pinned TypeScript composition with the Motionly runtime.
+- Compile and execute the pinned TypeScript composition with the Motify runtime.
 - Render HTML/SVG and GSAP timelines deterministically in a headless browser.
 - Restrict CPU, memory, processes, filesystem access, network access, and execution time.
 - Capture deterministic frames before adding encoded output formats.
@@ -517,7 +517,7 @@ The repository should use multiple levels of verification:
 - Queue contract tests covering retries, duplicate delivery, cancellation, and stale jobs.
 - Renderer fixtures for deterministic frames and expected failures.
 - Security tests proving cross-workspace access is denied.
-- End-to-end tests connecting a Motionly frontend build to the backend.
+- End-to-end tests connecting a Motify frontend build to the backend.
 
 Every migration must be tested both from an empty database and from the previous released schema.
 
@@ -581,7 +581,7 @@ Development may use sibling repositories:
 ```text
 Desktop/
 ├─ motionly/
-└─ motionly_backend/
+└─ motionly-backend/
 ```
 
 Neither repository should reach into the other repository's source files at runtime. Local integration happens over HTTP. Shared types are exchanged through a published package or generated OpenAPI client so each repository can be cloned, tested, versioned, and deployed independently.

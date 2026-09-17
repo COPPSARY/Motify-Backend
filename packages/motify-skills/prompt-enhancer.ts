@@ -11,7 +11,7 @@ export function needsEnhancement(prompt: string): boolean {
   return words.length < MIN_PROMPT_WORDS;
 }
 
-export function enhanceMotionlyPrompt(prompt: string, intent: 'CREATE' | 'EDIT'): string {
+export function enhanceMotifyPrompt(prompt: string, intent: 'CREATE' | 'EDIT'): string {
   const request = prompt.trim();
   const brief = intent === 'CREATE'
     ? [
@@ -31,7 +31,7 @@ export function enhanceMotionlyPrompt(prompt: string, intent: 'CREATE' | 'EDIT')
   return [
     `Original user request:\n${request}`,
     '',
-    'Motionly production brief:',
+    'Motify production brief:',
     ...brief.map((line) => `- ${line}`),
   ].join('\n');
 }

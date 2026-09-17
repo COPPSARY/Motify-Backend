@@ -8,7 +8,7 @@ interface LoggerOptions {
 export function createLogger({ nodeEnv, logLevel }: LoggerOptions): Logger {
   const options = {
     level: logLevel ?? (nodeEnv === 'production' ? 'info' : 'debug'),
-    base: { service: 'motionly-api' },
+    base: { service: 'motify-api' },
     redact: {
       paths: [
         'req',

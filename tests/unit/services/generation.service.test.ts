@@ -24,7 +24,7 @@ function createService(options: HarnessOptions = {}) {
     const graph = {
         invoke: vi.fn(async (_input: MotionGraphInput) => {
             if (options.error) throw options.error;
-            return { response: options.response ?? ({ type: 'chat', message: 'Motionly is ready.' } as MotionGraphResponse) };
+            return { response: options.response ?? ({ type: 'chat', message: 'Motify is ready.' } as MotionGraphResponse) };
         }),
     };
     return { service: new GenerationService(graph, projects), graph, projects };

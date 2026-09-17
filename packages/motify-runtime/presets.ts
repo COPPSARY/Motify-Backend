@@ -124,20 +124,20 @@ export function morph(
 }
 
 export function splitText(element: HTMLElement, unit: 'words' | 'chars'): HTMLElement[] {
-  if (element.dataset.motionlySplitUnit === unit) return Array.from(element.querySelectorAll('.motionly-split-item'));
+  if (element.dataset.motifySplitUnit === unit) return Array.from(element.querySelectorAll('.motify-split-item'));
   const children = Array.from(element.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   if (children.length) {
     const pieces = children.flatMap((child) => splitText(child, unit));
-    element.dataset.motionlySplitUnit = unit;
+    element.dataset.motifySplitUnit = unit;
     return pieces;
   }
   const pieces = unit === 'words' ? (element.textContent ?? '').split(/(\s+)/) : Array.from(element.textContent ?? '');
-  element.dataset.motionlySplitUnit = unit;
+  element.dataset.motifySplitUnit = unit;
   element.replaceChildren();
   return pieces.map((piece) => {
     const span = document.createElement('span');
     span.textContent = piece;
-    span.className = 'motionly-split-item';
+    span.className = 'motify-split-item';
     span.style.display = piece.trim() ? 'inline-block' : 'inline';
     element.append(span);
     return span;

@@ -4,16 +4,16 @@ import type {
     CreateGraphProjectInput,
     GraphProjectRepository,
     MotionGraphInput,
-    MotionlyProject,
+    MotifyProject,
     OverwriteGraphProjectInput,
 } from '../../../../packages/ai/graph/dependencies.js';
 import { createMotionGraph } from '../../../../packages/ai/graph/motion.graph.js';
 import { FakeMotionModelProvider } from '../../../../packages/ai/providers/fake.provider.js';
-import type { MotionlyGeneration, MotionModelRequest, StructuredModelRequest } from '../../../../packages/ai/providers/model.provider.js';
+import type { MotifyGeneration, MotionModelRequest, StructuredModelRequest } from '../../../../packages/ai/providers/model.provider.js';
 import type { Intent } from '../../../../packages/ai/schemas/intent.schema.js';
-import { loadSkillBundle } from '../../../../packages/motionly-skills/loader.js';
+import { loadSkillBundle } from '../../../../packages/motify-skills/loader.js';
 
-const currentProject: MotionlyProject = {
+const currentProject: MotifyProject = {
     id: 'proj_1',
     workspaceId: 'ws_1',
     title: 'Launch',
@@ -27,7 +27,7 @@ const currentProject: MotionlyProject = {
     revision: 7,
 };
 
-const validCandidate: MotionlyGeneration = {
+const validCandidate: MotifyGeneration = {
     title: 'Launch',
     duration: 8,
     width: 1920,
@@ -39,12 +39,12 @@ const validCandidate: MotionlyGeneration = {
     reply: 'Made the headline larger.',
 };
 
-const invalidCandidate: MotionlyGeneration = {
+const invalidCandidate: MotifyGeneration = {
     ...validCandidate,
     timelineJs: 'export function buildTimeline() { fetch("https://example.test"); }',
 };
 
-function applyGeneration(base: MotionlyProject, generation: MotionlyGeneration, revision: number): MotionlyProject {
+function applyGeneration(base: MotifyProject, generation: MotifyGeneration, revision: number): MotifyProject {
     return {
         ...base,
         title: generation.title,
@@ -62,8 +62,8 @@ function applyGeneration(base: MotionlyProject, generation: MotionlyGeneration, 
 interface HarnessOptions {
     intent?: Intent;
     chat?: string;
-    candidates?: MotionlyGeneration[];
-    project?: MotionlyProject | null;
+    candidates?: MotifyGeneration[];
+    project?: MotifyProject | null;
     role?: 'owner' | 'editor' | 'viewer';
     history?: { role: 'user' | 'assistant'; content: string }[];
     canCreate?: boolean;
@@ -77,10 +77,10 @@ function createHarness(options: HarnessOptions = {}) {
     let candidateIndex = 0;
 
     const provider = new FakeMotionModelProvider({
-        structured: (request: StructuredModelRequest<unknown>) => request.schemaName === 'motionly_skill_selection'
+        structured: (request: StructuredModelRequest<unknown>) => request.schemaName === 'motify_skill_selection'
             ? { skillIds: options.selectedSkillIds ?? ['technical-data'] }
             : { intent: options.intent ?? 'EDIT' },
-        chat: options.chat ?? 'Motionly is ready.',
+        chat: options.chat ?? 'Motify is ready.',
         generation: (request: MotionModelRequest) => {
             generateRequests.push(request);
             const candidate = candidates[Math.min(candidateIndex, candidates.length - 1)];
@@ -205,7 +205,7 @@ describe('createMotionGraph', () => {
     it('records accumulated provider token usage with a completed generation run', async () => {
         const harness = createHarness({
             intent: 'EDIT',
-            candidates: [{ generation: validCandidate, usage: { inputTokens: 1_200, outputTokens: 340 } } as unknown as MotionlyGeneration],
+            candidates: [{ generation: validCandidate, usage: { inputTokens: 1_200, outputTokens: 340 } } as unknown as MotifyGeneration],
         });
 
         await harness.graph.invoke(input('Make the headline larger.'));
@@ -239,7 +239,7 @@ describe('createMotionGraph', () => {
         const bundle = await loadSkillBundle();
         const expected = bundle.skills.filter((skill) => [
             'runtime-contract',
-            'write-motionly',
+            'write-motify',
             'scene-components',
             'technical-data',
         ].includes(skill.id));
@@ -268,13 +268,13 @@ describe('createMotionGraph', () => {
         expect(harness.generateRequests[0]?.prompt).toContain('Make the title typography larger and retime the timeline duration.');
     });
 
-    it('wraps a terse generation request in the Motionly production brief', async () => {
+    it('wraps a terse generation request in the Motify production brief', async () => {
         const harness = createHarness({ intent: 'CREATE' });
 
         await harness.graph.invoke(input('make a launch video'));
 
         const prompt = harness.generateRequests[0]?.prompt ?? '';
-        expect(prompt).toContain('Motionly production brief:');
+        expect(prompt).toContain('Motify production brief:');
         expect(prompt).toContain('Original user request:\nmake a launch video');
         expect(prompt).toContain('3-6 connected beats');
     });
@@ -287,7 +287,7 @@ describe('createMotionGraph', () => {
 
         const prompt = harness.generateRequests[0]?.prompt ?? '';
         expect(prompt).toContain(detailed);
-        expect(prompt).not.toContain('Motionly production brief:');
+        expect(prompt).not.toContain('Motify production brief:');
     });
 
     it('routes a reported runtime error to FIX without asking the model to classify it', async () => {
@@ -300,7 +300,7 @@ describe('createMotionGraph', () => {
 
         expect(harness.structured).toHaveBeenCalledTimes(1);
         expect(harness.structured).toHaveBeenCalledWith(expect.objectContaining({
-            schemaName: 'motionly_skill_selection',
+            schemaName: 'motify_skill_selection',
         }));
         expect(result.intent).toBe('FIX');
         expect(harness.generateRequests[0]?.prompt).toContain('Cannot read properties of null');

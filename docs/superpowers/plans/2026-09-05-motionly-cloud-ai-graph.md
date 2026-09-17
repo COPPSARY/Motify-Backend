@@ -1,14 +1,14 @@
-# Motionly Cloud AI Graph Implementation Plan
+# Motify Cloud AI Graph Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the legacy four-file and queue-based generation backend with a direct LangGraph workflow that safely chats, plans, edits, and repairs an existing Motionly project through one project `/messages` API.
+**Goal:** Replace the legacy four-file and queue-based generation backend with a direct LangGraph workflow that safely chats, plans, edits, and repairs an existing Motify project through one project `/messages` API.
 
 **Architecture:** Express authenticates and invokes a dependency-injected LangGraph `StateGraph` synchronously. The graph classifies intent, uses bounded project/message context and selected skills, validates or repairs a structured candidate, then atomically overwrites the current two-field project revision. PostgreSQL stores the current project, recent messages, and direct-run diagnostics; it never stores queued jobs for this workflow.
 
 **Tech Stack:** TypeScript, Express 5, Drizzle ORM/PostgreSQL, Zod 4, LangGraph/ LangChain Core, Gemini/OpenAI/Anthropic SDKs, parse5, Acorn, esbuild, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-09-05-motionly-cloud-ai-graph-design.md`
+**Spec:** `docs/superpowers/specs/2026-09-05-motify-cloud-ai-graph-design.md`
 
 ## Global Constraints
 
@@ -31,14 +31,14 @@
 - Create: `tests/unit/ai/validation/generation-validator.test.ts`
 
 **Interfaces:**
-- Produces `validateMotionlyGeneration(generation: MotionlyGeneration): ValidationReport` in Task 2.
+- Produces `validateMotifyGeneration(generation: MotifyGeneration): ValidationReport` in Task 2.
 - Adds `@langchain/langgraph`, `@langchain/core`, `parse5`, and `acorn` as runtime dependencies.
 
 - [x] **Step 1: Write the failing validator contract test**
 
 ```ts
 it('rejects network APIs and duplicated data-edit identifiers', () => {
-  const report = validateMotionlyGeneration({
+  const report = validateMotifyGeneration({
     ...validGeneration,
     compositionHtml: '<template><main data-edit="title"></main><p data-edit="title"></p></template>',
     timelineJs: 'export function buildTimeline() { fetch("https://example.test"); }',
@@ -84,17 +84,17 @@ Expected: still FAIL because implementation is not present; dependency installat
 **Interfaces:**
 - Produces `Intent = 'CHAT' | 'PLAN' | 'CREATE' | 'EDIT' | 'FIX'` and `intentSchema`.
 - Produces `StructuredModelRequest<T>` and `MotionModelProvider.structured<T>(request)`.
-- Produces `ValidationError`, `ValidationReport`, and `validateMotionlyGeneration`.
-- Consumes `MotionlyGeneration` from `model.provider.ts`.
+- Produces `ValidationError`, `ValidationReport`, and `validateMotifyGeneration`.
+- Consumes `MotifyGeneration` from `model.provider.ts`.
 
 - [ ] **Step 1: Add failing provider tests for schema-constrained intent output**
 
 ```ts
 await expect(provider.structured({
   model: 'test-model',
-  systemInstructions: 'Classify the Motionly request.',
+  systemInstructions: 'Classify the Motify request.',
   prompt: 'Please plan a product reveal without changing it.',
-  schemaName: 'motionly_intent',
+  schemaName: 'motify_intent',
   schema: intentSchema,
   limits: { maxOutputTokens: 128, timeoutMs: 5_000 },
 })).resolves.toEqual({ intent: 'PLAN' });
@@ -124,7 +124,7 @@ export interface StructuredModelRequest<T> {
 export interface MotionModelProvider {
   readonly name: ModelProviderName;
   structured<T>(request: StructuredModelRequest<T>): Promise<T>;
-  generate(request: MotionModelRequest): Promise<MotionlyGeneration>;
+  generate(request: MotionModelRequest): Promise<MotifyGeneration>;
   chat(request: ChatRequest): Promise<string>;
 }
 ```
@@ -145,7 +145,7 @@ export interface ValidationReport {
   errors: ValidationError[];
 }
 
-export function validateMotionlyGeneration(generation: MotionlyGeneration): ValidationReport;
+export function validateMotifyGeneration(generation: MotifyGeneration): ValidationReport;
 ```
 
 Use `parse5.parseFragment` to require exactly one `<template>`, embedded `<style>`, and unique `data-edit` values. Use `acorn.parse` with `sourceType: 'module'` to require `export function buildTimeline` and reject every `ImportDeclaration`/dynamic import. Scan source tokens for `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `document.cookie`, `localStorage`, `sessionStorage`, `window.open`, and script-element injection. Use `esbuild.transform` with `loader: 'js'`, `format: 'esm'`, and `platform: 'browser'` as the final syntax check only.
@@ -162,7 +162,7 @@ Expected: all focused tests and the isolated typecheck pass.
 
 **Files:**
 - Modify: `packages/database/schema.ts`
-- Create: `drizzle/migrations/0008_motionly_graph.sql`
+- Create: `drizzle/migrations/0008_motify_graph.sql`
 - Modify: `src/services/project.service.ts`
 - Modify: `src/repositories/project.repository.ts`
 - Create: `src/repositories/motion-graph.repository.ts`
@@ -178,7 +178,7 @@ Expected: all focused tests and the isolated typecheck pass.
 - Test: `tests/unit/database/schema.test.ts`
 
 **Interfaces:**
-- Produces `MotionlyProject` with `title`, dimensions, `scenes`, `compositionHtml`, `timelineJs`, and `revision`.
+- Produces `MotifyProject` with `title`, dimensions, `scenes`, `compositionHtml`, `timelineJs`, and `revision`.
 - Produces `GraphProjectRepository.loadWorkspaceForGraph`, `loadForGraph`, `listRecentMessages`, `appendMessage`, `createForGraph`, `overwriteForGraph`, and `recordRun`.
 - Removes `ProjectSourceFiles`, source hashes, project preview bundling, queue jobs, generation threads, generation events, and generation API contracts.
 
@@ -231,10 +231,10 @@ Backfill `title` from `name`; read `composition.html`, `styles.css`, and `timeli
 ```ts
 export interface GraphProjectRepository {
   loadWorkspaceForGraph(workspaceId: string, userId: string): Promise<{ role: WorkspaceRole } | null>;
-  loadForGraph(projectId: string, userId: string): Promise<{ project: MotionlyProject; role: WorkspaceRole } | null>;
+  loadForGraph(projectId: string, userId: string): Promise<{ project: MotifyProject; role: WorkspaceRole } | null>;
   listRecentMessages(projectId: string, limit: number): Promise<ChatMessage[]>;
-  createForGraph(workspaceId: string, userId: string, input: CreateGraphProjectInput): Promise<MotionlyProject | null>;
-  overwriteForGraph(projectId: string, input: OverwriteGraphProjectInput): Promise<MotionlyProject | null>;
+  createForGraph(workspaceId: string, userId: string, input: CreateGraphProjectInput): Promise<MotifyProject | null>;
+  overwriteForGraph(projectId: string, input: OverwriteGraphProjectInput): Promise<MotifyProject | null>;
   appendMessage(input: StoredMessageInput): Promise<void>;
   recordRun(input: GenerationRunInput): Promise<void>;
 }
@@ -273,11 +273,11 @@ Expected: focused tests pass and Drizzle reports no unintended schema change bey
 - Create: `packages/ai/graph/nodes/repair.node.ts`
 - Create: `packages/ai/graph/nodes/save-project.node.ts`
 - Create: `packages/ai/graph/nodes/report-failure.node.ts`
-- Modify: `packages/motionly-skills/router.ts`
+- Modify: `packages/motify-skills/router.ts`
 - Test: `tests/unit/ai/graph/motion.graph.test.ts`
 
 **Interfaces:**
-- Consumes `MotionModelProvider`, `GraphProjectRepository`, `routeSkills`, `loadSkillBundle`, `validateMotionlyGeneration`, and `intentSchema`.
+- Consumes `MotionModelProvider`, `GraphProjectRepository`, `routeSkills`, `loadSkillBundle`, `validateMotifyGeneration`, and `intentSchema`.
 - Produces `createMotionGraph(dependencies): CompiledStateGraph<MotionGraphState>` and `MotionGraphInput`.
 
 - [x] **Step 1: Write failing graph routing tests**
@@ -316,10 +316,10 @@ export interface MotionGraphState {
   runtimeError?: { message: string };
   requestedRevision?: number;
   intent?: Intent;
-  project?: MotionlyProject;
+  project?: MotifyProject;
   recentMessages: ChatMessage[];
   selectedSkills: RoutedSkill[];
-  generation?: MotionlyGeneration;
+  generation?: MotifyGeneration;
   validationErrors: ValidationError[];
   repairAttempts: number;
   response?: MotionGraphResponse;
@@ -354,7 +354,7 @@ const graph = new StateGraph(MotionGraphStateSchema)
 
 - [x] **Step 5: Run graph unit tests**
 
-Run: `npm test -- tests/unit/ai/graph/motion.graph.test.ts tests/unit/motionly/skill-router.test.ts`
+Run: `npm test -- tests/unit/ai/graph/motion.graph.test.ts tests/unit/motify/skill-router.test.ts`
 
 Expected: tests cover CHAT, PLAN, CREATE/EDIT, FIX, repair success, repair exhaustion, selected skills, and no mutation for non-generation paths.
 
@@ -474,7 +474,7 @@ Run: `npm run build`
 
 Run: `git diff --check`
 
-Run: `rg -n "generation_jobs|generation_threads|generation_events|project_files|PROJECT_SOURCE_PATHS|GEMINI_MODEL|/source|/preview" src packages tests --glob '!packages/motionly-runtime/reference/**'`
+Run: `rg -n "generation_jobs|generation_threads|generation_events|project_files|PROJECT_SOURCE_PATHS|GEMINI_MODEL|/source|/preview" src packages tests --glob '!packages/motify-runtime/reference/**'`
 
 Expected: all tests/typecheck/build pass; the search returns no active legacy queue/four-file API implementation references; any migration-history hits are expected and documented.
 

@@ -1,10 +1,10 @@
 import { Annotation } from '@langchain/langgraph';
 
-import type { RoutedSkill } from '../../motionly-skills/router.js';
-import type { ChatMessage, ModelTokenUsage, MotionlyGeneration } from '../providers/model.provider.js';
+import type { RoutedSkill } from '../../motify-skills/router.js';
+import type { ChatMessage, ModelTokenUsage, MotifyGeneration } from '../providers/model.provider.js';
 import type { Intent } from '../schemas/intent.schema.js';
 import type { ValidationError } from '../validation/generation-validator.js';
-import type { MotionGraphResponse, MotionlyProject } from './dependencies.js';
+import type { MotionGraphResponse, MotifyProject } from './dependencies.js';
 
 function replace<T>(_current: T, next: T): T {
     return next;
@@ -24,10 +24,10 @@ export const MotionGraphAnnotation = Annotation.Root({
 
     startedAtMs: Annotation<number>({ reducer: replace, default: () => 0 }),
     intent: Annotation<Intent | undefined>,
-    project: Annotation<MotionlyProject | undefined>,
+    project: Annotation<MotifyProject | undefined>,
     recentMessages: Annotation<ChatMessage[]>({ reducer: replace, default: () => [] }),
     selectedSkills: Annotation<RoutedSkill[]>({ reducer: replace, default: () => [] }),
-    generation: Annotation<MotionlyGeneration | undefined>,
+    generation: Annotation<MotifyGeneration | undefined>,
     tokenUsage: Annotation<ModelTokenUsage>({
         reducer: (current, next) => ({
             inputTokens: addTokenUsage(current.inputTokens, next.inputTokens),

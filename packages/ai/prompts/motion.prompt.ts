@@ -1,5 +1,5 @@
-import type { RoutedSkill } from '../../motionly-skills/router.js';
-import type { GenerationIntent, MotionlyProject } from '../graph/dependencies.js';
+import type { RoutedSkill } from '../../motify-skills/router.js';
+import type { GenerationIntent, MotifyProject } from '../graph/dependencies.js';
 import type { ChatMessage, ModelRequestLimits } from '../providers/model.provider.js';
 
 export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 16_000 };
@@ -9,7 +9,7 @@ const FRONTMATTER = /^---\n[\s\S]*?\n---\n*/;
 
 export function buildMotionSystemPrompt(skills: RoutedSkill[]): string {
     const firstSkill = skills[0];
-    if (!firstSkill) throw new Error('Motionly system prompt requires routed skills.');
+    if (!firstSkill) throw new Error('Motify system prompt requires routed skills.');
 
     const sections = skills.map((skill) => [
         `SKILL: ${skill.id}`,
@@ -17,7 +17,7 @@ export function buildMotionSystemPrompt(skills: RoutedSkill[]): string {
     ].join('\n'));
 
     return [
-        `MOTIONLY SKILL BUNDLE VERSION: ${firstSkill.version}`,
+        `MOTIFY SKILL BUNDLE VERSION: ${firstSkill.version}`,
         ...sections,
     ].join('\n\n');
 }
@@ -25,7 +25,7 @@ export function buildMotionSystemPrompt(skills: RoutedSkill[]): string {
 export interface MotionPromptInput {
     intent: GenerationIntent;
     message: string;
-    project?: MotionlyProject | undefined;
+    project?: MotifyProject | undefined;
     recentMessages: ChatMessage[];
     runtimeError?: { message: string } | undefined;
 }
@@ -58,7 +58,7 @@ export const NO_PROJECT_YET = [
     'Choose a canvas that suits the request and default to 1920x1080 at 60fps when the user gives no preference.',
 ].join('\n');
 
-export function describeProject(project: MotionlyProject): string {
+export function describeProject(project: MotifyProject): string {
     return [
         'Current project:',
         `title: ${project.title}`,

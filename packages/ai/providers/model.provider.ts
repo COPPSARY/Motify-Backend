@@ -26,7 +26,7 @@ const providerSceneSchema = z.object({
     tracks: z.array(sceneTrackSchema),
 }).strict();
 
-export const motionlyGenerationSchema = z.object({
+export const motifyGenerationSchema = z.object({
     title: z.string().min(1),
     duration: z.number().positive(),
     width: z.number().int().positive(),
@@ -38,15 +38,15 @@ export const motionlyGenerationSchema = z.object({
     reply: z.string().min(1),
 }).strict();
 
-const providerGenerationSchema = motionlyGenerationSchema.extend({
+const providerGenerationSchema = motifyGenerationSchema.extend({
     scenes: z.array(providerSceneSchema),
 });
 
-export const motionlyGenerationJsonSchema = z.toJSONSchema(providerGenerationSchema, {
+export const motifyGenerationJsonSchema = z.toJSONSchema(providerGenerationSchema, {
     target: 'draft-7',
 });
 
-export type MotionlyGeneration = z.infer<typeof motionlyGenerationSchema>;
+export type MotifyGeneration = z.infer<typeof motifyGenerationSchema>;
 
 export interface ModelTokenUsage {
     inputTokens: number | null;
@@ -54,7 +54,7 @@ export interface ModelTokenUsage {
 }
 
 export interface ModelGenerationResult {
-    generation: MotionlyGeneration;
+    generation: MotifyGeneration;
     usage: ModelTokenUsage;
 }
 
@@ -139,7 +139,7 @@ export function parseStructured<T>(text: string, schema: z.ZodType<T>): T {
     return parsed.data;
 }
 
-export function parseMotionlyGeneration(text: string): MotionlyGeneration {
+export function parseMotifyGeneration(text: string): MotifyGeneration {
     let value: unknown;
     try {
         value = JSON.parse(text);
@@ -147,11 +147,11 @@ export function parseMotionlyGeneration(text: string): MotionlyGeneration {
         throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model returned invalid JSON.', false);
     }
 
-    const parsed = motionlyGenerationSchema.safeParse(value);
+    const parsed = motifyGenerationSchema.safeParse(value);
     if (!parsed.success) {
         throw new ModelProviderError(
             'PROVIDER_OUTPUT_INVALID',
-            'The model output does not match the Motionly generation schema.',
+            'The model output does not match the Motify generation schema.',
             false,
         );
     }

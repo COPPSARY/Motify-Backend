@@ -26,8 +26,8 @@ try {
   const unexpected = tables.filter((table) => !expectedTables.has(table));
   console.log(`Public tables: ${tables.join(', ') || '(none)'}`);
   if (unexpected.length > 0) throw new Error(`Refusing to reset unexpected public tables: ${unexpected.join(', ')}`);
-  if (process.env.CONFIRM_DB_RESET !== 'delete-motionly-data') {
-    throw new Error('Set CONFIRM_DB_RESET=delete-motionly-data before running this destructive reset.');
+  if (process.env.CONFIRM_DB_RESET !== 'delete-motify-data') {
+    throw new Error('Set CONFIRM_DB_RESET=delete-motify-data before running this destructive reset.');
   }
 
   await pool.query('begin');
@@ -35,7 +35,7 @@ try {
   await pool.query('drop table if exists auth_refresh_tokens, auth_sessions, oauth_attempts, project_files, project_version_files, project_versions, projects, workspace_members, workspaces, users, profiles cascade');
   await pool.query('drop type if exists workspace_kind, workspace_role');
   await pool.query('commit');
-  console.log('Motionly application tables and migration history were removed.');
+  console.log('Motify application tables and migration history were removed.');
 } catch (error) {
   await pool.query('rollback').catch(() => undefined);
   throw error;

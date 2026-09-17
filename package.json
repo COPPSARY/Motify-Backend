@@ -1,7 +1,7 @@
 {
-  "name": "motionly_backend",
+  "name": "motify_backend",
   "version": "1.0.0",
-  "description": "The backend service for [Motionly](../motionly), a code-first motion graphics editor built around TypeScript compositions, HTML/SVG, GSAP timelines, and direct browser preview.",
+  "description": "The backend service for [Motify](../motionly), a code-first motion graphics editor built around TypeScript compositions, HTML/SVG, GSAP timelines, and direct browser preview.",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "npm run build:api",
-    "build:api": "tsc -p tsconfig.build.json && node scripts/motionly-skills.mjs copy",
+    "build:api": "tsc -p tsconfig.build.json && node scripts/motify-skills.mjs copy",
     "start": "node dist/src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -20,8 +20,8 @@
     "db:migrate": "node --env-file=.env --import ./scripts/process-identity.mjs --import tsx packages/database/migrate.ts",
     "eval:cloud-generation": "node --import ./scripts/process-identity.mjs --import tsx evals/cloud-generation/runner.ts",
     "eval:gemini-smoke": "node --env-file-if-exists=.env --import ./scripts/process-identity.mjs --import tsx evals/cloud-generation/gemini-smoke.ts",
-    "skills:update-hashes": "node scripts/motionly-skills.mjs update",
-    "skills:verify": "node scripts/motionly-skills.mjs verify",
+    "skills:update-hashes": "node scripts/motify-skills.mjs update",
+    "skills:verify": "node scripts/motify-skills.mjs verify",
     "verify:motionly-baseline": "node scripts/verify-motionly-baseline.mjs"
   },
   "repository": {

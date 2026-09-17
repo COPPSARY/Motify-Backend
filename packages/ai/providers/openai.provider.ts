@@ -3,9 +3,9 @@ import { z } from 'zod';
 import type { Response, ResponseCreateParamsNonStreaming } from 'openai/resources/responses/responses';
 
 import {
-    motionlyGenerationJsonSchema,
+    motifyGenerationJsonSchema,
     normalizeProviderError,
-    parseMotionlyGeneration,
+    parseMotifyGeneration,
     parseStructured,
     requireModelText,
     requestSignalOptions,
@@ -48,14 +48,14 @@ export class OpenAIMotionModelProvider implements MotionModelProvider {
                 text: {
                     format: {
                         type: 'json_schema',
-                        name: 'motionly_generation',
+                        name: 'motify_generation',
                         strict: true,
-                        schema: motionlyGenerationJsonSchema,
+                        schema: motifyGenerationJsonSchema,
                     },
                 },
             }, ...requestSignalOptions(request.signal));
             return {
-                generation: parseMotionlyGeneration(requireModelText(response.output_text)),
+                generation: parseMotifyGeneration(requireModelText(response.output_text)),
                 usage: tokenUsage(response.usage?.input_tokens, response.usage?.output_tokens),
             };
         } catch (error) {

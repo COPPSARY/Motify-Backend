@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  enhanceMotionlyPrompt,
+  enhanceMotifyPrompt,
   MIN_PROMPT_WORDS,
   needsEnhancement,
-} from '../../../packages/motionly-skills/prompt-enhancer.js';
+} from '../../../packages/motify-skills/prompt-enhancer.js';
 
-describe('Motionly prompt enhancer', () => {
+describe('Motify prompt enhancer', () => {
   it('adds the SaaS film structure without changing the original request', () => {
-    const enhanced = enhanceMotionlyPrompt('Launch our analytics app with this headline.', 'CREATE');
+    const enhanced = enhanceMotifyPrompt('Launch our analytics app with this headline.', 'CREATE');
 
     expect(enhanced).toContain('Original user request:\nLaunch our analytics app with this headline.');
     expect(enhanced).toContain('3-6 connected beats');
@@ -17,7 +17,7 @@ describe('Motionly prompt enhancer', () => {
   });
 
   it('keeps edits focused on the existing composition', () => {
-    const enhanced = enhanceMotionlyPrompt('Make the headline yellow.', 'EDIT');
+    const enhanced = enhanceMotifyPrompt('Make the headline yellow.', 'EDIT');
 
     expect(enhanced).toContain('Original user request:\nMake the headline yellow.');
     expect(enhanced).toContain('preserving the existing visual language');

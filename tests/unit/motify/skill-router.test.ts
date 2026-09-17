@@ -4,17 +4,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { loadSkillBundle } from '../../../packages/motionly-skills/loader.js';
-import { routeSkills } from '../../../packages/motionly-skills/router.js';
+import { loadSkillBundle } from '../../../packages/motify-skills/loader.js';
+import { routeSkills } from '../../../packages/motify-skills/router.js';
 
-describe('Motionly skill bundle', () => {
+describe('Motify skill bundle', () => {
   it('contains every source used by the frontend generation prompt in prompt order', async () => {
     const bundle = await loadSkillBundle();
 
     expect(bundle.manifest).toMatchObject({ version: '3.0.0', sourceVersion: '3.0.0' });
     expect(bundle.skills.map((skill) => skill.id)).toEqual([
       'runtime-contract',
-      'write-motionly',
+      'write-motify',
       'scene-design',
       'scene-components',
       'preset-reference',
@@ -58,7 +58,7 @@ describe('Motionly skill bundle', () => {
 
       expect(selected.map((skill) => skill.id)).toEqual([
         'runtime-contract',
-        'write-motionly',
+        'write-motify',
         'scene-components',
         'playful-learning',
       ]);
@@ -76,7 +76,7 @@ describe('Motionly skill bundle', () => {
 
       expect(selected.map((skill) => skill.id)).toEqual([
         'runtime-contract',
-        'write-motionly',
+        'write-motify',
         'technical-data',
       ]);
   });
@@ -94,14 +94,14 @@ describe('Motionly skill bundle', () => {
       manifest: { version: 'test' } as never,
       skills: [
         { id: 'runtime-contract', content: 'a'.repeat(30) },
-        { id: 'write-motionly', content: 'b'.repeat(30) },
+        { id: 'write-motify', content: 'b'.repeat(30) },
         { id: 'technical-data', content: 'Technical direction' },
       ],
     }, ['technical-data']);
 
     expect(selected.map((skill) => skill.id)).toEqual([
       'runtime-contract',
-      'write-motionly',
+      'write-motify',
       'technical-data',
     ]);
   });
@@ -113,8 +113,8 @@ describe('Motionly skill bundle', () => {
   });
 
   it('rejects modified migrated skill content', async () => {
-    const sourceRoot = path.resolve('packages/motionly-skills');
-    const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'motionly-skills-'));
+    const sourceRoot = path.resolve('packages/motify-skills');
+    const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'motify-skills-'));
     const manifest = JSON.parse(await readFile(path.join(sourceRoot, 'manifest.json'), 'utf8')) as {
       skills: Array<{ file: string }>;
     };
@@ -128,7 +128,7 @@ describe('Motionly skill bundle', () => {
       }
       await writeFile(path.join(temporaryRoot, manifest.skills[0]!.file), 'modified');
 
-      await expect(loadSkillBundle('v1', temporaryRoot)).rejects.toThrow('Motionly skill hash mismatch');
+      await expect(loadSkillBundle('v1', temporaryRoot)).rejects.toThrow('Motify skill hash mismatch');
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
     }

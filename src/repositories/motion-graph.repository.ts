@@ -6,12 +6,12 @@ import type {
     CreateGraphProjectInput,
     GenerationRunInput,
     GraphProjectRepository,
-    MotionlyProject,
-    MotionlyScene,
+    MotifyProject,
+    MotifyScene,
     OverwriteGraphProjectInput,
     StoredMessageInput,
 } from '../../packages/ai/graph/dependencies.js';
-import type { MotionlyGeneration } from '../../packages/ai/providers/model.provider.js';
+import type { MotifyGeneration } from '../../packages/ai/providers/model.provider.js';
 import type { Database } from '../../packages/database/client.js';
 import { generationRuns, messages, projects, workspaceMembers } from '../../packages/database/schema.js';
 
@@ -22,7 +22,7 @@ function slugPart(value: string) {
     return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60) || 'project';
 }
 
-function toGraphProject(row: ProjectRow): MotionlyProject {
+function toGraphProject(row: ProjectRow): MotifyProject {
     return {
         id: row.id,
         workspaceId: row.workspaceId,
@@ -31,14 +31,14 @@ function toGraphProject(row: ProjectRow): MotionlyProject {
         width: row.width,
         height: row.height,
         fps: row.fps,
-        scenes: row.scenes as MotionlyScene[],
+        scenes: row.scenes as MotifyScene[],
         compositionHtml: row.compositionHtml,
         timelineJs: row.timelineJs,
         revision: row.revision,
     };
 }
 
-function generatedFields(generation: MotionlyGeneration) {
+function generatedFields(generation: MotifyGeneration) {
     return {
         name: generation.title,
         width: Math.round(generation.width),

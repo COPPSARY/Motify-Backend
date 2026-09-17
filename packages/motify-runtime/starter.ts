@@ -4,8 +4,8 @@ import {
   type QualityStarterProjectSettings,
 } from './quality-starter.js';
 
-export const MOTIONLY_RUNTIME_VERSION = '2.0.0';
-export const MOTIONLY_SKILL_BUNDLE_VERSION = '1.0.0';
+export const MOTIFY_RUNTIME_VERSION = '2.0.0';
+export const MOTIFY_SKILL_BUNDLE_VERSION = '1.0.0';
 
 export type StarterProjectSettings = QualityStarterProjectSettings;
 

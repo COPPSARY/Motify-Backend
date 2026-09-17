@@ -23,19 +23,19 @@ describe('ClaudeRouterMotionModelProvider', () => {
 
         await expect(provider.generate({
             model: 'claude-opus-5',
-            systemInstructions: 'Motionly rules',
+            systemInstructions: 'Motify rules',
             prompt: 'Create it',
             limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             model: 'claude-opus-5',
             messages: [
-                { role: 'system', content: 'Motionly rules' },
+                { role: 'system', content: 'Motify rules' },
                 { role: 'user', content: 'Create it' },
             ],
             response_format: {
                 type: 'json_schema',
-                json_schema: expect.objectContaining({ name: 'motionly_generation', strict: true }),
+                json_schema: expect.objectContaining({ name: 'motify_generation', strict: true }),
             },
         }));
     });
@@ -72,7 +72,7 @@ describe('ClaudeRouterMotionModelProvider', () => {
             model: 'claude-opus-5',
             systemInstructions: 'Classify.',
             prompt: 'Hello',
-            schemaName: 'motionly_intent',
+            schemaName: 'motify_intent',
             schema: intentSchema,
             limits: { maxOutputTokens: 128 },
         })).resolves.toEqual({ intent: 'CHAT' });

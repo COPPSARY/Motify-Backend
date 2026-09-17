@@ -1,4 +1,4 @@
-import { FALLBACK_GENERATION_SKILL_IDS, routeSkills } from '../../../motionly-skills/router.js';
+import { FALLBACK_GENERATION_SKILL_IDS, routeSkills } from '../../../motify-skills/router.js';
 import { SKILL_SELECTION_LIMITS, SKILL_SELECTION_SYSTEM_PROMPT, buildSkillSelectionPrompt } from '../../prompts/skill-selection.prompt.js';
 import { skillSelectionSchema } from '../../schemas/skill-selection.schema.js';
 import { requireGenerationIntent, type ResolvedMotionGraphDependencies } from '../dependencies.js';
@@ -17,7 +17,7 @@ export function createSelectSkillsNode(dependencies: ResolvedMotionGraphDependen
                 model: dependencies.model,
                 systemInstructions: SKILL_SELECTION_SYSTEM_PROMPT,
                 prompt: buildSkillSelectionPrompt(state.message),
-                schemaName: 'motionly_skill_selection',
+                schemaName: 'motify_skill_selection',
                 schema: skillSelectionSchema,
                 limits: SKILL_SELECTION_LIMITS,
             });

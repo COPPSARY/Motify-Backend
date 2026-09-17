@@ -16,7 +16,7 @@ function stop(exitCode = 0) {
 for (const child of children) {
   child.once('exit', (code, signal) => {
     if (!stopping) {
-      console.error(`Motionly dev service stopped (${signal ?? code ?? 'unknown'}).`);
+      console.error(`Motify dev service stopped (${signal ?? code ?? 'unknown'}).`);
       stop(code ?? 1);
     }
   });

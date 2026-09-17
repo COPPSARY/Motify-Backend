@@ -15,12 +15,12 @@ const generation = {
 };
 
 describe('MotionModelProvider contract', () => {
-    it('returns a schema-validated Motionly generation', async () => {
+    it('returns a schema-validated Motify generation', async () => {
         const provider = new FakeMotionModelProvider({ generation, chat: 'Ready.' });
 
         await expect(provider.generate({
             model: 'fake-model',
-            systemInstructions: 'Follow Motionly rules.',
+            systemInstructions: 'Follow Motify rules.',
             prompt: 'Create a launch animation.',
             limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: null, outputTokens: null } });
@@ -31,7 +31,7 @@ describe('MotionModelProvider contract', () => {
 
         await expect(provider.generate({
             model: 'fake-model',
-            systemInstructions: 'Follow Motionly rules.',
+            systemInstructions: 'Follow Motify rules.',
             prompt: 'Create a launch animation.',
             limits: { maxOutputTokens: 2_000 },
         })).rejects.toEqual(expect.objectContaining({

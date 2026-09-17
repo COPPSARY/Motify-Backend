@@ -11,7 +11,7 @@ afterEach(async () => Promise.all(directories.splice(0).map((directory) => rm(di
 
 describe('asset validation', () => {
   it('accepts matching image signatures and rejects extension/MIME spoofing', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'motionly-asset-validation-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'motify-asset-validation-'));
     directories.push(directory);
     const png = path.join(directory, 'image.png');
     await writeFile(png, Buffer.from('89504e470d0a1a0a00000000', 'hex'));
@@ -23,7 +23,7 @@ describe('asset validation', () => {
   });
 
   it('rejects active SVG content', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'motionly-svg-validation-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'motify-svg-validation-'));
     directories.push(directory);
     const svg = path.join(directory, 'image.svg');
     await writeFile(svg, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', 'utf8');
@@ -31,7 +31,7 @@ describe('asset validation', () => {
   });
 
   it('rejects indirect SVG network/active-content bypasses but permits local fragments', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'motionly-svg-links-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'motify-svg-links-'));
     directories.push(directory);
     const svg = path.join(directory, 'image.svg');
     const unsafe = [

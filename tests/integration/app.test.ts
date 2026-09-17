@@ -41,7 +41,7 @@ function dependencies() {
   };
 }
 
-describe('Motionly API', () => {
+describe('Motify API', () => {
   it('reports dependency-aware readiness without exposing the failure', async () => {
     const ready = createApp({
       services: dependencies(), frontendOrigins: ['http://localhost:5173'], secureCookies: false,
@@ -96,8 +96,8 @@ describe('Motionly API', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.user.email).toBe('designer@example.com');
     expect(response.headers['set-cookie']).toEqual(expect.arrayContaining([
-      expect.stringContaining('motionly_session=opaque-session'),
-      expect.stringContaining('motionly_csrf=csrf-token'),
+      expect.stringContaining('motify_session=opaque-session'),
+      expect.stringContaining('motify_csrf=csrf-token'),
     ]));
   });
 
@@ -128,7 +128,7 @@ describe('Motionly API', () => {
 
     const response = await request(app)
       .post('/v1/workspaces')
-      .set('Cookie', ['motionly_session=opaque-session'])
+      .set('Cookie', ['motify_session=opaque-session'])
       .send({ name: 'Studio' });
 
     expect(response.status).toBe(403);
@@ -140,7 +140,7 @@ describe('Motionly API', () => {
     deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
     const response = await request(app).post('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/messages')
-      .set('Cookie', ['motionly_session=session']).set('x-csrf-token', 'expected-csrf').send({ message: 'Plan a launch.' });
+      .set('Cookie', ['motify_session=session']).set('x-csrf-token', 'expected-csrf').send({ message: 'Plan a launch.' });
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual({ type: 'plan', response: 'Plan only.' });
     expect(deps.motionMessages.sendMessage).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7', { message: 'Plan a launch.' });
@@ -152,7 +152,7 @@ describe('Motionly API', () => {
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
 
     const response = await request(app).post('/v1/generations')
-      .set('Cookie', ['motionly_session=session']).set('x-csrf-token', 'expected-csrf')
+      .set('Cookie', ['motify_session=session']).set('x-csrf-token', 'expected-csrf')
       .send({ workspaceId: '26ce88b5-1a51-4265-913e-203eb3cadbd7', message: 'Create a launch film.' });
 
     expect(response.status).toBe(404);
@@ -164,7 +164,7 @@ describe('Motionly API', () => {
     deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
     deps.projects.list.mockResolvedValue([{ id: 'project-1', name: 'Launch' }]);
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
-    const response = await request(app).get('/v1/workspaces/26ce88b5-1a51-4265-913e-203eb3cadbd7/projects').set('Cookie', ['motionly_session=session']);
+    const response = await request(app).get('/v1/workspaces/26ce88b5-1a51-4265-913e-203eb3cadbd7/projects').set('Cookie', ['motify_session=session']);
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual([{ id: 'project-1', name: 'Launch' }]);
     expect(deps.projects.list).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7');
@@ -175,7 +175,7 @@ describe('Motionly API', () => {
     deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
     deps.projects.get.mockResolvedValue({ compositionHtml: '<template><style>.hero { color: red; }</style></template>', timelineJs: 'export function buildTimeline() {}' });
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
-    const response = await request(app).get('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/source').set('Cookie', ['motionly_session=session']);
+    const response = await request(app).get('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/source').set('Cookie', ['motify_session=session']);
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual({
       'composition.html': '<template><style>.hero { color: red; }</style></template>',
@@ -190,7 +190,7 @@ describe('Motionly API', () => {
 
     const response = await request(app)
       .get('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/files')
-      .set('Cookie', ['motionly_session=session']);
+      .set('Cookie', ['motify_session=session']);
 
     expect(response.status).toBe(404);
   });
@@ -206,7 +206,7 @@ describe('Motionly API', () => {
 
     const response = await request(app)
       .get('/v1/auth/me')
-      .set('Cookie', ['motionly_session=opaque-session']);
+      .set('Cookie', ['motify_session=opaque-session']);
 
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual({ user: identity, csrfToken: 'oauth-csrf' });

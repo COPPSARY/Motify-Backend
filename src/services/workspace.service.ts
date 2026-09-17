@@ -44,7 +44,7 @@ export class WorkspaceService {
   async addMember(userId: string, workspaceId: string, input: { email: string; role: WorkspaceRole }) {
     await this.requireOwner(workspaceId, userId);
     const profile = await this.repository.findProfileByEmail(input.email.trim().toLowerCase());
-    if (!profile) throw new AppError(404, 'ACCOUNT_NOT_FOUND', 'No existing Motionly account uses that email.');
+    if (!profile) throw new AppError(404, 'ACCOUNT_NOT_FOUND', 'No existing Motify account uses that email.');
     return this.repository.addMember(workspaceId, profile.id, input.role);
   }
 

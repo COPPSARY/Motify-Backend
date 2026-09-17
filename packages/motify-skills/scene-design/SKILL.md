@@ -1,6 +1,6 @@
 ---
 name: scene-design
-description: How a Motionly frame is designed and how beats hand off — built from the runtime scene kit so a generated film looks art-directed instead of default HTML on grey.
+description: How a Motify frame is designed and how beats hand off — built from the runtime scene kit so a generated film looks art-directed instead of default HTML on grey.
 ---
 
 # Designing the frame

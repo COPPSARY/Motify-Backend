@@ -21,7 +21,7 @@ GET  /v1/auth/me
 POST /v1/auth/logout
 ```
 
-The backend owns the Supabase login flow and returns an opaque `motionly_session` HTTP-only cookie. Successful login responses also provide a session-bound CSRF token; clients must send it as `X-CSRF-Token` for cookie-authenticated mutations. Email signup requires verification in production. Supabase redirects confirmation links to `/v1/auth/verify?code=...`; the endpoint exchanges that PKCE code and creates the Motionly session. The Google endpoint starts a separate PKCE flow and accepts each stored attempt only once.
+The backend owns the Supabase login flow and returns an opaque `motify_session` HTTP-only cookie. Successful login responses also provide a session-bound CSRF token; clients must send it as `X-CSRF-Token` for cookie-authenticated mutations. Email signup requires verification in production. Supabase redirects confirmation links to `/v1/auth/verify?code=...`; the endpoint exchanges that PKCE code and creates the Motify session. The Google endpoint starts a separate PKCE flow and accepts each stored attempt only once.
 
 ## Workspaces
 
@@ -46,7 +46,7 @@ PATCH  /v1/projects/:projectId
 DELETE /v1/projects/:projectId
 ```
 
-A project is one mutable Motionly composition. Its editable source is two fields — `compositionHtml` and `timelineJs` — plus the canvas settings and the scene list the frontend renders with GSAP.
+A project is one mutable Motify composition. Its editable source is two fields — `compositionHtml` and `timelineJs` — plus the canvas settings and the scene list the frontend renders with GSAP.
 
 ```json
 {
@@ -87,7 +87,7 @@ Stored artifacts are read through `GET /v1/artifacts/:artifactId/download`.
 POST /v1/projects/:projectId/messages
 ```
 
-One endpoint drives the Motionly conversation for an existing project: discussing an idea, planning changes, editing it, and repairing it after a renderer failure.
+One endpoint drives the Motify conversation for an existing project: discussing an idea, planning changes, editing it, and repairing it after a renderer failure.
 
 ```json
 {
@@ -132,7 +132,7 @@ The endpoint needs an authenticated session, `X-CSRF-Token`, and write access to
 | `PROVIDER_UNAVAILABLE` | 503 | The provider is temporarily down. |
 | `PROVIDER_*` | 502 | Any other provider failure. |
 
-Behind the endpoint, a LangGraph workflow classifies the request, loads the project with the last twelve messages, selects Motionly skills, generates one schema-constrained candidate, validates it without executing it, and repairs a rejected candidate at most twice. A valid candidate replaces the addressed revision in one revision-checked transaction. Every turn is recorded in `messages`, and every attempt in `generation_runs`.
+Behind the endpoint, a LangGraph workflow classifies the request, loads the project with the last twelve messages, selects Motify skills, generates one schema-constrained candidate, validates it without executing it, and repairs a rejected candidate at most twice. A valid candidate replaces the addressed revision in one revision-checked transaction. Every turn is recorded in `messages`, and every attempt in `generation_runs`.
 
 The provider is chosen by `AI_PROVIDER` with `AI_MODEL`; only the selected provider's API key is required. The backend never renders, previews, or exports — the frontend runs the generated source. Implementation detail lives in `cloud-ai-implementation.md`.
 

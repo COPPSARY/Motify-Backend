@@ -5,8 +5,8 @@ import type { NextFunction, RequestHandler, Response } from 'express';
 import { AppError } from '../errors.js';
 import type { AuthenticatedRequest, SessionResolver } from '../types/http.js';
 
-export const SESSION_COOKIE = 'motionly_session';
-export const CSRF_COOKIE = 'motionly_csrf';
+export const SESSION_COOKIE = 'motify_session';
+export const CSRF_COOKIE = 'motify_csrf';
 
 function safeEqual(left: string, right: string): boolean {
   const a = Buffer.from(left);

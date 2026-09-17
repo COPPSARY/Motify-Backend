@@ -1,18 +1,18 @@
-# Motionly Cloud AI Implementation Plan
+# Motify Cloud AI Implementation Plan
 
 **File:** `cloud-ai-implementation.md`
-**Goal:** Build a cloud AI generation system for Motionly using **Express + TypeScript + LangGraph**, while keeping all motion rendering on the frontend with the existing **GSAP + `createDynamicComposition()`** runtime.
+**Goal:** Build a cloud AI generation system for Motify using **Express + TypeScript + LangGraph**, while keeping all motion rendering on the frontend with the existing **GSAP + `createDynamicComposition()`** runtime.
 
 ---
 
 ## 1. Objective
 
-The cloud AI system should allow users to chat with Motionly and create or edit motion graphics without generating files for normal conversation.
+The cloud AI system should allow users to chat with Motify and create or edit motion graphics without generating files for normal conversation.
 
 The system must support:
 
 - Normal chat without motion generation.
-- Creating new Motionly compositions.
+- Creating new Motify compositions.
 - Editing an existing composition.
 - Fixing broken AI-generated composition files.
 - Loading only relevant AI skills.
@@ -26,9 +26,9 @@ For the MVP, Express runs the LangGraph generation flow directly during the requ
 
 ---
 
-# 2. Existing Motionly Runtime Contract
+# 2. Existing Motify Runtime Contract
 
-The current Motionly frontend should remain the renderer.
+The current Motify frontend should remain the renderer.
 
 AI-generated projects should continue using:
 
@@ -58,7 +58,7 @@ createDynamicComposition(
 Therefore the AI backend should generate and save:
 
 ```ts
-interface MotionlyGeneration {
+interface MotifyGeneration {
   title: string;
   duration: number;
   width: number;
@@ -95,7 +95,7 @@ CSS should stay inside `compositionHtml`.
                          USER
                           |
                           v
-                    Motionly Frontend
+                    Motify Frontend
                           |
                           | POST message
                           v
@@ -139,7 +139,7 @@ CSS should stay inside `compositionHtml`.
                             Return Project Result
                                       |
                                       v
-                               Motionly Frontend
+                               Motify Frontend
                                       |
                                       v
                               GET Project
@@ -192,11 +192,11 @@ backend/
 │   │       ├── generation.schema.ts
 │   │       └── intent.schema.ts
 │   |
-│   ├── motionly-skills/
+│   ├── motify-skills/
 │   │   ├── registry.ts
 │   │   ├── loader.ts
 │   │   |
-│   │   ├── motionly-core/
+│   │   ├── motify-core/
 │   │   │   └── SKILL.md
 │   │   |
 │   │   ├── kinetic-typography/
@@ -234,11 +234,11 @@ interface MotionGraphState {
     | "FIX"
     | "PLAN";
 
-  project?: MotionlyProjectContext;
+  project?: MotifyProjectContext;
 
   selectedSkills?: string[];
 
-  generation?: MotionlyGeneration;
+  generation?: MotifyGeneration;
 
   validationErrors?: ValidationError[];
 
@@ -314,7 +314,7 @@ Input:
 ```text
 hello
 thanks
-what can Motionly do?
+what can Motify do?
 make a logo animation
 make the title larger
 fix this animation
@@ -349,7 +349,7 @@ PLAN
 
 Use structured output.
 
-`PLAN` is selected only when the user explicitly asks Motionly to plan, outline, storyboard, or propose a motion concept without changing the project. It returns a text response and does not run generation or save project data.
+`PLAN` is selected only when the user explicitly asks Motify to plan, outline, storyboard, or propose a motion concept without changing the project. It returns a text response and does not run generation or save project data.
 
 Zod example:
 
@@ -408,7 +408,7 @@ For `FIX`, the current project plus error information is required.
 Always include:
 
 ```text
-motionly-core
+motify-core
 ```
 
 Then load additional skills based on the request.
@@ -418,14 +418,14 @@ Examples:
 ```text
 "Create animated typography"
 
-motionly-core
+motify-core
 kinetic-typography
 ```
 
 ```text
 "Create an animated revenue chart"
 
-motionly-core
+motify-core
 data-visualization
 ```
 
@@ -440,7 +440,7 @@ The generation node receives:
 ```text
 User request
 +
-Current Motionly files
+Current Motify files
 +
 Current project metadata
 +
@@ -479,7 +479,7 @@ Expected structured output:
 
 # 8. AI Generation Rules
 
-The `motionly-core` skill should enforce these rules.
+The `motify-core` skill should enforce these rules.
 
 ## Required output
 
@@ -519,7 +519,7 @@ arbitrary backend code
 Example:
 
 ```html
-<template id="motionly-composition-template">
+<template id="motify-composition-template">
   <style>
     .hero {
       position: absolute;
@@ -529,7 +529,7 @@ Example:
 
   <main class="hero" data-edit="stage">
     <h1 data-edit="title">
-      Motionly
+      Motify
     </h1>
   </main>
 </template>
@@ -561,7 +561,7 @@ timeline
 register
 ```
 
-Do not allow a separate GSAP timeline that bypasses the Motionly-owned timeline.
+Do not allow a separate GSAP timeline that bypasses the Motify-owned timeline.
 
 ---
 
@@ -584,7 +584,7 @@ HTML Validation
 JavaScript Validation
      |
      v
-Motionly Validation
+Motify Validation
 ```
 
 ---
@@ -653,7 +653,7 @@ Check:
 
 ---
 
-## 13.4 Motionly-specific validation
+## 13.4 Motify-specific validation
 
 Build a custom validator.
 
@@ -1065,7 +1065,7 @@ Skill structure:
 ```text
 skills/
 |
-├── motionly-core/
+├── motify-core/
 │   └── SKILL.md
 |
 ├── kinetic-typography/
@@ -1085,11 +1085,11 @@ Registry example:
 
 ```ts
 export const skillRegistry = {
-  "motionly-core": {
+  "motify-core": {
     description:
-      "Core Motionly HTML, GSAP, timeline and data-edit rules.",
+      "Core Motify HTML, GSAP, timeline and data-edit rules.",
     path:
-      "skills/motionly-core/SKILL.md"
+      "skills/motify-core/SKILL.md"
   },
 
   "kinetic-typography": {
@@ -1124,7 +1124,7 @@ Create:
 interface MotionModelProvider {
   generate(
     request: MotionModelRequest
-  ): Promise<MotionlyGeneration>;
+  ): Promise<MotifyGeneration>;
 
   chat(
     request: ChatRequest
@@ -1229,7 +1229,7 @@ A good first cloud AI MVP is complete when:
 - [ ] Zod validates output.
 - [ ] HTML validator runs.
 - [ ] JavaScript validator runs.
-- [ ] Motionly validator runs.
+- [ ] Motify validator runs.
 - [ ] Broken output is automatically repaired.
 - [ ] Successful output overwrites the current project atomically.
 - [ ] The project revision increments after a successful overwrite.
@@ -1332,4 +1332,4 @@ Use this exact order:
 
 The core rule is:
 
-> **LangGraph handles reasoning and generation. Express handles the `/v1` API and runs generation directly for the MVP. PostgreSQL stores the current project state. The frontend remains the only Motionly renderer. Assets, queues, and worker scaling are deferred.**
+> **LangGraph handles reasoning and generation. Express handles the `/v1` API and runs generation directly for the MVP. PostgreSQL stores the current project state. The frontend remains the only Motify renderer. Assets, queues, and worker scaling are deferred.**

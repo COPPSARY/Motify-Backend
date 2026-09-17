@@ -35,8 +35,8 @@ export class CompositionRuntime {
         root,
         timeline: this.timeline,
         register: (id, element) => {
-          if (!id || this.elements.has(id)) throw new Error(`Duplicate or empty Motionly layer id: ${id}`);
-          element.dataset.motionlyId = id;
+          if (!id || this.elements.has(id)) throw new Error(`Duplicate or empty Motify layer id: ${id}`);
+          element.dataset.motifyId = id;
           this.elements.set(id, element);
           return element;
         },
@@ -171,7 +171,7 @@ export class CompositionRuntime {
   }
 
   private applyTextOverride(element: HTMLElement, value: string): void {
-    const unit = element.dataset.motionlySplitUnit;
+    const unit = element.dataset.motifySplitUnit;
     if (unit !== 'words' && unit !== 'chars') {
       element.textContent = value;
       return;

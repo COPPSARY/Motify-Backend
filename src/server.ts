@@ -132,7 +132,7 @@ export async function startServer() {
       model: environment.aiModel,
       ...(environment.nodeEnv === 'development' ? {
         onSkillsSelected: (selection) => {
-          logger.info(selection, 'Motionly skills selected');
+          logger.info(selection, 'Motify skills selected');
         },
       } : {}),
     }),
@@ -149,7 +149,7 @@ export async function startServer() {
   const server = createServer(app);
 
   server.listen(environment.apiPort, environment.apiHost, () => {
-    logger.info({ port: environment.apiPort }, 'Motionly API started');
+    logger.info({ port: environment.apiPort }, 'Motify API started');
   });
 
   let shutdownPromise: Promise<void> | undefined;
@@ -171,7 +171,7 @@ export async function startServer() {
       server.closeIdleConnections();
     });
     await pool.end();
-    logger.info('Motionly API stopped');
+    logger.info('Motify API stopped');
   })();
   process.once('SIGINT', () => void shutdown());
   process.once('SIGTERM', () => void shutdown());

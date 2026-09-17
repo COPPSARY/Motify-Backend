@@ -1,7 +1,7 @@
 import type { LoadedSkill, SkillManifest } from './loader.js';
 import { OPTIONAL_GENERATION_SKILL_IDS } from '../ai/schemas/skill-selection.schema.js';
 
-export const REQUIRED_GENERATION_SKILL_IDS = ['runtime-contract', 'write-motionly'] as const;
+export const REQUIRED_GENERATION_SKILL_IDS = ['runtime-contract', 'write-motify'] as const;
 export const FALLBACK_GENERATION_SKILL_IDS = [...REQUIRED_GENERATION_SKILL_IDS, 'technical-data'] as const;
 const VISUAL_DIRECTION_SKILL_IDS = new Set([
     'editorial-brutalist',
@@ -35,8 +35,8 @@ export function routeSkills(
 
     return ids.map((id) => {
         const skill = bundle.skills.find((candidate) => candidate.id === id);
-        if (!skill) throw new Error(`Missing Motionly generation skill: ${id}`);
-        return toRoutedSkill(skill, bundle.manifest.version, id === 'runtime-contract' || id === 'write-motionly'
+        if (!skill) throw new Error(`Missing Motify generation skill: ${id}`);
+        return toRoutedSkill(skill, bundle.manifest.version, id === 'runtime-contract' || id === 'write-motify'
             ? 'Required for generation'
             : 'Selected by AI for this request');
     });

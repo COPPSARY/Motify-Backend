@@ -18,17 +18,17 @@ describe('Hashn0deMotionModelProvider', () => {
         const provider = new Hashn0deMotionModelProvider({ apiKey: 'test-key', client: { chat: { completions: { create } } } });
 
         await expect(provider.generate({
-            model: 'claude-sonnet-5', systemInstructions: 'Motionly rules', prompt: 'Create it',
+            model: 'claude-sonnet-5', systemInstructions: 'Motify rules', prompt: 'Create it',
             limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             model: 'claude-sonnet-5',
             max_completion_tokens: 2_000,
             messages: [
-                { role: 'system', content: 'Motionly rules' },
+                { role: 'system', content: 'Motify rules' },
                 { role: 'user', content: 'Create it' },
             ],
-            response_format: { type: 'json_schema', json_schema: expect.objectContaining({ name: 'motionly_generation' }) },
+            response_format: { type: 'json_schema', json_schema: expect.objectContaining({ name: 'motify_generation' }) },
         }));
     });
 
@@ -45,8 +45,8 @@ describe('Hashn0deMotionModelProvider', () => {
     it('uses JSON Schema for structured intent output', async () => {
         const create = vi.fn().mockResolvedValue({ choices: [{ message: { content: '{"intent":"EDIT"}' } }] });
         const provider = new Hashn0deMotionModelProvider({ apiKey: 'test-key', client: { chat: { completions: { create } } } });
-        await expect(provider.structured({ model: 'claude-sonnet-5', systemInstructions: 'Classify.', prompt: 'Change it', schemaName: 'motionly_intent', schema: intentSchema, limits: { maxOutputTokens: 128 } })).resolves.toEqual({ intent: 'EDIT' });
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({ response_format: { type: 'json_schema', json_schema: expect.objectContaining({ name: 'motionly_intent' }) } }));
+        await expect(provider.structured({ model: 'claude-sonnet-5', systemInstructions: 'Classify.', prompt: 'Change it', schemaName: 'motify_intent', schema: intentSchema, limits: { maxOutputTokens: 128 } })).resolves.toEqual({ intent: 'EDIT' });
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ response_format: { type: 'json_schema', json_schema: expect.objectContaining({ name: 'motify_intent' }) } }));
     });
 
     it('requires an API key', () => {

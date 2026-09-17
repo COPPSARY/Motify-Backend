@@ -31,7 +31,7 @@ function routeValidation(maxRepairAttempts: number) {
 }
 
 /**
- * Builds the Motionly generation workflow. Every collaborator is injected so the
+ * Builds the Motify generation workflow. Every collaborator is injected so the
  * graph can run against a fake provider and an in-memory repository in tests.
  */
 export function createMotionGraph(dependencies: MotionGraphDependencies) {

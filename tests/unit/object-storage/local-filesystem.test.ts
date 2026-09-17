@@ -12,20 +12,20 @@ afterEach(async () => Promise.all(directories.splice(0).map((directory) => rm(di
 
 describe('LocalFilesystemObjectStorage', () => {
   it('stores checksummed private objects and resolves only safe keys', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'motionly-storage-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'motify-storage-'));
     const source = path.join(root, 'source.txt');
     directories.push(root);
-    await writeFile(source, 'motionly artifact', 'utf8');
+    await writeFile(source, 'motify artifact', 'utf8');
     const storage = await LocalFilesystemObjectStorage.create(path.join(root, 'objects'));
 
     const stored = await storage.putFile('workspace/project/file.txt', source, 'text/plain');
-    expect(stored).toMatchObject({ byteSize: 17, contentType: 'text/plain' });
+    expect(stored).toMatchObject({ byteSize: 15, contentType: 'text/plain' });
     await expect(storage.resolvePath(stored.key)).resolves.toContain('file.txt');
     await expect(storage.resolvePath('../secret')).rejects.toThrow('Invalid object storage key');
   });
 
   it('streams uploads and removes partial objects that exceed the declared limit', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'motionly-storage-stream-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'motify-storage-stream-'));
     directories.push(root);
     const storage = await LocalFilesystemObjectStorage.create(path.join(root, 'objects'));
 

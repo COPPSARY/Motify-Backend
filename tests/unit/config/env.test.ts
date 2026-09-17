@@ -6,9 +6,9 @@ const valid = {
   NODE_ENV: 'production',
   API_HOST: '0.0.0.0',
   API_PORT: '4000',
-  API_PUBLIC_URL: 'https://api.motionly.example',
-  FRONTEND_ORIGINS: 'https://motionly.example',
-  DATABASE_URL: 'postgresql://postgres.motionlyref:pass@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
+  API_PUBLIC_URL: 'https://api.motify.example',
+  FRONTEND_ORIGINS: 'https://motify.example',
+  DATABASE_URL: 'postgresql://postgres.motifyref:pass@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
   SESSION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
   SESSION_COOKIE_SECURE: 'true',
@@ -25,31 +25,31 @@ describe('parseEnvironment', () => {
   it('parses an allow-list of frontend origins', () => {
     const environment = parseEnvironment({
       ...valid,
-      FRONTEND_ORIGINS: 'https://motionly.example,https://studio.motionly.example',
+      FRONTEND_ORIGINS: 'https://motify.example,https://studio.motify.example',
     });
 
     expect(environment.frontendOrigins).toEqual([
-      'https://motionly.example',
-      'https://studio.motionly.example',
+      'https://motify.example',
+      'https://studio.motify.example',
     ]);
   });
 
   it('derives the Supabase Auth URL from a session-pooler database URL', () => {
     const environment = parseEnvironment({
       ...valid,
-      DATABASE_URL: 'postgresql://postgres.motionlyref:password@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
+      DATABASE_URL: 'postgresql://postgres.motifyref:password@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
     });
 
-    expect(environment.supabaseUrl).toBe('https://motionlyref.supabase.co');
+    expect(environment.supabaseUrl).toBe('https://motifyref.supabase.co');
   });
 
   it('derives the Supabase Auth URL from a direct database URL', () => {
     const environment = parseEnvironment({
       ...valid,
-      DATABASE_URL: 'postgresql://postgres:password@db.motionlyref.supabase.co:5432/postgres',
+      DATABASE_URL: 'postgresql://postgres:password@db.motifyref.supabase.co:5432/postgres',
     });
 
-    expect(environment.supabaseUrl).toBe('https://motionlyref.supabase.co');
+    expect(environment.supabaseUrl).toBe('https://motifyref.supabase.co');
   });
 
   it('rejects the removed OpenAI-compatible provider', () => {

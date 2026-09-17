@@ -1,6 +1,6 @@
-import type { RoutedSkill } from '../../motionly-skills/router.js';
-import type { GenerationIntent, MotionlyProject } from '../graph/dependencies.js';
-import type { ModelRequestLimits, MotionlyGeneration } from '../providers/model.provider.js';
+import type { RoutedSkill } from '../../motify-skills/router.js';
+import type { GenerationIntent, MotifyProject } from '../graph/dependencies.js';
+import type { ModelRequestLimits, MotifyGeneration } from '../providers/model.provider.js';
 import type { ValidationError } from '../validation/generation-validator.js';
 import { buildMotionSystemPrompt, describeProject, NO_PROJECT_YET } from './motion.prompt.js';
 
@@ -9,7 +9,7 @@ export const REPAIR_LIMITS: ModelRequestLimits = { maxOutputTokens: 16_000 };
 const FENCE = '```';
 
 const REPAIR_RULES = [
-    'The candidate you produced failed Motionly validation. Repair it.',
+    'The candidate you produced failed Motify validation. Repair it.',
     'Keep the design, copy, timing, and structure you already produced. Change only what the diagnostics require.',
     'Do not redesign the composition and do not start over unless a diagnostic makes that unavoidable.',
     'Return the complete corrected project, not a patch or a description of the fix.',
@@ -22,8 +22,8 @@ export function buildRepairSystemPrompt(skills: RoutedSkill[]): string {
 export interface RepairPromptInput {
     intent: GenerationIntent;
     message: string;
-    project?: MotionlyProject | undefined;
-    candidate: MotionlyGeneration;
+    project?: MotifyProject | undefined;
+    candidate: MotifyGeneration;
     errors: ValidationError[];
 }
 

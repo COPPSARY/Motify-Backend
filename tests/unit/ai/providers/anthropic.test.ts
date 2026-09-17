@@ -23,20 +23,20 @@ describe('AnthropicMotionModelProvider', () => {
         const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
 
         await expect(provider.generate({
-            model: 'claude-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
+            model: 'claude-test', systemInstructions: 'Motify rules', prompt: 'Create it',
             limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith({
             model: 'claude-test',
             messages: [
-                { role: 'system', content: 'Motionly rules' },
+                { role: 'system', content: 'Motify rules' },
                 { role: 'user', content: 'Create it' },
             ],
             max_completion_tokens: 2_000,
             response_format: {
                 type: 'json_schema',
                 json_schema: {
-                    name: 'motionly_generation',
+                    name: 'motify_generation',
                     strict: true,
                     schema: expect.any(Object),
                 },
@@ -74,14 +74,14 @@ describe('AnthropicMotionModelProvider', () => {
 
         await expect(provider.structured({
             model: 'claude-test', systemInstructions: 'Classify.', prompt: 'Change it',
-            schemaName: 'motionly_intent', schema: intentSchema,
+            schemaName: 'motify_intent', schema: intentSchema,
             limits: { maxOutputTokens: 128 },
         })).resolves.toEqual({ intent: 'EDIT' });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             response_format: {
                 type: 'json_schema',
                 json_schema: {
-                    name: 'motionly_intent',
+                    name: 'motify_intent',
                     strict: true,
                     schema: expect.any(Object),
                 },
@@ -99,7 +99,7 @@ describe('AnthropicMotionModelProvider', () => {
         const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
 
         await provider.generate({
-            model: 'claude-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
+            model: 'claude-test', systemInstructions: 'Motify rules', prompt: 'Create it',
             limits: { maxOutputTokens: 2_000 },
         });
 

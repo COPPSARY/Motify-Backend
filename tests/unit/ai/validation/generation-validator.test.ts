@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateMotionlyGeneration } from '../../../../packages/ai/validation/generation-validator.js';
+import { validateMotifyGeneration } from '../../../../packages/ai/validation/generation-validator.js';
 
 const validGeneration = {
     title: 'Launch',
@@ -14,9 +14,9 @@ const validGeneration = {
     reply: 'Created the launch animation.',
 };
 
-describe('validateMotionlyGeneration', () => {
+describe('validateMotifyGeneration', () => {
     it('rejects network APIs and duplicated data-edit identifiers', () => {
-        const report = validateMotionlyGeneration({
+        const report = validateMotifyGeneration({
             ...validGeneration,
             compositionHtml: '<template><style>.title { color: white; }</style><main data-edit="title"></main><p data-edit="title"></p></template>',
             timelineJs: 'export function buildTimeline() { fetch("https://example.test"); }',
