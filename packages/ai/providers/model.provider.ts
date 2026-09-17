@@ -60,7 +60,6 @@ export interface ModelGenerationResult {
 
 export interface ModelRequestLimits {
     maxOutputTokens: number;
-    timeoutMs: number;
 }
 
 export interface MotionModelRequest {
@@ -166,18 +165,17 @@ export function requireModelText(text: string | undefined): string {
     return text;
 }
 
-export function createRequestSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
-    const timeoutSignal = AbortSignal.timeout(timeoutMs);
-    return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+export function requestSignalOptions(signal: AbortSignal | undefined): [] | [{ signal: AbortSignal }] {
+    return signal ? [{ signal }] : [];
 }
 
 export function normalizeProviderError(
     provider: ModelProviderName,
     error: unknown,
-    signal: AbortSignal,
+    signal?: AbortSignal,
 ): ModelProviderError {
     if (error instanceof ModelProviderError) return error;
-    if (signal.aborted) {
+    if (signal?.aborted) {
         return new ModelProviderError('PROVIDER_TIMEOUT', 'The model request timed out or was cancelled.', false);
     }
 

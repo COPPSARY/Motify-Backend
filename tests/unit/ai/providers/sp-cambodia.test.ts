@@ -21,7 +21,7 @@ describe('SpCambodiaMotionModelProvider', () => {
             model: 'claude-opus-5',
             systemInstructions: 'Motionly rules',
             prompt: 'Create it',
-            limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             model: 'claude-opus-5',
@@ -34,7 +34,7 @@ describe('SpCambodiaMotionModelProvider', () => {
                     strict: true,
                 }),
             },
-        }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+        }));
     });
 
     it('returns response text for chat', async () => {
@@ -48,7 +48,7 @@ describe('SpCambodiaMotionModelProvider', () => {
             model: 'claude-opus-5',
             systemInstructions: 'Plan motion',
             messages: [{ role: 'user', content: 'How should it start?' }],
-            limits: { maxOutputTokens: 500, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 500 },
         })).resolves.toBe('Start with a title reveal.');
     });
 
@@ -65,7 +65,7 @@ describe('SpCambodiaMotionModelProvider', () => {
             prompt: 'Hello',
             schemaName: 'motionly_intent',
             schema: intentSchema,
-            limits: { maxOutputTokens: 128, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 128 },
         })).resolves.toEqual({ intent: 'CHAT' });
     });
 });

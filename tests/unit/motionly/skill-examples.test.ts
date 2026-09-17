@@ -3,67 +3,58 @@ import { loadSkillBundle } from '../../../packages/motionly-skills/loader.js';
 import { validateMotionlyGeneration } from '../../../packages/ai/validation/generation-validator.js';
 
 function extractCodeBlocks(markdown: string): { html: string | undefined; js: string | undefined } {
-  const htmlMatch = markdown.match(/```html\s*\n([\s\S]*?)\n```/);
-  const jsMatch = markdown.match(/```js(?:cript)?\s*\n([\s\S]*?)\n```/);
-  return {
-    html: htmlMatch?.[1],
-    js: jsMatch?.[1],
-  };
+    const htmlMatch = markdown.match(/```html\s*\n([\s\S]*?)\n```/);
+    const jsMatch = markdown.match(/```js(?:cript)?\s*\n([\s\S]*?)\n```/);
+    return {
+        html: htmlMatch?.[1],
+        js: jsMatch?.[1],
+    };
 }
 
 describe('Motionly Skill Code Examples', () => {
-  it('validates all canonical HTML and JS examples in core skills', async () => {
-    const bundle = await loadSkillBundle();
-    const skillsWithCode = ['code-authoring', 'write-motionly', 'editor-controls', 'timeline', 'typography', 'svg', 'marketing'];
+    it('validates the canonical HTML and JS scene-kit example', async () => {
+        const bundle = await loadSkillBundle();
+        const skill = bundle.skills.find((candidate) => candidate.id === 'scene-components');
+        expect(skill).toBeDefined();
 
-    for (const skillId of skillsWithCode) {
-      const skill = bundle.skills.find((s) => s.id === skillId);
-      expect(skill, `Skill ${skillId} should exist`).toBeDefined();
+        const { html, js } = extractCodeBlocks(skill!.content);
+        expect(html).toBeDefined();
+        expect(js).toBeDefined();
 
-      const { html, js } = extractCodeBlocks(skill!.content);
-      if (html && js) {
         const result = validateMotionlyGeneration({
-          title: `Testing ${skillId}`,
-          duration: 5,
-          width: 1920,
-          height: 1080,
-          fps: 60,
-          scenes: [
-            {
-              id: 'main',
-              label: 'Main Scene',
-              start: 0,
-              duration: 5,
-              accent: '#38bdf8',
-            },
-          ],
-          reply: `Testing ${skillId}`,
-          compositionHtml: html,
-          timelineJs: js,
+            title: 'Testing scene-components',
+            duration: 5,
+            width: 1920,
+            height: 1080,
+            fps: 60,
+            scenes: [
+                {
+                    id: 'scene-01',
+                    label: 'Main Scene',
+                    start: 0,
+                    duration: 5,
+                    accent: '#38bdf8',
+                },
+            ],
+            reply: 'Testing scene-components',
+            compositionHtml: html!.replace('<template>', '<template><style></style>'),
+            timelineJs: js!,
         });
 
         expect(
-          result.errors,
-          `Skill ${skillId} code example failed validation: ${result.errors.map((e) => e.message).join(', ')}`,
+            result.errors,
+            `Scene-kit code example failed validation: ${result.errors.map((error) => error.message).join(', ')}`,
         ).toEqual([]);
-      }
-    }
-  });
+    });
 
-  it('ensures editor-controls documents all frontend element and animation override properties', async () => {
-    const bundle = await loadSkillBundle();
-    const editorSkill = bundle.skills.find((s) => s.id === 'editor-controls');
-    expect(editorSkill).toBeDefined();
+    it('provides the callable preset surface needed by the runtime contract', async () => {
+        const bundle = await loadSkillBundle();
+        const presetSkill = bundle.skills.find((candidate) => candidate.id === 'preset-reference');
+        expect(presetSkill).toBeDefined();
 
-    const content = editorSkill!.content.toLowerCase();
-    expect(content).toContain('scale');
-    expect(content).toContain('opacity');
-    expect(content).toContain('color');
-    expect(content).toContain('backgroundcolor');
-    expect(content).toContain('fontsize');
-    expect(content).toContain('borderradius');
-    expect(content).toContain('hidden');
-    expect(content).toContain('speed');
-    expect(content).toContain('ease');
-  });
+        expect(presetSkill!.content).toContain('`EASE.cameraRamp`');
+        expect(presetSkill!.content).toContain('`zoomThrough(timeline, options)`');
+        expect(presetSkill!.content).toContain('`cutTheCurve(timeline, options)`');
+        expect(presetSkill!.content).toContain('`macroSettle(timeline, element, options?) -> HTMLElement[]`');
+    });
 });

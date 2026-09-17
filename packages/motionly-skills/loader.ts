@@ -7,8 +7,7 @@ import { z } from 'zod';
 
 const skillSchema = z.strictObject({
     id: z.string().min(1),
-    file: z.string().regex(/^[a-z0-9-]+\/SKILL\.md$/),
-    tags: z.array(z.string().min(1)),
+    file: z.string().regex(/^(?:styles\/)?[a-z0-9-]+\/SKILL\.md$/),
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
 const manifestSchema = z.strictObject({
@@ -24,7 +23,6 @@ export type SkillManifest = z.infer<typeof manifestSchema>;
 
 export interface LoadedSkill {
     id: string;
-    tags: string[];
     content: string;
 }
 
@@ -51,7 +49,7 @@ export async function loadSkillBundle(version = 'v1', root = packageRoot) {
 
     const diskFiles = (await readdir(skillRoot, { recursive: true, withFileTypes: true }))
         .filter((entry) => entry.isFile() && entry.name === 'SKILL.md')
-        .map((entry) => `${path.basename(entry.parentPath)}/${entry.name}`)
+        .map((entry) => path.relative(skillRoot, path.join(entry.parentPath, entry.name)).replaceAll(path.sep, '/'))
         .sort();
     const declaredFiles = manifest.skills.map((entry) => entry.file).sort();
     if (JSON.stringify(diskFiles) !== JSON.stringify(declaredFiles)) {
@@ -75,7 +73,7 @@ export async function loadSkillBundle(version = 'v1', root = packageRoot) {
         if (actualHash !== entry.sha256) {
             throw new Error(`Motionly skill hash mismatch: ${entry.file}`);
         }
-        skills.push({ id: entry.id, tags: entry.tags, content });
+        skills.push({ id: entry.id, content });
     }
 
     return { manifest, skills };

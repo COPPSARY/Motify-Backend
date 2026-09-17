@@ -9,7 +9,7 @@ import type {
 } from '../../../../packages/ai/graph/dependencies.js';
 import { createMotionGraph } from '../../../../packages/ai/graph/motion.graph.js';
 import { FakeMotionModelProvider } from '../../../../packages/ai/providers/fake.provider.js';
-import type { MotionlyGeneration, MotionModelRequest } from '../../../../packages/ai/providers/model.provider.js';
+import type { MotionlyGeneration, MotionModelRequest, StructuredModelRequest } from '../../../../packages/ai/providers/model.provider.js';
 import type { Intent } from '../../../../packages/ai/schemas/intent.schema.js';
 import { loadSkillBundle } from '../../../../packages/motionly-skills/loader.js';
 
@@ -67,6 +67,7 @@ interface HarnessOptions {
     role?: 'owner' | 'editor' | 'viewer';
     history?: { role: 'user' | 'assistant'; content: string }[];
     canCreate?: boolean;
+    selectedSkillIds?: string[];
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -76,7 +77,9 @@ function createHarness(options: HarnessOptions = {}) {
     let candidateIndex = 0;
 
     const provider = new FakeMotionModelProvider({
-        structured: { intent: options.intent ?? 'EDIT' },
+        structured: (request: StructuredModelRequest<unknown>) => request.schemaName === 'motionly_skill_selection'
+            ? { skillIds: options.selectedSkillIds ?? ['technical-data'] }
+            : { intent: options.intent ?? 'EDIT' },
         chat: options.chat ?? 'Motionly is ready.',
         generation: (request: MotionModelRequest) => {
             generateRequests.push(request);
@@ -126,15 +129,43 @@ function workspaceInput(message: string): MotionGraphInput {
 }
 
 describe('createMotionGraph', () => {
-    it('answers a greeting without loading or writing project state', async () => {
+    it('uses the AI intent classifier for a workspace greeting', async () => {
+        const harness = createHarness({ intent: 'CHAT', chat: 'Hello! What would you like to make?' });
+
+        const result = await harness.graph.invoke(workspaceInput('Hello'));
+
+        expect(harness.structured).toHaveBeenCalledTimes(1);
+        expect(result.intent).toBe('CHAT');
+        expect(result.response).toEqual({ type: 'chat', message: 'Hello! What would you like to make?' });
+        expect(harness.repository.createForGraph).not.toHaveBeenCalled();
+    });
+
+    it('uses the AI intent classifier for a project greeting without writing project state', async () => {
         const harness = createHarness({ intent: 'CHAT', chat: 'Hi! What would you like to create?' });
 
         const result = await harness.graph.invoke(input('hello'));
 
         expect(result.response).toEqual({ type: 'chat', message: 'Hi! What would you like to create?' });
+        expect(harness.structured).toHaveBeenCalledTimes(1);
         expect(harness.repository.loadForGraph).not.toHaveBeenCalled();
         expect(harness.repository.overwriteForGraph).not.toHaveBeenCalled();
         expect(harness.onSkillsSelected).not.toHaveBeenCalled();
+    });
+
+    it('replaces a provider chat refusal with a useful greeting', async () => {
+        const harness = createHarness({
+            intent: 'CHAT',
+            chat: "Sorry, it looks like I can't respond to this. Let's try a different topic.",
+        });
+
+        const result = await harness.graph.invoke(input('hii'));
+
+        expect(result.response).toEqual({
+            type: 'chat',
+            message: 'Hi! What would you like to create today?',
+        });
+        expect(harness.repository.loadForGraph).not.toHaveBeenCalled();
+        expect(harness.repository.overwriteForGraph).not.toHaveBeenCalled();
     });
 
     it('returns a plan without loading context or writing project state', async () => {
@@ -200,19 +231,28 @@ describe('createMotionGraph', () => {
         });
     });
 
-    it('sends every relevant Motionly skill and the current project source to the model', async () => {
-        const harness = createHarness({ intent: 'EDIT' });
+    it('sends only model-selected optional skills and current project source to the model', async () => {
+        const harness = createHarness({
+            intent: 'EDIT',
+            selectedSkillIds: ['scene-components', 'technical-data'],
+        });
         const bundle = await loadSkillBundle();
-        const expected = bundle.skills.filter((skill) => ['typography', 'timeline'].includes(skill.id));
+        const expected = bundle.skills.filter((skill) => [
+            'runtime-contract',
+            'write-motionly',
+            'scene-components',
+            'technical-data',
+        ].includes(skill.id));
 
         const result = await harness.graph.invoke(input('Make the title typography larger and retime the timeline duration.'));
 
-        expect(result.selectedSkills?.map((skill) => skill.id)).toEqual(expect.arrayContaining(
-            expected.map((skill) => skill.id),
-        ));
+        expect(result.selectedSkills?.map((skill) => skill.id)).toEqual(expected.map((skill) => skill.id));
         for (const skill of expected) {
-            expect(harness.generateRequests[0]?.systemInstructions).toContain(skill.content);
+            const body = skill.content.replace(/^---\n[\s\S]*?\n---\n*/, '').trim();
+            expect(harness.generateRequests[0]?.systemInstructions).toContain(body);
         }
+        expect(result.selectedSkills?.map((skill) => skill.id)).toContain('technical-data');
+        expect(harness.generateRequests[0]?.systemInstructions).toContain('Technical data product film');
         const selectedSkills = result.selectedSkills ?? [];
         expect(harness.onSkillsSelected).toHaveBeenCalledOnce();
         expect(harness.onSkillsSelected).toHaveBeenCalledWith({
@@ -258,7 +298,10 @@ describe('createMotionGraph', () => {
             revision: 7,
         }));
 
-        expect(harness.structured).not.toHaveBeenCalled();
+        expect(harness.structured).toHaveBeenCalledTimes(1);
+        expect(harness.structured).toHaveBeenCalledWith(expect.objectContaining({
+            schemaName: 'motionly_skill_selection',
+        }));
         expect(result.intent).toBe('FIX');
         expect(harness.generateRequests[0]?.prompt).toContain('Cannot read properties of null');
         expect(result.response).toMatchObject({ type: 'generation', revision: 8 });
@@ -366,7 +409,7 @@ describe('createMotionGraph', () => {
     });
 
     it('creates a project in the addressed workspace when no project is addressed', async () => {
-        const harness = createHarness({ intent: 'EDIT' });
+        const harness = createHarness({ intent: 'CREATE' });
 
         const result = await harness.graph.invoke(workspaceInput('Make me a launch animation.'));
 

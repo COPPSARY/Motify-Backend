@@ -1,22 +1,30 @@
-import { routeSkills } from '../../../motionly-skills/router.js';
+import { FALLBACK_GENERATION_SKILL_IDS, routeSkills } from '../../../motionly-skills/router.js';
+import { SKILL_SELECTION_LIMITS, SKILL_SELECTION_SYSTEM_PROMPT, buildSkillSelectionPrompt } from '../../prompts/skill-selection.prompt.js';
+import { skillSelectionSchema } from '../../schemas/skill-selection.schema.js';
 import { requireGenerationIntent, type ResolvedMotionGraphDependencies } from '../dependencies.js';
 import type { MotionGraphState, MotionGraphUpdate } from '../state.js';
 
-export const MAX_SKILL_PROMPT_CHARACTERS = 48_000;
-
 /**
- * Loads the skill bundle once and keeps only the guidance this request needs, so
- * prompts stay small. `core` is always selected by the router.
+ * Selects a manifest-constrained, request-specific bundle before generation.
  */
 export function createSelectSkillsNode(dependencies: ResolvedMotionGraphDependencies) {
     return async (state: MotionGraphState): Promise<MotionGraphUpdate> => {
         const intent = requireGenerationIntent(state.intent);
         const bundle = await dependencies.loadSkills();
-        const selectedSkills = routeSkills(bundle, {
-            intent,
-            prompt: state.message,
-            maxCharacters: MAX_SKILL_PROMPT_CHARACTERS,
-        });
+        let selectedSkills;
+        try {
+            const selection = await dependencies.provider.structured({
+                model: dependencies.model,
+                systemInstructions: SKILL_SELECTION_SYSTEM_PROMPT,
+                prompt: buildSkillSelectionPrompt(state.message),
+                schemaName: 'motionly_skill_selection',
+                schema: skillSelectionSchema,
+                limits: SKILL_SELECTION_LIMITS,
+            });
+            selectedSkills = routeSkills(bundle, selection.skillIds);
+        } catch {
+            selectedSkills = routeSkills(bundle, FALLBACK_GENERATION_SKILL_IDS);
+        }
         dependencies.onSkillsSelected({
             intent,
             manifestVersion: bundle.manifest.version,

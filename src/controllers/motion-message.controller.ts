@@ -12,7 +12,9 @@ const messageSchema = z.strictObject({
   if (value.runtimeError && value.revision === undefined) context.addIssue({ code: 'custom', path: ['revision'], message: 'revision is required for runtime repair.' });
 });
 
-export interface MotionMessageService { sendMessage(userId: string, projectId: string, input: z.infer<typeof messageSchema>): Promise<MessageResult>; }
+export interface MotionMessageService {
+  sendMessage(userId: string, projectId: string, input: z.infer<typeof messageSchema>): Promise<MessageResult>;
+}
 export class MotionMessageController {
   constructor(private readonly service: MotionMessageService) {}
   send = async (request: AuthenticatedRequest, response: Response) => {

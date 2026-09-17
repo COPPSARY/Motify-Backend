@@ -1,11 +1,15 @@
 import type { LoadedSkill, SkillManifest } from './loader.js';
+import { OPTIONAL_GENERATION_SKILL_IDS } from '../ai/schemas/skill-selection.schema.js';
 
-export interface SkillRouteInput {
-    prompt: string;
-    intent: 'CREATE' | 'EDIT' | 'FIX';
-    assetTypes?: string[];
-    maxCharacters?: number;
-}
+export const REQUIRED_GENERATION_SKILL_IDS = ['runtime-contract', 'write-motionly'] as const;
+export const FALLBACK_GENERATION_SKILL_IDS = [...REQUIRED_GENERATION_SKILL_IDS, 'technical-data'] as const;
+const VISUAL_DIRECTION_SKILL_IDS = new Set([
+    'editorial-brutalist',
+    'playful-learning',
+    'apple-glass',
+    'technical-data',
+    'cinematic-brand',
+]);
 
 export interface RoutedSkill {
     id: string;
@@ -16,38 +20,26 @@ export interface RoutedSkill {
 
 export function routeSkills(
     bundle: { manifest: SkillManifest; skills: LoadedSkill[] },
-    input: SkillRouteInput,
+    requestedIds: readonly string[],
 ): RoutedSkill[] {
-    const haystack = `${input.intent} ${input.prompt} ${(input.assetTypes ?? []).join(' ')}`.toLowerCase();
-    const maxCharacters = input.maxCharacters ?? Number.POSITIVE_INFINITY;
-    const selected: RoutedSkill[] = [];
-    const selectedIds = new Set<string>();
-    let characters = 0;
+    const allowed = new Set<string>([...REQUIRED_GENERATION_SKILL_IDS, ...OPTIONAL_GENERATION_SKILL_IDS]);
+    let hasVisualDirection = false;
+    const requested = requestedIds.filter((id) => {
+        if (!allowed.has(id)) return false;
+        if (!VISUAL_DIRECTION_SKILL_IDS.has(id)) return true;
+        if (hasVisualDirection) return false;
+        hasVisualDirection = true;
+        return true;
+    });
+    const ids = [...new Set([...REQUIRED_GENERATION_SKILL_IDS, ...requested])];
 
-    const candidates = bundle.skills
-        .filter((skill) => !selectedIds.has(skill.id))
-        .map((skill) => ({
-            skill,
-            matches: skill.tags.filter((tag) => haystack.includes(tag.toLowerCase())),
-        }))
-        .filter((candidate) => candidate.matches.length > 0)
-        .sort((left, right) => (
-            right.matches.length - left.matches.length
-            || left.skill.id.localeCompare(right.skill.id)
-        ));
-
-    for (const { skill, matches } of candidates) {
-        if (characters + skill.content.length > maxCharacters) continue;
-        selected.push(toRoutedSkill(
-            skill,
-            bundle.manifest.version,
-            `Matched: ${matches.join(', ')}`,
-        ));
-        selectedIds.add(skill.id);
-        characters += skill.content.length;
-    }
-
-    return selected;
+    return ids.map((id) => {
+        const skill = bundle.skills.find((candidate) => candidate.id === id);
+        if (!skill) throw new Error(`Missing Motionly generation skill: ${id}`);
+        return toRoutedSkill(skill, bundle.manifest.version, id === 'runtime-contract' || id === 'write-motionly'
+            ? 'Required for generation'
+            : 'Selected by AI for this request');
+    });
 }
 
 function toRoutedSkill(skill: LoadedSkill, version: string, reason: string): RoutedSkill {

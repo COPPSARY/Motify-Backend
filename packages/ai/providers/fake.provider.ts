@@ -1,5 +1,4 @@
 import {
-    createRequestSignal,
     ModelProviderError,
     motionlyGenerationSchema,
     type ChatRequest,
@@ -24,7 +23,7 @@ export class FakeMotionModelProvider implements MotionModelProvider {
     constructor(private readonly script: FakeProviderScript) {}
 
     async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
-        requireActive(request.signal, request.limits.timeoutMs);
+        requireActive(request.signal);
         const value = typeof this.script.generation === 'function'
             ? await this.script.generation(request)
             : this.script.generation;
@@ -46,7 +45,7 @@ export class FakeMotionModelProvider implements MotionModelProvider {
     }
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
-        requireActive(request.signal, request.limits.timeoutMs);
+        requireActive(request.signal);
         const value = typeof this.script.structured === 'function'
             ? await this.script.structured(request)
             : this.script.structured;
@@ -54,7 +53,7 @@ export class FakeMotionModelProvider implements MotionModelProvider {
     }
 
     async chat(request: ChatRequest): Promise<string> {
-        requireActive(request.signal, request.limits.timeoutMs);
+        requireActive(request.signal);
         return typeof this.script.chat === 'function' ? this.script.chat(request) : this.script.chat;
     }
 }
@@ -63,8 +62,8 @@ function isGenerationResult(value: unknown): value is { generation: unknown; usa
     return Boolean(value && typeof value === 'object' && 'generation' in value && 'usage' in value);
 }
 
-function requireActive(signal: AbortSignal | undefined, timeoutMs: number): void {
-    if (createRequestSignal(signal, timeoutMs).aborted) {
+function requireActive(signal: AbortSignal | undefined): void {
+    if (signal?.aborted) {
         throw new ModelProviderError('PROVIDER_TIMEOUT', 'The model request timed out or was cancelled.', false);
     }
 }

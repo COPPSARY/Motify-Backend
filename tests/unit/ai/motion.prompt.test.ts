@@ -3,28 +3,43 @@ import { describe, expect, it } from 'vitest';
 import { buildMotionSystemPrompt } from '../../../packages/ai/prompts/motion.prompt.js';
 
 describe('buildMotionSystemPrompt', () => {
-    it('requires timeline source that the Motionly runtime can mount', () => {
-        const prompt = buildMotionSystemPrompt([]);
+    const skills = [
+        {
+            id: 'runtime-contract',
+            version: '3.0.0',
+            reason: 'Required for generation',
+            content: 'Runtime instructions',
+        },
+        {
+            id: 'preset-reference',
+            version: '3.0.0',
+            reason: 'Required for generation',
+            content: '# The Motionly runtime API\n\n- `cameraPush(timeline, target, options?)`',
+        },
+    ];
 
-        expect(prompt).toContain('export function buildTimeline({ root, timeline, register })');
-        expect(prompt).toContain('only call register with an element that was found');
+    it('assembles the system prompt from routed skills in their supplied order', () => {
+        const prompt = buildMotionSystemPrompt(skills);
+
+        expect(prompt).toContain('MOTIONLY SKILL BUNDLE VERSION: 3.0.0');
+        expect(prompt.indexOf('SKILL: runtime-contract')).toBeLessThan(
+            prompt.indexOf('SKILL: preset-reference'),
+        );
+        expect(prompt).toContain('Runtime instructions');
+        expect(prompt).toContain('cameraPush(timeline, target, options?)');
     });
 
-    it('includes selected website editor guidance', () => {
+    it('rejects an empty routed skill bundle', () => {
+        expect(() => buildMotionSystemPrompt([])).toThrow('Motionly system prompt requires routed skills.');
+    });
+
+    it('removes YAML frontmatter while preserving skill content', () => {
         const prompt = buildMotionSystemPrompt([{
-            id: 'editor-controls',
-            version: '1.0.0',
-            reason: 'Baseline guidance for this generation intent.',
-            content: 'Register each stable data-edit layer for scale and rotation controls.',
+            ...skills[0]!,
+            content: '---\nname: runtime-contract\ndescription: Use when generating Motionly compositions.\n---\n\nRuntime instructions',
         }]);
 
-        expect(prompt).toContain('--- skill: editor-controls');
-        expect(prompt).toContain('Register each stable data-edit layer for scale and rotation controls.');
-    });
-
-    it('keeps user-facing replies focused on the creative outcome instead of internal implementation', () => {
-        const prompt = buildMotionSystemPrompt([]);
-
-        expect(prompt).toContain('Do not mention Motionly, the platform, the frontend, GSAP, code, skills, rendering, previews, exports, or internal process unless the user explicitly asks.');
+        expect(prompt).not.toContain('description: Use when');
+        expect(prompt).toContain('Runtime instructions');
     });
 });

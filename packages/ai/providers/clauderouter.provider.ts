@@ -7,12 +7,12 @@ import type {
 import { z } from 'zod';
 
 import {
-    createRequestSignal,
     motionlyGenerationJsonSchema,
     normalizeProviderError,
     parseMotionlyGeneration,
     parseStructured,
     requireModelText,
+    requestSignalOptions,
     tokenUsage,
     type ChatRequest,
     type ModelGenerationResult,
@@ -57,7 +57,6 @@ export class ClaudeRouterMotionModelProvider implements MotionModelProvider {
     }
 
     async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.chat.completions.create({
                 model: request.model,
@@ -72,18 +71,17 @@ export class ClaudeRouterMotionModelProvider implements MotionModelProvider {
                         schema: motionlyGenerationJsonSchema,
                     },
                 },
-            }, { signal });
+            }, ...requestSignalOptions(request.signal));
             return {
                 generation: parseMotionlyGeneration(extractText(response)),
                 usage: tokenUsage(response.usage?.prompt_tokens, response.usage?.completion_tokens),
             };
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.chat.completions.create({
                 model: request.model,
@@ -98,15 +96,14 @@ export class ClaudeRouterMotionModelProvider implements MotionModelProvider {
                         schema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
                     },
                 },
-            }, { signal });
+            }, ...requestSignalOptions(request.signal));
             return parseStructured(extractText(response), request.schema);
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 
     async chat(request: ChatRequest): Promise<string> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.chat.completions.create({
                 model: request.model,
@@ -116,10 +113,10 @@ export class ClaudeRouterMotionModelProvider implements MotionModelProvider {
                 ],
                 max_completion_tokens: request.limits.maxOutputTokens,
 
-            }, { signal });
+            }, ...requestSignalOptions(request.signal));
             return extractText(response);
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 }
