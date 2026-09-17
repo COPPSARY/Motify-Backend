@@ -6,7 +6,6 @@ import {
 import { z } from 'zod';
 
 import {
-    createRequestSignal,
     motionlyGenerationJsonSchema,
     normalizeProviderError,
     parseMotionlyGeneration,
@@ -41,14 +40,12 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
     }
 
     async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.models.generateContent({
                 model: request.model,
                 contents: request.prompt,
                 config: {
-                    abortSignal: signal,
-                    httpOptions: { timeout: request.limits.timeoutMs },
+                    ...(request.signal ? { abortSignal: request.signal } : {}),
                     systemInstruction: request.systemInstructions,
                     maxOutputTokens: request.limits.maxOutputTokens,
 
@@ -61,28 +58,26 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                 usage: tokenUsage(response.usageMetadata?.promptTokenCount, response.usageMetadata?.candidatesTokenCount),
             };
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.models.generateContent({
                 model: request.model, contents: request.prompt,
                 config: {
-                    abortSignal: signal, httpOptions: { timeout: request.limits.timeoutMs },
+                    ...(request.signal ? { abortSignal: request.signal } : {}),
                     systemInstruction: request.systemInstructions,
                     maxOutputTokens: request.limits.maxOutputTokens,
                     responseMimeType: 'application/json', responseJsonSchema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
                 },
             });
             return parseStructured(requireModelText(response.text), request.schema);
-        } catch (error) { throw normalizeProviderError(this.name, error, signal); }
+        } catch (error) { throw normalizeProviderError(this.name, error, request.signal); }
     }
 
     async chat(request: ChatRequest): Promise<string> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.models.generateContent({
                 model: request.model,
@@ -91,8 +86,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                     parts: [{ text: message.content }],
                 })),
                 config: {
-                    abortSignal: signal,
-                    httpOptions: { timeout: request.limits.timeoutMs },
+                    ...(request.signal ? { abortSignal: request.signal } : {}),
                     systemInstruction: request.systemInstructions,
                     maxOutputTokens: request.limits.maxOutputTokens,
 
@@ -100,7 +94,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
             });
             return requireModelText(response.text);
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 }

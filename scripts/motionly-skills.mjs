@@ -22,7 +22,7 @@ if (action !== 'update' && manifest.hashAlgorithm !== 'sha256') {
 
 const diskFiles = (await readdir(skillRoot, { recursive: true, withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name === 'SKILL.md')
-    .map((entry) => `${path.basename(entry.parentPath)}/${entry.name}`)
+    .map((entry) => path.relative(skillRoot, path.join(entry.parentPath, entry.name)).replaceAll(path.sep, '/'))
     .sort();
 const declaredFiles = manifest.skills.map((skill) => skill.file).sort();
 if (JSON.stringify(diskFiles) !== JSON.stringify(declaredFiles)) {
@@ -33,7 +33,7 @@ for (const skill of manifest.skills) {
     if (!skill || typeof skill.id !== 'string' || typeof skill.file !== 'string') {
         throw new Error('Invalid Motionly skill manifest entry.');
     }
-    if (!/^[a-z0-9-]+\/SKILL\.md$/.test(skill.file)) {
+    if (!/^(?:styles\/)?[a-z0-9-]+\/SKILL\.md$/.test(skill.file)) {
         throw new Error(`Invalid Motionly skill path: ${skill.file}`);
     }
     if (seenIds.has(skill.id)) throw new Error(`Duplicate Motionly skill id: ${skill.id}`);

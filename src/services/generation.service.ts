@@ -21,8 +21,8 @@ export interface MessageRequestInput {
 }
 
 export type MessageResult =
-    | { type: 'chat'; response: string }
-    | { type: 'plan'; response: string }
+    | { type: 'chat'; response: string; projectId?: string; revision?: number }
+    | { type: 'plan'; response: string; projectId?: string; revision?: number }
     | { type: 'generation'; response: string; projectId: string; revision: number };
 
 const PROVIDER_STATUS: Record<ProviderErrorCode, number> = {
@@ -61,21 +61,23 @@ export class GenerationService {
         if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
         requireWriteAccess(access.role);
 
-        const state = await this.invokeGraph({
+        return this.result(await this.invokeGraph({
             userId,
             workspaceId: access.workspaceId,
             projectId,
             message: input.message,
             ...(input.runtimeError ? { runtimeError: input.runtimeError } : {}),
             ...(input.revision !== undefined ? { revision: input.revision } : {}),
-        });
+        }));
+    }
 
+    private result(
+        state: { response?: MotionGraphResponse | undefined },
+    ): MessageResult {
         const response = state.response;
         if (!response) throw new Error('The Motionly graph finished without a response.');
         if (response.type === 'error') throw toAppError(response);
-        if (response.type !== 'generation') {
-            return { type: response.type, response: response.message };
-        }
+        if (response.type !== 'generation') return { type: response.type, response: response.message };
         return {
             type: 'generation',
             response: response.message,

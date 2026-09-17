@@ -22,7 +22,7 @@ describe('MotionModelProvider contract', () => {
             model: 'fake-model',
             systemInstructions: 'Follow Motionly rules.',
             prompt: 'Create a launch animation.',
-            limits: { maxOutputTokens: 2_000, timeoutMs: 10_000 },
+            limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: null, outputTokens: null } });
     });
 
@@ -33,7 +33,7 @@ describe('MotionModelProvider contract', () => {
             model: 'fake-model',
             systemInstructions: 'Follow Motionly rules.',
             prompt: 'Create a launch animation.',
-            limits: { maxOutputTokens: 2_000, timeoutMs: 10_000 },
+            limits: { maxOutputTokens: 2_000 },
         })).rejects.toEqual(expect.objectContaining({
             code: 'PROVIDER_OUTPUT_INVALID',
             retryable: false,
@@ -47,7 +47,7 @@ describe('MotionModelProvider contract', () => {
             model: 'fake-model',
             systemInstructions: 'Help the user plan.',
             messages: [{ role: 'user', content: 'Can you help me?' }],
-            limits: { maxOutputTokens: 500, timeoutMs: 10_000 },
+            limits: { maxOutputTokens: 500 },
         })).resolves.toBe('Tell me what you want to animate.');
     });
 
@@ -60,7 +60,7 @@ describe('MotionModelProvider contract', () => {
             model: 'fake-model',
             systemInstructions: 'Help the user plan.',
             messages: [{ role: 'user', content: 'Hello' }],
-            limits: { maxOutputTokens: 500, timeoutMs: 10_000 },
+            limits: { maxOutputTokens: 500 },
             signal: controller.signal,
         })).rejects.toEqual(expect.objectContaining({ code: 'PROVIDER_TIMEOUT' }));
     });

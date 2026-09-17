@@ -1,17 +1,18 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { z } from 'zod';
+import OpenAI from 'openai';
 import type {
-    Message,
-    MessageCreateParamsNonStreaming,
-} from '@anthropic-ai/sdk/resources/messages/messages';
+    ChatCompletion,
+    ChatCompletionCreateParamsNonStreaming,
+    ChatCompletionMessageParam,
+} from 'openai/resources/chat/completions';
+import { z } from 'zod';
 
 import {
-    createRequestSignal,
     motionlyGenerationJsonSchema,
     normalizeProviderError,
     parseMotionlyGeneration,
     parseStructured,
     requireModelText,
+    requestSignalOptions,
     tokenUsage,
     type ChatRequest,
     type ModelGenerationResult,
@@ -20,9 +21,16 @@ import {
     type StructuredModelRequest,
 } from './model.provider.js';
 
+export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
+
 interface AnthropicClient {
-    messages: {
-        create(body: MessageCreateParamsNonStreaming, options?: { signal?: AbortSignal }): Promise<Message>;
+    chat: {
+        completions: {
+            create(
+                body: ChatCompletionCreateParamsNonStreaming,
+                options?: { signal?: AbortSignal },
+            ): Promise<ChatCompletion>;
+        };
     };
 }
 
@@ -31,103 +39,91 @@ export interface AnthropicProviderOptions {
     client?: AnthropicClient;
 }
 
+/**
+ * The configured Anthropic gateway exposes an OpenAI-compatible
+ * `/chat/completions` endpoint.
+ */
 export class AnthropicMotionModelProvider implements MotionModelProvider {
     readonly name = 'anthropic' as const;
     private readonly client: AnthropicClient;
 
     constructor(options: AnthropicProviderOptions) {
         if (!options.apiKey.trim()) throw new Error('Anthropic API key is required.');
-        this.client = options.client ?? new Anthropic({ apiKey: options.apiKey });
+        this.client = options.client ?? new OpenAI({
+            apiKey: options.apiKey,
+            baseURL: ANTHROPIC_BASE_URL,
+        });
     }
 
     async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
-        const signal = createAnthropicRequestSignal(request);
         try {
-            const response = await this.client.messages.create({
+            const response = await this.client.chat.completions.create({
                 model: request.model,
-                system: request.systemInstructions,
-                max_tokens: request.limits.maxOutputTokens,
-                messages: [{ role: 'user', content: request.prompt }],
-                output_config: {
-                    format: { type: 'json_schema', schema: toAnthropicJsonSchema(motionlyGenerationJsonSchema) },
+                messages: promptMessages(request.systemInstructions, request.prompt),
+                max_completion_tokens: request.limits.maxOutputTokens,
+                response_format: {
+                    type: 'json_schema',
+                    json_schema: {
+                        name: 'motionly_generation',
+                        strict: true,
+                        schema: motionlyGenerationJsonSchema,
+                    },
                 },
-            }, { signal });
+            }, ...requestSignalOptions(request.signal));
             return {
                 generation: parseMotionlyGeneration(extractText(response)),
-                usage: tokenUsage(response.usage.input_tokens, response.usage.output_tokens),
+                usage: tokenUsage(response.usage?.prompt_tokens, response.usage?.completion_tokens),
             };
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
-        const signal = createAnthropicRequestSignal(request);
         try {
-            const response = await this.client.messages.create({
-                model: request.model, system: request.systemInstructions, max_tokens: request.limits.maxOutputTokens,
-                messages: [{ role: 'user', content: request.prompt }],
-                output_config: {
-                    format: {
-                        type: 'json_schema',
-                        schema: toAnthropicJsonSchema(z.toJSONSchema(request.schema, { target: 'draft-7' })),
+            const response = await this.client.chat.completions.create({
+                model: request.model,
+                messages: promptMessages(request.systemInstructions, request.prompt),
+                max_completion_tokens: request.limits.maxOutputTokens,
+                response_format: {
+                    type: 'json_schema',
+                    json_schema: {
+                        name: request.schemaName,
+                        strict: true,
+                        schema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
                     },
                 },
-            }, { signal });
+            }, ...requestSignalOptions(request.signal));
             return parseStructured(extractText(response), request.schema);
-        } catch (error) { throw normalizeProviderError(this.name, error, signal); }
+        } catch (error) {
+            throw normalizeProviderError(this.name, error, request.signal);
+        }
     }
 
     async chat(request: ChatRequest): Promise<string> {
-        const signal = createAnthropicRequestSignal(request);
         try {
-            const response = await this.client.messages.create({
+            const response = await this.client.chat.completions.create({
                 model: request.model,
-                system: request.systemInstructions,
-                max_tokens: request.limits.maxOutputTokens,
-                messages: request.messages,
-            }, { signal });
+                messages: [
+                    { role: 'system', content: request.systemInstructions },
+                    ...request.messages,
+                ],
+                max_completion_tokens: request.limits.maxOutputTokens,
+            }, ...requestSignalOptions(request.signal));
             return extractText(response);
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 }
 
-const ANTHROPIC_MAX_TIMEOUT_MS = 90_000;
-
-function createAnthropicRequestSignal(request: { signal?: AbortSignal; limits: { timeoutMs: number } }): AbortSignal {
-    return createRequestSignal(request.signal, Math.min(request.limits.timeoutMs, ANTHROPIC_MAX_TIMEOUT_MS));
+function promptMessages(systemInstructions: string, prompt: string): ChatCompletionMessageParam[] {
+    return [
+        { role: 'system', content: systemInstructions },
+        { role: 'user', content: prompt },
+    ];
 }
 
-function extractText(response: Message): string {
-    return requireModelText(response.content
-        .filter((block) => block.type === 'text')
-        .map((block) => block.text)
-        .join(''));
-}
-
-const ANTHROPIC_UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
-    'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',
-    'minLength', 'maxLength', 'minItems', 'maxItems',
-]);
-
-/**
- * Anthropic rejects JSON Schema numeric, string, and array constraints in
- * structured output requests. Keep the full Zod schema for post-response
- * validation, but omit those unsupported transport-only constraints.
- */
-function toAnthropicJsonSchema(schema: Record<string, unknown>): Record<string, unknown> {
-    return stripUnsupportedSchemaKeywords(schema) as Record<string, unknown>;
-}
-
-function stripUnsupportedSchemaKeywords(value: unknown): unknown {
-    if (Array.isArray(value)) return value.map(stripUnsupportedSchemaKeywords);
-    if (!value || typeof value !== 'object') return value;
-
-    return Object.fromEntries(
-        Object.entries(value)
-            .filter(([key]) => !ANTHROPIC_UNSUPPORTED_SCHEMA_KEYWORDS.has(key))
-            .map(([key, child]) => [key, stripUnsupportedSchemaKeywords(child)]),
-    );
+function extractText(response: ChatCompletion): string {
+    return requireModelText(response.choices[0]?.message?.content ?? undefined);
 }

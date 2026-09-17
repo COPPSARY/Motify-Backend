@@ -11,7 +11,7 @@ const generation = await provider.generate({
   model,
   systemInstructions: 'Return a valid minimal Motionly composition. Use no external assets.',
   prompt: 'Create a one-second composition containing a single text scene and no animation tracks.',
-  limits: { maxOutputTokens: 512, timeoutMs: 30_000 },
+  limits: { maxOutputTokens: 512 },
 });
 
 const passed = generation.scenes.length > 0

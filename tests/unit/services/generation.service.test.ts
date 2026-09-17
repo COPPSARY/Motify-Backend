@@ -27,7 +27,6 @@ function createService(options: HarnessOptions = {}) {
             return { response: options.response ?? ({ type: 'chat', message: 'Motionly is ready.' } as MotionGraphResponse) };
         }),
     };
-
     return { service: new GenerationService(graph, projects), graph, projects };
 }
 

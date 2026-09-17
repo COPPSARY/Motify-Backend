@@ -16,7 +16,7 @@ describe('GeminiMotionModelProvider', () => {
 
         await expect(provider.generate({
             model: 'gemini-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
-            limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({
             model: 'gemini-test', contents: 'Create it',
@@ -25,6 +25,8 @@ describe('GeminiMotionModelProvider', () => {
                 responseJsonSchema: expect.objectContaining({ type: 'object' }),
             }),
         }));
+        expect(generateContent.mock.calls[0]?.[0].config).not.toHaveProperty('abortSignal');
+        expect(generateContent.mock.calls[0]?.[0].config).not.toHaveProperty('httpOptions.timeout');
     });
 
     it('returns text for chat without forcing the generation schema', async () => {
@@ -33,7 +35,7 @@ describe('GeminiMotionModelProvider', () => {
 
         await expect(provider.chat({
             model: 'gemini-test', systemInstructions: 'Plan motion',
-            messages: [{ role: 'user', content: 'Help me plan' }], limits: { maxOutputTokens: 500, timeoutMs: 5_000 },
+            messages: [{ role: 'user', content: 'Help me plan' }], limits: { maxOutputTokens: 500 },
         })).resolves.toBe('What should move first?');
         expect(generateContent.mock.calls[0]?.[0].config).not.toHaveProperty('responseJsonSchema');
     });
@@ -45,7 +47,7 @@ describe('GeminiMotionModelProvider', () => {
         await expect(provider.structured({
             model: 'gemini-test', systemInstructions: 'Classify requests.', prompt: 'Plan it.',
             schemaName: 'motionly_intent', schema: intentSchema,
-            limits: { maxOutputTokens: 128, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 128 },
         })).resolves.toEqual({ intent: 'PLAN' });
         expect(generateContent).toHaveBeenCalledWith(expect.objectContaining({
             config: expect.objectContaining({ responseMimeType: 'application/json', responseJsonSchema: expect.objectContaining({ type: 'object' }) }),
@@ -58,7 +60,7 @@ describe('GeminiMotionModelProvider', () => {
 
         const result = provider.chat({
             model: 'gemini-test', systemInstructions: 'Plan motion',
-            messages: [{ role: 'user', content: 'Help me plan' }], limits: { maxOutputTokens: 500, timeoutMs: 5_000 },
+            messages: [{ role: 'user', content: 'Help me plan' }], limits: { maxOutputTokens: 500 },
         });
 
         await expect(result).rejects.toEqual(expect.objectContaining({

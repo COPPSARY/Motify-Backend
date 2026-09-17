@@ -35,7 +35,9 @@ function dependencies() {
     projects: {
       list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn(),
     },
-    motionMessages: { sendMessage: vi.fn().mockResolvedValue({ type: 'plan', response: 'Plan only.' }) },
+    motionMessages: {
+      sendMessage: vi.fn().mockResolvedValue({ type: 'plan', response: 'Plan only.' }),
+    },
   };
 }
 
@@ -144,6 +146,19 @@ describe('Motionly API', () => {
     expect(deps.motionMessages.sendMessage).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7', { message: 'Plan a launch.' });
   });
 
+  it('does not expose workspace-scoped generation', async () => {
+    const deps = dependencies();
+    deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
+    const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
+
+    const response = await request(app).post('/v1/generations')
+      .set('Cookie', ['motionly_session=session']).set('x-csrf-token', 'expected-csrf')
+      .send({ workspaceId: '26ce88b5-1a51-4265-913e-203eb3cadbd7', message: 'Create a launch film.' });
+
+    expect(response.status).toBe(404);
+  });
+
+
   it('lists projects through the workspace projects endpoint', async () => {
     const deps = dependencies();
     deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
@@ -160,12 +175,24 @@ describe('Motionly API', () => {
     deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
     deps.projects.get.mockResolvedValue({ compositionHtml: '<template><style>.hero { color: red; }</style></template>', timelineJs: 'export function buildTimeline() {}' });
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
-    const response = await request(app).get('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/files').set('Cookie', ['motionly_session=session']);
+    const response = await request(app).get('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/source').set('Cookie', ['motionly_session=session']);
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual({
       'composition.html': '<template><style>.hero { color: red; }</style></template>',
       'timeline.js': 'export function buildTimeline() {}',
     });
+  });
+
+  it('does not expose the removed files endpoint', async () => {
+    const deps = dependencies();
+    deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
+    const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
+
+    const response = await request(app)
+      .get('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/files')
+      .set('Cookie', ['motionly_session=session']);
+
+    expect(response.status).toBe(404);
   });
 
   it('returns the session CSRF token with the current user', async () => {

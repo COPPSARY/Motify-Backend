@@ -3,12 +3,12 @@ import type { Response, ResponseCreateParamsNonStreaming } from 'openai/resource
 import { z } from 'zod';
 
 import {
-    createRequestSignal,
     motionlyGenerationJsonSchema,
     normalizeProviderError,
     parseMotionlyGeneration,
     parseStructured,
     requireModelText,
+    requestSignalOptions,
     tokenUsage,
     type ChatRequest,
     type ModelGenerationResult,
@@ -43,7 +43,6 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
     }
 
     async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.responses.create({
                 model: request.model,
@@ -59,18 +58,17 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
                         schema: motionlyGenerationJsonSchema,
                     },
                 },
-            }, { signal });
+            }, ...requestSignalOptions(request.signal));
             return {
                 generation: parseMotionlyGeneration(requireModelText(response.output_text)),
                 usage: tokenUsage(response.usage?.input_tokens, response.usage?.output_tokens),
             };
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.responses.create({
                 model: request.model,
@@ -86,15 +84,14 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
                         schema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
                     },
                 },
-            }, { signal });
+            }, ...requestSignalOptions(request.signal));
             return parseStructured(requireModelText(response.output_text), request.schema);
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 
     async chat(request: ChatRequest): Promise<string> {
-        const signal = createRequestSignal(request.signal, request.limits.timeoutMs);
         try {
             const response = await this.client.responses.create({
                 model: request.model,
@@ -102,10 +99,10 @@ export class SpCambodiaMotionModelProvider implements MotionModelProvider {
                 input: request.messages,
                 max_output_tokens: request.limits.maxOutputTokens,
 
-            }, { signal });
+            }, ...requestSignalOptions(request.signal));
             return requireModelText(response.output_text);
         } catch (error) {
-            throw normalizeProviderError(this.name, error, signal);
+            throw normalizeProviderError(this.name, error, request.signal);
         }
     }
 }

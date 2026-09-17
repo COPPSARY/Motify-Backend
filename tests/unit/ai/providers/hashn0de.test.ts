@@ -19,7 +19,7 @@ describe('Hashn0deMotionModelProvider', () => {
 
         await expect(provider.generate({
             model: 'claude-sonnet-5', systemInstructions: 'Motionly rules', prompt: 'Create it',
-            limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             model: 'claude-sonnet-5',
@@ -29,7 +29,7 @@ describe('Hashn0deMotionModelProvider', () => {
                 { role: 'user', content: 'Create it' },
             ],
             response_format: { type: 'json_schema', json_schema: expect.objectContaining({ name: 'motionly_generation' }) },
-        }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+        }));
     });
 
     it('returns the OpenAI chat-completion text', async () => {
@@ -38,15 +38,15 @@ describe('Hashn0deMotionModelProvider', () => {
 
         await expect(provider.chat({
             model: 'claude-sonnet-5', systemInstructions: 'Plan motion',
-            messages: [{ role: 'user', content: 'How should it start?' }], limits: { maxOutputTokens: 500, timeoutMs: 5_000 },
+            messages: [{ role: 'user', content: 'How should it start?' }], limits: { maxOutputTokens: 500 },
         })).resolves.toBe('Start with the logo. Then reveal the title.');
     });
 
     it('uses JSON Schema for structured intent output', async () => {
         const create = vi.fn().mockResolvedValue({ choices: [{ message: { content: '{"intent":"EDIT"}' } }] });
         const provider = new Hashn0deMotionModelProvider({ apiKey: 'test-key', client: { chat: { completions: { create } } } });
-        await expect(provider.structured({ model: 'claude-sonnet-5', systemInstructions: 'Classify.', prompt: 'Change it', schemaName: 'motionly_intent', schema: intentSchema, limits: { maxOutputTokens: 128, timeoutMs: 5_000 } })).resolves.toEqual({ intent: 'EDIT' });
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({ response_format: { type: 'json_schema', json_schema: expect.objectContaining({ name: 'motionly_intent' }) } }), expect.anything());
+        await expect(provider.structured({ model: 'claude-sonnet-5', systemInstructions: 'Classify.', prompt: 'Change it', schemaName: 'motionly_intent', schema: intentSchema, limits: { maxOutputTokens: 128 } })).resolves.toEqual({ intent: 'EDIT' });
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ response_format: { type: 'json_schema', json_schema: expect.objectContaining({ name: 'motionly_intent' }) } }));
     });
 
     it('requires an API key', () => {

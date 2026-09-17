@@ -9,54 +9,130 @@ const generation = {
     compositionHtml: '<main>Launch</main>', timelineJs: 'timeline.play();', reply: 'Created it.',
 };
 
+const providerOptions = {
+    apiKey: 'test-key',
+};
+
 describe('AnthropicMotionModelProvider', () => {
-    it('uses Messages structured output and validates the composition', async () => {
-        const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: JSON.stringify(generation) }], usage: { input_tokens: 1_200, output_tokens: 340 } });
-        const provider = new AnthropicMotionModelProvider({ apiKey: 'test-key', client: { messages: { create } } });
+    it('uses OpenAI chat-completions structured output and validates the composition', async () => {
+        const create = vi.fn().mockResolvedValue({
+            id: 'chatcmpl-test', object: 'chat.completion', created: 1, model: 'claude-test',
+            choices: [{ index: 0, finish_reason: 'stop', logprobs: null, message: { role: 'assistant', content: JSON.stringify(generation), refusal: null } }],
+            usage: { prompt_tokens: 1_200, completion_tokens: 340, total_tokens: 1_540 },
+        });
+        const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
 
         await expect(provider.generate({
             model: 'claude-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
-            limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({
-            model: 'claude-test', system: 'Motionly rules', max_tokens: 2_000,
-            messages: [{ role: 'user', content: 'Create it' }],
-            output_config: { format: expect.objectContaining({ type: 'json_schema' }) },
-        }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
-        expect(create.mock.calls[0]?.[0].output_config?.format.schema)
-            .not.toHaveProperty('properties.duration.exclusiveMinimum');
+        expect(create).toHaveBeenCalledWith({
+            model: 'claude-test',
+            messages: [
+                { role: 'system', content: 'Motionly rules' },
+                { role: 'user', content: 'Create it' },
+            ],
+            max_completion_tokens: 2_000,
+            response_format: {
+                type: 'json_schema',
+                json_schema: {
+                    name: 'motionly_generation',
+                    strict: true,
+                    schema: expect.any(Object),
+                },
+            },
+        });
     });
 
-    it('joins text blocks returned for chat', async () => {
+    it('returns the OpenAI chat-completion text', async () => {
         const create = vi.fn().mockResolvedValue({
-            content: [{ type: 'text', text: 'Start with the logo.' }, { type: 'text', text: ' Then reveal the title.' }],
+            id: 'chatcmpl-test', object: 'chat.completion', created: 1, model: 'claude-test',
+            choices: [{ index: 0, finish_reason: 'stop', logprobs: null, message: { role: 'assistant', content: 'Start with the logo.', refusal: null } }],
         });
-        const provider = new AnthropicMotionModelProvider({ apiKey: 'test-key', client: { messages: { create } } });
+        const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
 
         await expect(provider.chat({
             model: 'claude-test', systemInstructions: 'Plan motion',
-            messages: [{ role: 'user', content: 'How should it start?' }], limits: { maxOutputTokens: 500, timeoutMs: 5_000 },
-        })).resolves.toBe('Start with the logo. Then reveal the title.');
+            messages: [{ role: 'user', content: 'How should it start?' }], limits: { maxOutputTokens: 500 },
+        })).resolves.toBe('Start with the logo.');
+        expect(create).toHaveBeenCalledWith({
+            model: 'claude-test',
+            messages: [
+                { role: 'system', content: 'Plan motion' },
+                { role: 'user', content: 'How should it start?' },
+            ],
+            max_completion_tokens: 500,
+        });
     });
 
     it('uses JSON Schema for structured intent output', async () => {
-        const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"intent":"EDIT"}' }] });
-        const provider = new AnthropicMotionModelProvider({ apiKey: 'test-key', client: { messages: { create } } });
-        await expect(provider.structured({ model: 'claude-test', systemInstructions: 'Classify.', prompt: 'Change it', schemaName: 'motionly_intent', schema: intentSchema, limits: { maxOutputTokens: 128, timeoutMs: 5_000 } })).resolves.toEqual({ intent: 'EDIT' });
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({ output_config: { format: expect.objectContaining({ type: 'json_schema' }) } }), expect.anything());
+        const create = vi.fn().mockResolvedValue({
+            id: 'chatcmpl-test', object: 'chat.completion', created: 1, model: 'claude-test',
+            choices: [{ index: 0, finish_reason: 'stop', logprobs: null, message: { role: 'assistant', content: '{"intent":"EDIT"}', refusal: null } }],
+        });
+        const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
+
+        await expect(provider.structured({
+            model: 'claude-test', systemInstructions: 'Classify.', prompt: 'Change it',
+            schemaName: 'motionly_intent', schema: intentSchema,
+            limits: { maxOutputTokens: 128 },
+        })).resolves.toEqual({ intent: 'EDIT' });
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({
+            response_format: {
+                type: 'json_schema',
+                json_schema: {
+                    name: 'motionly_intent',
+                    strict: true,
+                    schema: expect.any(Object),
+                },
+            },
+        }));
     });
 
-    it('caps long requests at 90 seconds', async () => {
-        const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: JSON.stringify(generation) }], usage: { input_tokens: 1, output_tokens: 1 } });
+    it('does not create or pass a request timeout signal', async () => {
+        const create = vi.fn().mockResolvedValue({
+            id: 'chatcmpl-test', object: 'chat.completion', created: 1, model: 'claude-test',
+            choices: [{ index: 0, finish_reason: 'stop', logprobs: null, message: { role: 'assistant', content: JSON.stringify(generation), refusal: null } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        });
         const timeout = vi.spyOn(AbortSignal, 'timeout');
-        const provider = new AnthropicMotionModelProvider({ apiKey: 'test-key', client: { messages: { create } } });
+        const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
 
         await provider.generate({
             model: 'claude-test', systemInstructions: 'Motionly rules', prompt: 'Create it',
-            limits: { maxOutputTokens: 2_000, timeoutMs: 120_000 },
+            limits: { maxOutputTokens: 2_000 },
         });
 
-        expect(timeout).toHaveBeenCalledWith(90_000);
+        expect(timeout).not.toHaveBeenCalled();
+        expect(create.mock.calls[0]).toHaveLength(1);
         timeout.mockRestore();
+    });
+
+    it('still forwards explicit caller cancellation', async () => {
+        const create = vi.fn().mockResolvedValue({
+            id: 'chatcmpl-test', object: 'chat.completion', created: 1, model: 'claude-test',
+            choices: [{ index: 0, finish_reason: 'stop', logprobs: null, message: { role: 'assistant', content: 'Ready.', refusal: null } }],
+        });
+        const controller = new AbortController();
+        const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
+
+        await provider.chat({
+            model: 'claude-test', systemInstructions: 'Plan motion',
+            messages: [{ role: 'user', content: 'Begin' }],
+            limits: { maxOutputTokens: 500 }, signal: controller.signal,
+        });
+
+        expect(create.mock.calls[0]?.[1]).toEqual({ signal: controller.signal });
+    });
+
+    it('normalizes provider errors when no caller signal exists', async () => {
+        const create = vi.fn().mockRejectedValue(new Error('gateway failed'));
+        const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
+
+        await expect(provider.chat({
+            model: 'claude-test', systemInstructions: 'Plan motion',
+            messages: [{ role: 'user', content: 'Begin' }],
+            limits: { maxOutputTokens: 500 },
+        })).rejects.toMatchObject({ code: 'PROVIDER_ERROR' });
     });
 });

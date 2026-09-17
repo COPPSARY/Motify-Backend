@@ -25,7 +25,7 @@ describe('ClaudeRouterMotionModelProvider', () => {
             model: 'claude-opus-5',
             systemInstructions: 'Motionly rules',
             prompt: 'Create it',
-            limits: { maxOutputTokens: 2_000, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 2_000 },
         })).resolves.toEqual({ generation, usage: { inputTokens: 1_200, outputTokens: 340 } });
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             model: 'claude-opus-5',
@@ -37,7 +37,7 @@ describe('ClaudeRouterMotionModelProvider', () => {
                 type: 'json_schema',
                 json_schema: expect.objectContaining({ name: 'motionly_generation', strict: true }),
             },
-        }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+        }));
     });
 
     it('sends system instructions ahead of the chat history', async () => {
@@ -51,14 +51,14 @@ describe('ClaudeRouterMotionModelProvider', () => {
             model: 'claude-opus-5',
             systemInstructions: 'Plan motion',
             messages: [{ role: 'user', content: 'How should it start?' }],
-            limits: { maxOutputTokens: 500, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 500 },
         })).resolves.toBe('Start with a title reveal.');
         expect(create).toHaveBeenCalledWith(expect.objectContaining({
             messages: [
                 { role: 'system', content: 'Plan motion' },
                 { role: 'user', content: 'How should it start?' },
             ],
-        }), expect.anything());
+        }));
     });
 
     it('uses JSON Schema for structured output', async () => {
@@ -74,7 +74,7 @@ describe('ClaudeRouterMotionModelProvider', () => {
             prompt: 'Hello',
             schemaName: 'motionly_intent',
             schema: intentSchema,
-            limits: { maxOutputTokens: 128, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 128 },
         })).resolves.toEqual({ intent: 'CHAT' });
     });
 
@@ -89,7 +89,7 @@ describe('ClaudeRouterMotionModelProvider', () => {
             model: 'claude-opus-5',
             systemInstructions: 'Plan motion',
             messages: [{ role: 'user', content: 'Hello' }],
-            limits: { maxOutputTokens: 500, timeoutMs: 5_000 },
+            limits: { maxOutputTokens: 500 },
         })).rejects.toEqual(expect.objectContaining({ code: 'PROVIDER_OUTPUT_INVALID' }));
     });
 

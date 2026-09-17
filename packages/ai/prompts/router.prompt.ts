@@ -1,7 +1,7 @@
 import type { ModelRequestLimits } from '../providers/model.provider.js';
 
-export const INTENT_LIMITS: ModelRequestLimits = { maxOutputTokens: 128, timeoutMs: 10_000 };
-export const CONVERSATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 900, timeoutMs: 20_000 };
+export const INTENT_LIMITS: ModelRequestLimits = { maxOutputTokens: 128 };
+export const CONVERSATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 900 };
 
 export const INTENT_SYSTEM_PROMPT = [
     'You classify a Motionly user message into exactly one intent so the backend never runs an expensive generation for ordinary conversation.',

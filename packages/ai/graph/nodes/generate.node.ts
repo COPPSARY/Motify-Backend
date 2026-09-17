@@ -28,7 +28,6 @@ export function createGenerateNode(dependencies: ResolvedMotionGraphDependencies
                 }),
                 limits: GENERATION_LIMITS,
         });
-
         return { generation: result.generation, tokenUsage: result.usage };
     };
 }
