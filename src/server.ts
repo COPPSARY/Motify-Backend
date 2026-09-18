@@ -82,7 +82,7 @@ export function createApp(options: AppOptions) {
 
   const authController = new AuthController(
     options.services.auth,
-    frontendOrigin,
+    options.frontendOrigins,
     options.secureCookies,
     options.nodeEnv === 'development',
   );
