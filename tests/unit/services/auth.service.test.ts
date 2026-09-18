@@ -27,7 +27,35 @@ describe('AuthService Supabase email authentication', () => {
     await service.signUpWithEmail(' NEW@EXAMPLE.COM ', 'secret123');
 
     expect(provider.signUpWithPassword).toHaveBeenCalledWith('new@example.com', 'secret123', expect.stringMatching(/^http:\/\/localhost:3000\/v1\/auth\/verify\?attempt=/));
-    expect(flows.create).toHaveBeenCalledWith(expect.any(String), 'pkce-state');
+    expect(flows.create).toHaveBeenCalledWith(expect.any(String), JSON.stringify({ verifierState: 'pkce-state' }));
+  });
+
+  it('carries the front end a login started from back through the OAuth round trip', async () => {
+    const provider = { signUpWithPassword: vi.fn(), signInWithPassword: vi.fn(), exchangeEmailVerificationCode: vi.fn(), getGoogleAuthorizationUrl: vi.fn().mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/auth', verifierState: 'pkce-state' }), exchangeCode: vi.fn().mockResolvedValue(session), revokeSession: vi.fn() };
+    const sessions = { create: vi.fn().mockResolvedValue({ sessionToken: 'opaque-session', csrfToken: 'csrf-token' }), revoke: vi.fn() };
+    let stored = '';
+    const flows = { create: vi.fn(async (_attempt: string, flowState: string) => { stored = flowState; }), consume: vi.fn(async () => stored) };
+    const service = new AuthService(provider, { provision: vi.fn() }, sessions, flows, { emailVerificationRedirect: 'http://localhost:3000/v1/auth/verify', oauthCallbackUrl: 'http://localhost:3000/v1/auth/callback' });
+
+    await service.beginGoogleLogin('http://localhost:5173/');
+
+    await expect(service.completeGoogleLogin('oauth-code', 'attempt-token')).resolves.toMatchObject({
+      sessionToken: 'opaque-session',
+      returnTo: 'http://localhost:5173/',
+    });
+    expect(provider.exchangeCode).toHaveBeenCalledWith('oauth-code', 'pkce-state');
+  });
+
+  it('reads an attempt stored before flows carried a return URL as a bare verifier', async () => {
+    const provider = { signUpWithPassword: vi.fn(), signInWithPassword: vi.fn(), exchangeEmailVerificationCode: vi.fn(), getGoogleAuthorizationUrl: vi.fn(), exchangeCode: vi.fn().mockResolvedValue(session), revokeSession: vi.fn() };
+    const sessions = { create: vi.fn().mockResolvedValue({ sessionToken: 'opaque-session', csrfToken: 'csrf-token' }), revoke: vi.fn() };
+    const flows = { create: vi.fn(), consume: vi.fn().mockResolvedValue('pkce-state') };
+    const service = new AuthService(provider, { provision: vi.fn() }, sessions, flows);
+
+    const result = await service.completeGoogleLogin('oauth-code', 'attempt-token');
+
+    expect(provider.exchangeCode).toHaveBeenCalledWith('oauth-code', 'pkce-state');
+    expect(result.returnTo).toBeUndefined();
   });
 
   it('creates an application session after Supabase exchanges the email code', async () => {

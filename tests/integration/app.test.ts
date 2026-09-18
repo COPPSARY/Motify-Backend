@@ -73,7 +73,7 @@ describe('Motify API', () => {
 
     expect(response.status).toBe(202);
     expect(response.body).toEqual({ data: { verificationRequired: true } });
-    expect(deps.auth.signUpWithEmail).toHaveBeenCalledWith('NEW@EXAMPLE.COM', 'secret123');
+    expect(deps.auth.signUpWithEmail).toHaveBeenCalledWith('NEW@EXAMPLE.COM', 'secret123', undefined);
 
     const removedRoute = await request(app)
       .post('/v1/auth/email/sign-up')
@@ -219,6 +219,58 @@ describe('Motify API', () => {
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe('http://localhost:5173/?verified=true');
     expect(deps.auth.completeEmailVerification).toHaveBeenCalledWith('99f472a5-85f7-481d-bd2d-24edc06e02f2', 'email-attempt');
+  });
+
+  it('returns an OAuth login to the front end it started from', async () => {
+    const deps = dependencies();
+    deps.auth.beginGoogleLogin.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/auth' });
+    deps.auth.completeGoogleLogin.mockResolvedValue({
+      identity, sessionToken: 'oauth-session', csrfToken: 'oauth-csrf', returnTo: 'http://localhost:5173/?prompt=held',
+    });
+    const app = createApp({
+      services: deps,
+      frontendOrigins: ['https://motify.video', 'http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    await request(app).get('/v1/auth/google').query({ returnTo: 'http://localhost:5173/?prompt=held' });
+    expect(deps.auth.beginGoogleLogin).toHaveBeenCalledWith('http://localhost:5173/?prompt=held');
+
+    const callback = await request(app).get('/v1/auth/callback').query({ code: 'oauth-code', attempt: 'oauth-attempt' });
+    expect(callback.status).toBe(302);
+    expect(callback.headers.location).toBe('http://localhost:5173/?prompt=held');
+  });
+
+  it('refuses to bounce a login to an origin this deployment does not serve', async () => {
+    const deps = dependencies();
+    deps.auth.beginGoogleLogin.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/auth' });
+    deps.auth.completeGoogleLogin.mockResolvedValue({
+      identity, sessionToken: 'oauth-session', csrfToken: 'oauth-csrf', returnTo: 'https://phishing.example/steal',
+    });
+    const app = createApp({ services: deps, frontendOrigins: ['https://motify.video'], secureCookies: false });
+
+    await request(app).get('/v1/auth/google').query({ returnTo: 'https://phishing.example/steal' });
+    expect(deps.auth.beginGoogleLogin).toHaveBeenCalledWith(undefined);
+
+    const callback = await request(app).get('/v1/auth/callback').query({ code: 'oauth-code', attempt: 'oauth-attempt' });
+    expect(callback.headers.location).toBe('https://motify.video');
+  });
+
+  it('returns a verified email signup to the front end it started from', async () => {
+    const deps = dependencies();
+    deps.auth.completeEmailVerification.mockResolvedValue({
+      identity, sessionToken: 'verified-session', csrfToken: 'verified-csrf', returnTo: 'http://localhost:5173/',
+    });
+    const app = createApp({
+      services: deps,
+      frontendOrigins: ['https://motify.video', 'http://localhost:5173'],
+      secureCookies: false,
+    });
+
+    const response = await request(app).get('/v1/auth/verify').query({ code: '99f472a5-85f7-481d-bd2d-24edc06e02f2', attempt: 'email-attempt' });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('http://localhost:5173/?verified=true');
   });
 
   it('does not expose the removed email-prefixed login and verification routes', async () => {

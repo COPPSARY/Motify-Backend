@@ -18,8 +18,37 @@ export interface SessionCreator {
 }
 
 export interface AuthFlowStore {
-  create(attemptToken: string, verifierState: string): Promise<void>;
+  create(attemptToken: string, flowState: string): Promise<void>;
   consume(attemptToken: string): Promise<string | null>;
+}
+
+/**
+ * What an in-flight sign-in has to remember: the provider's PKCE verifier, and
+ * where the user was when they started. Motify has two front ends — the site
+ * and the editor — and a prompt held in the editor is only worth anything if
+ * the round trip ends back there.
+ *
+ * It travels as one opaque string through the flow store, which encrypts it.
+ */
+interface AuthFlow {
+  verifierState: string;
+  returnTo?: string;
+}
+
+function encodeFlow(flow: AuthFlow): string {
+  return JSON.stringify(flow);
+}
+
+function decodeFlow(stored: string): AuthFlow {
+  try {
+    const parsed = JSON.parse(stored) as Partial<AuthFlow>;
+    if (typeof parsed?.verifierState === 'string') {
+      return parsed.returnTo ? { verifierState: parsed.verifierState, returnTo: parsed.returnTo } : { verifierState: parsed.verifierState };
+    }
+  } catch {
+    // An attempt started before flows carried a return URL is a bare verifier.
+  }
+  return { verifierState: stored };
 }
 
 interface AuthServiceOptions {
@@ -36,7 +65,7 @@ export class AuthService {
     private readonly options?: AuthServiceOptions,
   ) {}
 
-  async signUpWithEmail(email: string, password: string) {
+  async signUpWithEmail(email: string, password: string, returnTo?: string) {
     if (!this.options || !this.flows) throw new Error('Auth service redirect URLs are not configured');
     const normalizedEmail = email.trim().toLowerCase();
     if (await this.accounts.existsByEmail?.(normalizedEmail)) {
@@ -46,7 +75,7 @@ export class AuthService {
     const separator = this.options.emailVerificationRedirect.includes('?') ? '&' : '?';
     const redirectTo = `${this.options.emailVerificationRedirect}${separator}attempt=${encodeURIComponent(attempt)}`;
     const result = await this.provider.signUpWithPassword(normalizedEmail, password, redirectTo);
-    await this.flows.create(attempt, result.verifierState);
+    await this.flows.create(attempt, encodeFlow({ verifierState: result.verifierState, ...(returnTo ? { returnTo } : {}) }));
     return result;
   }
 
@@ -62,9 +91,11 @@ export class AuthService {
   async completeEmailVerification(code: string, attempt: string) {
     if (!this.flows) throw new Error('Email verification storage is not configured');
     try {
-      const verifierState = await this.flows.consume(attempt);
-      if (!verifierState) throw new AppError(400, 'EMAIL_VERIFICATION_INVALID', 'The verification link is invalid or expired.');
-      return await this.completeLogin(await this.provider.exchangeEmailVerificationCode(code, verifierState));
+      const stored = await this.flows.consume(attempt);
+      if (!stored) throw new AppError(400, 'EMAIL_VERIFICATION_INVALID', 'The verification link is invalid or expired.');
+      const flow = decodeFlow(stored);
+      const session = await this.completeLogin(await this.provider.exchangeEmailVerificationCode(code, flow.verifierState));
+      return { ...session, ...(flow.returnTo ? { returnTo: flow.returnTo } : {}) };
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw new AppError(400, 'EMAIL_VERIFICATION_INVALID', 'The verification link is invalid or expired.');
@@ -85,21 +116,23 @@ export class AuthService {
     return { identity: providerSession.identity, ...session };
   }
 
-  async beginGoogleLogin() {
+  async beginGoogleLogin(returnTo?: string) {
     if (!this.options || !this.flows) throw new Error('OAuth flow storage is not configured');
     const attempt = randomBytes(32).toString('base64url');
     const separator = this.options.oauthCallbackUrl.includes('?') ? '&' : '?';
     const redirectTo = `${this.options.oauthCallbackUrl}${separator}attempt=${encodeURIComponent(attempt)}`;
     const result = await this.provider.getGoogleAuthorizationUrl(redirectTo);
-    await this.flows.create(attempt, result.verifierState);
+    await this.flows.create(attempt, encodeFlow({ verifierState: result.verifierState, ...(returnTo ? { returnTo } : {}) }));
     return { url: result.url };
   }
 
   async completeGoogleLogin(code: string, attempt: string) {
     if (!this.flows) throw new Error('OAuth flow storage is not configured');
-    const verifierState = await this.flows.consume(attempt);
-    if (!verifierState) throw new AppError(400, 'OAUTH_ATTEMPT_INVALID', 'The login attempt is invalid or expired.');
-    return this.completeLogin(await this.provider.exchangeCode(code, verifierState));
+    const stored = await this.flows.consume(attempt);
+    if (!stored) throw new AppError(400, 'OAUTH_ATTEMPT_INVALID', 'The login attempt is invalid or expired.');
+    const flow = decodeFlow(stored);
+    const session = await this.completeLogin(await this.provider.exchangeCode(code, flow.verifierState));
+    return { ...session, ...(flow.returnTo ? { returnTo: flow.returnTo } : {}) };
   }
 
   async logout(sessionToken: string) {
