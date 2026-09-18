@@ -1,15 +1,28 @@
 import { getTableName } from 'drizzle-orm';
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import {
   artifacts,
+  assets,
+  assetUsageRole,
   generationRuns,
+  messageAssets,
   messages,
+  projectAssets,
   projects,
   users,
 } from '../../../packages/database/schema.js';
 
 describe('database schema', () => {
+  it('registers the Supabase asset migration with the Drizzle migrator', async () => {
+    const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
+      entries: Array<{ tag: string }>;
+    };
+
+    expect(journal.entries.at(-1)?.tag).toBe('0012_supabase_asset_roles');
+  });
+
   it('stores application accounts in the users table', () => {
     expect(getTableName(users)).toBe('users');
   });
@@ -26,5 +39,20 @@ describe('database schema', () => {
     expect(getTableName(messages)).toBe('messages');
     expect(getTableName(generationRuns)).toBe('generation_runs');
     expect(getTableName(artifacts)).toBe('artifacts');
+  });
+
+  it('stores reusable assets separately from their project and message roles', () => {
+    expect(assetUsageRole.enumValues).toEqual(['REFERENCE', 'ASSET']);
+    expect(assets.label.name).toBe('label');
+    expect(assets.tags.name).toBe('tags');
+    expect(assets.width.name).toBe('width');
+    expect(assets.height.name).toBe('height');
+    expect(assets.storageProvider.name).toBe('storage_provider');
+    expect(assets.storageBucket.name).toBe('storage_bucket');
+    expect(projectAssets.role.name).toBe('role');
+    expect(projectAssets.attachedBy.name).toBe('attached_by');
+    expect(projectAssets.updatedAt.name).toBe('updated_at');
+    expect(getTableName(messageAssets)).toBe('message_assets');
+    expect(messageAssets.role.name).toBe('role');
   });
 });

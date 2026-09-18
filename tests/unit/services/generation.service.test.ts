@@ -27,7 +27,13 @@ function createService(options: HarnessOptions = {}) {
             return { response: options.response ?? ({ type: 'chat', message: 'Motify is ready.' } as MotionGraphResponse) };
         }),
     };
-    return { service: new GenerationService(graph, projects), graph, projects };
+    const assets = {
+        resolveGenerationAssets: vi.fn(async () => [{
+            assetId: '11111111-1111-4111-8111-111111111111', fileName: 'logo.png', mediaType: 'image/png' as const,
+            dataBase64: 'aGVsbG8=', role: 'asset' as const,
+        }]),
+    };
+    return { service: new GenerationService(graph, projects, assets), graph, projects, assets };
 }
 
 describe('GenerationService', () => {
@@ -65,14 +71,14 @@ describe('GenerationService', () => {
             runtimeError: { message: 'buildTimeline is not a function' },
         })).resolves.toEqual({ type: 'generation', response: 'Fixed it.', projectId: PROJECT_ID, revision: 8 });
 
-        expect(graph.invoke).toHaveBeenCalledWith({
+        expect(graph.invoke).toHaveBeenCalledWith(expect.objectContaining({
             userId: USER_ID,
             workspaceId: WORKSPACE_ID,
             projectId: PROJECT_ID,
             message: 'Fix the crash.',
             revision: 7,
             runtimeError: { message: 'buildTimeline is not a function' },
-        });
+        }));
     });
 
     it('omits absent optional fields instead of sending undefined to the graph', async () => {
@@ -80,9 +86,21 @@ describe('GenerationService', () => {
 
         await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Hello' });
 
-        expect(graph.invoke).toHaveBeenCalledWith({
+        expect(graph.invoke).toHaveBeenCalledWith(expect.objectContaining({
             userId: USER_ID, workspaceId: WORKSPACE_ID, projectId: PROJECT_ID, message: 'Hello',
-        });
+        }));
+    });
+
+    it('resolves role-bearing asset IDs before invoking the graph', async () => {
+        const { service, graph, assets } = createService();
+        const attachments = [{ assetId: '11111111-1111-4111-8111-111111111111', role: 'asset' as const }];
+
+        await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Use my logo.', assets: attachments });
+
+        expect(assets.resolveGenerationAssets).toHaveBeenCalledWith(USER_ID, PROJECT_ID, attachments);
+        expect(graph.invoke).toHaveBeenCalledWith(expect.objectContaining({
+            assets: [expect.objectContaining({ fileName: 'logo.png', role: 'asset' })],
+        }));
     });
 
     it('maps a stale revision to a conflict that carries the current revision', async () => {

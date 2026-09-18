@@ -40,6 +40,18 @@ describe('GeminiMotionModelProvider', () => {
         expect(generateContent.mock.calls[0]?.[0].config).not.toHaveProperty('responseJsonSchema');
     });
 
+    it('sends generation images as inline multimodal parts', async () => {
+        const generateContent = vi.fn().mockResolvedValue({ text: JSON.stringify(generation) });
+        const provider = new GeminiMotionModelProvider({ apiKey: 'test-key', client: { models: { generateContent } } });
+        await provider.generate({ model: 'gemini-test', systemInstructions: 'Rules', prompt: 'Use it', limits: { maxOutputTokens: 2_000 }, images: [
+            { assetId: 'a', fileName: 'logo.png', mediaType: 'image/png', dataBase64: 'aGVsbG8=', role: 'asset' },
+        ] });
+        expect(generateContent.mock.calls[0]?.[0].contents).toEqual([{ role: 'user', parts: [
+            { text: 'Use it' },
+            { inlineData: { mimeType: 'image/png', data: 'aGVsbG8=' } },
+        ] }]);
+    });
+
     it('requests schema-constrained intent output', async () => {
         const generateContent = vi.fn().mockResolvedValue({ text: '{"intent":"PLAN"}' });
         const provider = new GeminiMotionModelProvider({ apiKey: 'test-key', client: { models: { generateContent } } });

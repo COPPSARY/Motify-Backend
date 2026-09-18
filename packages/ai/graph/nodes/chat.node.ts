@@ -10,6 +10,7 @@ export function createChatNode(dependencies: ResolvedMotionGraphDependencies) {
                 systemInstructions: CHAT_SYSTEM_PROMPT,
                 messages: [...state.recentMessages, { role: 'user', content: state.message }],
                 limits: CONVERSATION_LIMITS,
+                images: state.assets,
             });
         return {
             response: {

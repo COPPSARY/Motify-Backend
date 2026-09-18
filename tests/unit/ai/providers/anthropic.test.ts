@@ -65,6 +65,20 @@ describe('AnthropicMotionModelProvider', () => {
         });
     });
 
+    it('sends generation images as OpenAI-compatible vision content', async () => {
+        const create = vi.fn().mockResolvedValue({
+            choices: [{ message: { content: JSON.stringify(generation) } }],
+        });
+        const provider = new AnthropicMotionModelProvider({ ...providerOptions, client: { chat: { completions: { create } } } });
+        await provider.generate({ model: 'claude-test', systemInstructions: 'Rules', prompt: 'Use it', limits: { maxOutputTokens: 2_000 }, images: [
+            { assetId: 'a', fileName: 'logo.png', mediaType: 'image/png', dataBase64: 'aGVsbG8=', role: 'asset' },
+        ] });
+        expect(create.mock.calls[0]?.[0].messages[1]).toEqual({ role: 'user', content: [
+            { type: 'text', text: 'Use it' },
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
+        ] });
+    });
+
     it('uses JSON Schema for structured intent output', async () => {
         const create = vi.fn().mockResolvedValue({
             id: 'chatcmpl-test', object: 'chat.completion', created: 1, model: 'claude-test',

@@ -144,3 +144,35 @@ A trailing `?` marks an optional argument; `= value` is the default that applies
   - distance: number = 120; rotation: number = 8; stagger: number = 0.07; at: gsap.Position; duration: number = 0.8; ease: string = "back.out(1.4)"
   - **Kinetic Anchor.** One word holds absolutely still while the rest of the sentence physically revolves or slides around it. The anchor is never tweened. Everything the viewer reads as movement belongs to the words travelling past it, which is what makes the still word register as the subject of the line rather than as text that simply failed to animate.
 
+## Seam technique guide: `zoomThrough`, `inverseZoomThrough`, `cutTheCurve`
+
+Getting these three right is about matching velocity and depth across the cut, not just calling the function with default options.
+
+**Z direction is a sign, not just an axis.** `zoomThrough` and `inverseZoomThrough` both move on Z, but the sign of the scale change must match on both sides of the cut:
+
+| Variant | Exit scale | Entry scale |
+| --- | --- | --- |
+| `zoomThrough` — push, progressing deeper into the same thought | growing, `1 → scaleExit` (default 1.2) | growing, `scaleEntry → 1` (default 0.75 → 1) |
+| `inverseZoomThrough` — pull, an arrival or payoff | shrinking, `1 → scaleExit` (default 0.8) | shrinking, `scaleEntry → 1` (default 1.25 → 1) |
+
+Never answer a shrinking exit with a grow-from-small entrance, or a growing exit with an oversized retraction — that flips the sign the viewer just tracked. This also binds the incoming scene's own entrance animations during the seam window (cut ± ~0.5s): let the incoming beat arrive already composed, or make its own entrance match the sign.
+
+**Blur is sized to the subject, not one constant.** Peak blur at the cut frame: 10px for a text-scale subject (a headline, a word group) — 20px smears letterforms into a glitch, not speed. 18–20px for a full-frame surface (a window, a card, a screenshot) — a lighter blur on something that large reads as a rendering hiccup. Use the same peak blur on both sides at the swap frame, and blur the wrapper, never its children.
+
+**`cutTheCurve` only travels part of the frame.** Its default `distance: 230` is deliberately ~12% of a 1920-wide frame — a full off-screen slide loses velocity-matching at the cut. Exit and entry share the same distance and mirrored eases (`power4.in` / `power4.out`), so velocity matches exactly at the cut; entry duration should be ≥ exit duration.
+
+**Reserve `zoomThrough` for headlines and short phrases**, never body text — it hides both texts briefly at peak blur, which only reads cleanly on a few words. Reserve `inverseZoomThrough` for an arrival or payoff beat (a giant reply, a held end-state), not an ordinary scene boundary — `cutTheCurve` is the default for ordinary boundaries.
+
+**Choosing between them:**
+
+| | `zoomThrough` | `inverseZoomThrough` | `cutTheCurve` |
+| --- | --- | --- | --- |
+| Feel | progressing through | arriving at | carried sideways |
+| Use for | going deeper into the same thought | something bigger lands | the default scene-to-scene boundary |
+| Z sign / axis | growing (push) | shrinking (pull) | X / Y |
+
+**Two in-scene choreography patterns don't need a new preset — compose them from what already exists:**
+
+- A staggered arrival cascade (words or cards whipping in from one direction, each starting before the last settles) is `staggerEntrance` or `waterfallTextReveal` with per-element `stagger`/`distance` tuned by weight — anchor elements travel further and slower than light ones — and a binary `autoAlpha` reveal rather than a fade.
+- A slow-fast-slow group reposition (to make room for the next beat) is three chained tweens on one property: a short `power3.in` ramp (~10% of the distance, ~20% of the time), a linear burst (~65% of the distance, ~18% of the time), then a `power4.out` tail at least 3x the ramp's duration (~25% of the distance, ~62% of the time). `power4.inOut` alone smacks to a stop and cannot produce this.
+

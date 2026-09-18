@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildMotionSystemPrompt } from '../../../packages/ai/prompts/motion.prompt.js';
+import { buildMotionSystemPrompt, buildMotionUserPrompt } from '../../../packages/ai/prompts/motion.prompt.js';
 
 describe('buildMotionSystemPrompt', () => {
     const skills = [
@@ -41,5 +41,37 @@ describe('buildMotionSystemPrompt', () => {
 
         expect(prompt).not.toContain('description: Use when');
         expect(prompt).toContain('Runtime instructions');
+    });
+
+    it('requires a short user-facing completion reply without internal direction notes', () => {
+        const prompt = buildMotionSystemPrompt(skills);
+
+        expect(prompt).toContain('The `reply` field must contain 2 or 3 short plain sentences');
+        expect(prompt).toContain('Do not include direction notes');
+        expect(prompt).toContain('validation commentary');
+        expect(prompt).toContain('internal process');
+    });
+});
+
+describe('buildMotionUserPrompt assets', () => {
+    it('gives placeable images tokens and gives references no render token', () => {
+        const prompt = buildMotionUserPrompt({
+            intent: 'CREATE',
+            message: 'Create a launch film.',
+            recentMessages: [],
+            assets: [
+                { assetId: '11111111-1111-4111-8111-111111111111', fileName: 'logo.png', mediaType: 'image/png', dataBase64: 'abc', role: 'asset' },
+                { assetId: '22222222-2222-4222-8222-222222222222', fileName: 'layout.png', mediaType: 'image/png', dataBase64: 'def', role: 'reference' },
+            ],
+        });
+
+        const place = prompt.slice(prompt.indexOf('IMAGES TO PLACE'), prompt.indexOf('REFERENCE IMAGES'));
+        const references = prompt.slice(prompt.indexOf('REFERENCE IMAGES'));
+        expect(place).toContain('logo.png');
+        expect(place).toContain('motify-asset://11111111-1111-4111-8111-111111111111');
+        expect(place).not.toContain('layout.png');
+        expect(references).toContain('layout.png');
+        expect(references).not.toContain('22222222-2222-4222-8222-222222222222');
+        expect(references).toContain('never put them on screen');
     });
 });

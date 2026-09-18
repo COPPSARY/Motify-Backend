@@ -10,6 +10,14 @@ export const OPTIONAL_GENERATION_SKILL_IDS = [
     'apple-glass',
     'technical-data',
     'cinematic-brand',
+    'apple-notes-workflow',
+    'claude-product-journey',
+    'kiri-voice-workflow',
+    'motify-launch-film',
+    'motionly-promo-film',
+    'recoup-recovery-story',
+    'relay-handoff-story',
+    'tessera-data-story',
 ] as const;
 
 export const MAX_OPTIONAL_SKILL_SELECTION = 5;

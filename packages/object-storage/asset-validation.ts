@@ -7,16 +7,6 @@ const extensions: Record<string, readonly string[]> = {
   'image/webp': ['.webp'],
   'image/gif': ['.gif'],
   'image/svg+xml': ['.svg'],
-  'video/mp4': ['.mp4'],
-  'video/quicktime': ['.mov'],
-  'video/webm': ['.webm'],
-  'audio/mpeg': ['.mp3'],
-  'audio/wav': ['.wav'],
-  'audio/ogg': ['.ogg'],
-  'font/woff': ['.woff'],
-  'font/woff2': ['.woff2'],
-  'font/ttf': ['.ttf'],
-  'font/otf': ['.otf'],
 };
 
 export function validateAssetMetadata(fileName: string, contentType: string, byteSize: number) {
@@ -25,6 +15,7 @@ export function validateAssetMetadata(fileName: string, contentType: string, byt
     throw new Error('Asset filename extension does not match its content type.');
   }
   if (contentType === 'image/svg+xml' && byteSize > 2_000_000) throw new Error('SVG assets are limited to 2 MB.');
+  if (contentType !== 'image/svg+xml' && byteSize > 20_000_000) throw new Error('Raster image assets are limited to 20 MB.');
 }
 
 export async function validateStoredAsset(filePath: string, contentType: string) {
@@ -46,6 +37,23 @@ export async function validateStoredAsset(filePath: string, contentType: string)
     if (!matchesSignature(contentType, header)) throw new Error('Asset bytes do not match the declared content type.');
   } finally {
     await handle.close();
+  }
+}
+
+export function validateAssetBuffer(content: Buffer, contentType: string) {
+  if (contentType === 'image/svg+xml') {
+    if (content.byteLength > 2_000_000) throw new Error('SVG assets are limited to 2 MB.');
+    validateSvgContent(content.toString('utf8'));
+    return;
+  }
+  if (!matchesSignature(contentType, content.subarray(0, 16))) {
+    throw new Error('Asset bytes do not match the declared content type.');
+  }
+}
+
+export function validateSvgContent(svg: string) {
+  if (!/<svg\b/i.test(svg) || containsUnsafeSvg(svg)) {
+    throw new Error('SVG asset contains unsupported active or remote content.');
   }
 }
 

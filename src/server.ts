@@ -1,11 +1,11 @@
 import { createServer } from 'node:http';
-import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import { createClient } from '@supabase/supabase-js';
 import type { Logger } from 'pino';
 import { sql } from 'drizzle-orm';
 
@@ -38,7 +38,7 @@ import { AuthService } from './services/auth.service.js';
 import { GenerationService } from './services/generation.service.js';
 import { ProjectService } from './services/project.service.js';
 import { AssetService } from './services/asset.service.js';
-import { LocalFilesystemObjectStorage } from '../packages/object-storage/local-filesystem.js';
+import { SupabaseObjectStorage } from '../packages/object-storage/supabase-storage.js';
 import { WorkspaceService } from './services/workspace.service.js';
 import type { SessionResolver } from './types/http.js';
 
@@ -122,7 +122,11 @@ export async function startServer() {
   });
   const workspaces = new WorkspaceService(new DatabaseWorkspaceRepository(db));
   const projects = new ProjectService(new DatabaseProjectRepository(db));
-  const objectStorage = await LocalFilesystemObjectStorage.create(path.resolve(environment.objectStorageLocalRoot));
+  const objectStorage = new SupabaseObjectStorage(createClient(
+    environment.supabaseUrl,
+    environment.supabaseServiceRoleKey,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  ), environment.supabaseStorageBucket);
   const assetService = new AssetService(new DatabaseAssetRepository(db), objectStorage);
   const graphRepository = new DatabaseMotionGraphRepository(db);
   const generations = new GenerationService(
@@ -137,6 +141,7 @@ export async function startServer() {
       } : {}),
     }),
     graphRepository,
+    assetService,
   );
   const app = createApp({
     services: { auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService },

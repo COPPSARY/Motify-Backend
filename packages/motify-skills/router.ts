@@ -2,13 +2,20 @@ import type { LoadedSkill, SkillManifest } from './loader.js';
 import { OPTIONAL_GENERATION_SKILL_IDS } from '../ai/schemas/skill-selection.schema.js';
 
 export const REQUIRED_GENERATION_SKILL_IDS = ['runtime-contract', 'write-motify'] as const;
-export const FALLBACK_GENERATION_SKILL_IDS = [...REQUIRED_GENERATION_SKILL_IDS, 'technical-data'] as const;
 const VISUAL_DIRECTION_SKILL_IDS = new Set([
     'editorial-brutalist',
     'playful-learning',
     'apple-glass',
     'technical-data',
     'cinematic-brand',
+    'apple-notes-workflow',
+    'claude-product-journey',
+    'kiri-voice-workflow',
+    'motify-launch-film',
+    'motionly-promo-film',
+    'recoup-recovery-story',
+    'relay-handoff-story',
+    'tessera-data-story',
 ]);
 
 export interface RoutedSkill {

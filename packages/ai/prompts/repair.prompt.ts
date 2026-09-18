@@ -1,10 +1,10 @@
 import type { RoutedSkill } from '../../motify-skills/router.js';
 import type { GenerationIntent, MotifyProject } from '../graph/dependencies.js';
-import type { ModelRequestLimits, MotifyGeneration } from '../providers/model.provider.js';
+import type { ModelImageInput, ModelRequestLimits, MotifyGeneration } from '../providers/model.provider.js';
 import type { ValidationError } from '../validation/generation-validator.js';
-import { buildMotionSystemPrompt, describeProject, NO_PROJECT_YET } from './motion.prompt.js';
+import { buildMotionSystemPrompt, describeImages, describeProject, NO_PROJECT_YET } from './motion.prompt.js';
 
-export const REPAIR_LIMITS: ModelRequestLimits = { maxOutputTokens: 16_000 };
+export const REPAIR_LIMITS: ModelRequestLimits = { maxOutputTokens: 32_000 };
 
 const FENCE = '```';
 
@@ -25,6 +25,7 @@ export interface RepairPromptInput {
     project?: MotifyProject | undefined;
     candidate: MotifyGeneration;
     errors: ValidationError[];
+    assets?: readonly ModelImageInput[] | undefined;
 }
 
 export function buildRepairUserPrompt(input: RepairPromptInput): string {
@@ -38,6 +39,7 @@ export function buildRepairUserPrompt(input: RepairPromptInput): string {
             'Rejected candidate timelineJs:',
             `${FENCE}js\n${input.candidate.timelineJs}\n${FENCE}`,
         ].join('\n'),
+        ...describeImages(input.assets ?? []),
         input.project ? describeProject(input.project) : NO_PROJECT_YET,
     ].join('\n\n');
 }

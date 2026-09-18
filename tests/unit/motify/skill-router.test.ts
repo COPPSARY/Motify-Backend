@@ -24,6 +24,14 @@ describe('Motify skill bundle', () => {
       'apple-glass',
       'technical-data',
       'cinematic-brand',
+      'apple-notes-workflow',
+      'claude-product-journey',
+      'kiri-voice-workflow',
+      'motify-launch-film',
+      'motionly-promo-film',
+      'recoup-recovery-story',
+      'relay-handoff-story',
+      'tessera-data-story',
     ]);
   });
 
@@ -82,11 +90,23 @@ describe('Motify skill bundle', () => {
   });
 
   it('keeps the runtime contract neutral about visual composition', async () => {
+
       const selected = routeSkills(await loadSkillBundle(), []);
       const runtimeContract = selected.find((skill) => skill.id === 'runtime-contract');
 
       expect(runtimeContract?.content).not.toContain('bundled scene-design skill');
       expect(runtimeContract?.content).not.toContain('one centred subject');
+  });
+
+  it('routes a selected preset-derived visual direction', async () => {
+      const selected = routeSkills(await loadSkillBundle(), ['recoup-recovery-story']);
+
+      expect(selected.map((skill) => skill.id)).toEqual([
+        'runtime-contract',
+        'write-motify',
+        'recoup-recovery-story',
+      ]);
+      expect(selected.at(-1)?.content).toContain('Recovery story');
   });
 
   it('does not omit mandatory skills from a sparse selection', async () => {

@@ -202,6 +202,15 @@ describe('createMotionGraph', () => {
         }));
     });
 
+    it('sends a short user request to the model without a generated production brief', async () => {
+        const harness = createHarness({ intent: 'EDIT' });
+
+        await harness.graph.invoke(input('Fix the logo.'));
+
+        expect(harness.generateRequests[0]?.prompt).toContain('User request:\nFix the logo.');
+        expect(harness.generateRequests[0]?.prompt).not.toContain('Motify production brief:');
+    });
+
     it('records accumulated provider token usage with a completed generation run', async () => {
         const harness = createHarness({
             intent: 'EDIT',
@@ -268,26 +277,23 @@ describe('createMotionGraph', () => {
         expect(harness.generateRequests[0]?.prompt).toContain('Make the title typography larger and retime the timeline duration.');
     });
 
-    it('wraps a terse generation request in the Motify production brief', async () => {
-        const harness = createHarness({ intent: 'CREATE' });
+    it('sends classified project images to the generation model and prompt', async () => {
+        const harness = createHarness({ intent: 'EDIT' });
+        const assets = [{
+            assetId: '11111111-1111-4111-8111-111111111111',
+            fileName: 'logo.png',
+            mediaType: 'image/png' as const,
+            dataBase64: 'aGVsbG8=',
+            role: 'asset' as const,
+        }];
 
-        await harness.graph.invoke(input('make a launch video'));
+        await harness.graph.invoke(input('Use my logo.', { assets } as never));
 
-        const prompt = harness.generateRequests[0]?.prompt ?? '';
-        expect(prompt).toContain('Motify production brief:');
-        expect(prompt).toContain('Original user request:\nmake a launch video');
-        expect(prompt).toContain('3-6 connected beats');
-    });
-
-    it('leaves a detailed generation request unwrapped', async () => {
-        const harness = createHarness({ intent: 'CREATE' });
-        const detailed = 'Create a 12 second launch film that opens on the dashboard, shows the sync friction, then reveals the automation panel.';
-
-        await harness.graph.invoke(input(detailed));
-
-        const prompt = harness.generateRequests[0]?.prompt ?? '';
-        expect(prompt).toContain(detailed);
-        expect(prompt).not.toContain('Motify production brief:');
+        expect(harness.generateRequests[0]?.images).toEqual(assets);
+        expect(harness.generateRequests[0]?.prompt).toContain('motify-asset://11111111-1111-4111-8111-111111111111');
+        expect(harness.repository.appendMessage).toHaveBeenCalledWith(expect.objectContaining({
+            assets: [{ assetId: '11111111-1111-4111-8111-111111111111', role: 'ASSET' }],
+        }));
     });
 
     it('routes a reported runtime error to FIX without asking the model to classify it', async () => {

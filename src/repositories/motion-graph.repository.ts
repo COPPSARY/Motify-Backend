@@ -13,7 +13,7 @@ import type {
 } from '../../packages/ai/graph/dependencies.js';
 import type { MotifyGeneration } from '../../packages/ai/providers/model.provider.js';
 import type { Database } from '../../packages/database/client.js';
-import { generationRuns, messages, projects, workspaceMembers } from '../../packages/database/schema.js';
+import { generationRuns, messageAssets, messages, projects, workspaceMembers } from '../../packages/database/schema.js';
 
 type ProjectRow = typeof projects.$inferSelect;
 type Executor = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -91,7 +91,19 @@ export class DatabaseMotionGraphRepository implements GraphProjectRepository {
     }
 
     async appendMessage(input: StoredMessageInput) {
-        await insertMessage(this.db, input);
+        if (!input.assets?.length) {
+            await insertMessage(this.db, input);
+            return;
+        }
+        await this.db.transaction(async (transaction) => {
+            const [message] = await insertMessage(transaction, input);
+            if (!message) throw new Error('Unable to append the project message.');
+            await transaction.insert(messageAssets).values(input.assets!.map((asset) => ({
+                messageId: message.id,
+                assetId: asset.assetId,
+                role: asset.role,
+            })));
+        });
     }
 
     async createForGraph(workspaceId: string, userId: string, input: CreateGraphProjectInput) {
@@ -178,7 +190,7 @@ function insertMessage(executor: Executor, input: StoredMessageInput, createdAt?
         content: input.content,
         intent: input.intent,
         ...(createdAt ? { createdAt } : {}),
-    });
+    }).returning({ id: messages.id });
 }
 
 function insertRun(executor: Executor, input: GenerationRunInput) {

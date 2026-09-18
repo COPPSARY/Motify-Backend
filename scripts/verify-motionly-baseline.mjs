@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const backendRoot = path.resolve(import.meta.dirname, '..');
-const frontendRoot = path.resolve(process.argv[2] ?? path.join(backendRoot, '..', 'Motionly'));
+const frontendRoot = path.resolve(process.argv[2] ?? path.join(backendRoot, '..', 'Motify'));
 const manifest = JSON.parse(await readFile(path.join(backendRoot, 'evals/cloud-generation/baseline/manifest.json'), 'utf8'));
 const commit = await readHeadCommit(frontendRoot);
 if (commit !== manifest.frontendCommit) throw new Error(`Frontend commit mismatch: expected ${manifest.frontendCommit}, received ${commit}.`);

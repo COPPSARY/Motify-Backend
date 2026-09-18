@@ -1,7 +1,7 @@
 import { loadSkillBundle, type LoadedSkill, type SkillManifest } from '../../motify-skills/loader.js';
-import type { ChatMessage, MotifyGeneration, MotionModelProvider } from '../providers/model.provider.js';
+import type { ChatMessage, ModelImageInput, MotifyGeneration, MotionModelProvider } from '../providers/model.provider.js';
 import type { Intent } from '../schemas/intent.schema.js';
-import { validateMotifyGeneration, type ValidationError, type ValidationReport } from '../validation/generation-validator.js';
+import { validateMotifyGeneration, type GenerationValidationOptions, type ValidationError, type ValidationReport } from '../validation/generation-validator.js';
 
 /** Scenes are stored exactly as the model produced them inside the generation contract. */
 export type MotifyScene = MotifyGeneration['scenes'][number];
@@ -33,6 +33,7 @@ export interface StoredMessageInput {
     role: 'user' | 'assistant';
     content: string;
     intent: Intent;
+    assets?: Array<{ assetId: string; role: 'REFERENCE' | 'ASSET' }>;
 }
 
 export interface OverwriteGraphProjectInput {
@@ -108,6 +109,7 @@ export interface MotionGraphInput {
     runtimeError?: { message: string };
     /** Revision the caller generated against; required for runtime repair. */
     revision?: number;
+    assets?: ModelImageInput[];
 }
 
 export interface SkillBundle {
@@ -127,7 +129,7 @@ export interface MotionGraphDependencies {
     repository: GraphProjectRepository;
     model: string;
     loadSkills?: () => Promise<SkillBundle>;
-    validate?: (generation: MotifyGeneration) => ValidationReport;
+    validate?: (generation: MotifyGeneration, options?: GenerationValidationOptions) => ValidationReport;
     now?: () => number;
     maxRepairAttempts?: number;
     historyLimit?: number;
@@ -139,7 +141,7 @@ export interface ResolvedMotionGraphDependencies {
     repository: GraphProjectRepository;
     model: string;
     loadSkills: () => Promise<SkillBundle>;
-    validate: (generation: MotifyGeneration) => ValidationReport;
+    validate: (generation: MotifyGeneration, options?: GenerationValidationOptions) => ValidationReport;
     now: () => number;
     maxRepairAttempts: number;
     historyLimit: number;

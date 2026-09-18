@@ -28,6 +28,12 @@ export function createLoadContextNode(dependencies: ResolvedMotionGraphDependenc
             role: 'user',
             content: state.message,
             intent,
+            ...(state.assets.length > 0 ? {
+                assets: state.assets.map((asset) => ({
+                    assetId: asset.assetId,
+                    role: asset.role === 'reference' ? 'REFERENCE' as const : 'ASSET' as const,
+                })),
+            } : {}),
         });
 
         return { project: loaded.project, recentMessages };
