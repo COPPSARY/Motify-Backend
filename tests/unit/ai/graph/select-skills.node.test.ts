@@ -53,7 +53,37 @@ describe('createSelectSkillsNode', () => {
         }));
     });
 
-    it('uses a safe fallback when skill selection is unavailable', async () => {
+    it('includes the existing project and recent messages when editing', async () => {
+        const structured = vi.fn().mockResolvedValue({ skillIds: ['editorial-brutalist'] });
+        const node = createSelectSkillsNode({
+            model: 'test-model',
+            provider: { structured },
+            loadSkills: async () => ({ manifest: { version: 'test' }, skills }),
+            onSkillsSelected: vi.fn(),
+        } as unknown as ResolvedMotionGraphDependencies);
+
+        await node({
+            intent: 'EDIT',
+            message: 'Make the title bigger.',
+            project: {
+                title: 'Launch film',
+                scenes: [{ id: 'scene-01', label: 'Hero statement', start: 0, duration: 4, accent: '#ff0000' }],
+            },
+            recentMessages: [{ role: 'user', content: 'Build a bold editorial poster film.' }],
+        } as unknown as MotionGraphState);
+
+        expect(structured).toHaveBeenCalledWith(expect.objectContaining({
+            prompt: expect.stringContaining('Launch film'),
+        }));
+        expect(structured).toHaveBeenCalledWith(expect.objectContaining({
+            prompt: expect.stringContaining('Hero statement'),
+        }));
+        expect(structured).toHaveBeenCalledWith(expect.objectContaining({
+            prompt: expect.stringContaining('Build a bold editorial poster film.'),
+        }));
+    });
+
+    it('propagates the error when skill selection fails, without a silent fallback', async () => {
         const structured = vi.fn().mockRejectedValue(new Error('provider unavailable'));
         const node = createSelectSkillsNode({
             model: 'test-model',
@@ -62,12 +92,30 @@ describe('createSelectSkillsNode', () => {
             onSkillsSelected: vi.fn(),
         } as unknown as ResolvedMotionGraphDependencies);
 
-        const update = await node({ intent: 'CREATE', message: 'Create a dashboard launch.' } as MotionGraphState);
+        await expect(node({ intent: 'CREATE', message: 'Create a dashboard launch.' } as MotionGraphState))
+            .rejects.toThrow('provider unavailable');
+    });
 
-        expect((update.selectedSkills as RoutedSkill[]).map((skill) => skill.id)).toEqual([
-            'runtime-contract',
-            'write-motify',
-            'technical-data',
-        ]);
+    it('shows reference images to the selector but not placeable assets', async () => {
+        const structured = vi.fn().mockResolvedValue({ skillIds: [] });
+        const node = createSelectSkillsNode({
+            model: 'test-model',
+            provider: { structured },
+            loadSkills: async () => ({ manifest: { version: 'test' }, skills }),
+            onSkillsSelected: vi.fn(),
+        } as unknown as ResolvedMotionGraphDependencies);
+        const image = (assetId: string, role: 'reference' | 'asset') => ({
+            assetId, fileName: `${role}.png`, mediaType: 'image/png', dataBase64: 'AA==', role,
+        });
+
+        await node({
+            intent: 'CREATE',
+            message: 'Make a launch film.',
+            assets: [image('a', 'asset'), image('b', 'reference')],
+        } as unknown as MotionGraphState);
+
+        const request = structured.mock.calls[0]?.[0];
+        expect(request.images).toEqual([expect.objectContaining({ assetId: 'b', role: 'reference' })]);
+        expect(request.prompt).toContain('reference.png');
     });
 });

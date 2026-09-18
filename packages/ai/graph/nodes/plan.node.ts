@@ -15,6 +15,7 @@ export function createPlanNode(dependencies: ResolvedMotionGraphDependencies) {
                 systemInstructions: PLAN_SYSTEM_PROMPT,
                 messages: [...state.recentMessages, { role: 'user', content: state.message }],
                 limits: CONVERSATION_LIMITS,
+                images: state.assets,
             }),
         },
     });

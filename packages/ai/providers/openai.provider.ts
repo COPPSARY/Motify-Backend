@@ -1,9 +1,14 @@
 import OpenAI from 'openai';
+import type {
+    ChatCompletion,
+    ChatCompletionCreateParamsNonStreaming,
+    ChatCompletionMessageParam,
+} from 'openai/resources/chat/completions';
 import { z } from 'zod';
-import type { Response, ResponseCreateParamsNonStreaming } from 'openai/resources/responses/responses';
 
 import {
     motifyGenerationJsonSchema,
+    chatMessagesWithImages,
     normalizeProviderError,
     parseMotifyGeneration,
     parseStructured,
@@ -17,37 +22,48 @@ import {
     type StructuredModelRequest,
 } from './model.provider.js';
 
-interface OpenAIClient {
-    responses: {
-        create(body: ResponseCreateParamsNonStreaming, options?: { signal?: AbortSignal }): Promise<Response>;
+interface OpenAICompatibleClient {
+    chat: {
+        completions: {
+            create(
+                body: ChatCompletionCreateParamsNonStreaming,
+                options?: { signal?: AbortSignal },
+            ): Promise<ChatCompletion>;
+        };
     };
 }
 
-export interface OpenAIProviderOptions {
+export interface OpenAICompatibleProviderOptions {
     apiKey: string;
-    client?: OpenAIClient;
+    baseURL: string;
+    client?: OpenAICompatibleClient;
 }
 
-export class OpenAIMotionModelProvider implements MotionModelProvider {
-    readonly name = 'openai' as const;
-    private readonly client: OpenAIClient;
+/**
+ * Speaks the OpenAI Chat Completions API, which any OpenAI-compatible gateway
+ * (official OpenAI included) implements. Point `baseURL` at whichever gateway
+ * is configured to switch providers without a code change.
+ */
+export class OpenAICompatibleMotionModelProvider implements MotionModelProvider {
+    readonly name = 'openai-compatible' as const;
+    private readonly client: OpenAICompatibleClient;
 
-    constructor(options: OpenAIProviderOptions) {
-        if (!options.apiKey.trim()) throw new Error('OpenAI API key is required.');
-        this.client = options.client ?? new OpenAI({ apiKey: options.apiKey });
+    constructor(options: OpenAICompatibleProviderOptions) {
+        if (!options.apiKey.trim()) throw new Error('OpenAI-compatible API key is required.');
+        if (!options.baseURL.trim()) throw new Error('OpenAI-compatible base URL is required.');
+        this.client = options.client ?? new OpenAI({ apiKey: options.apiKey, baseURL: options.baseURL });
     }
 
     async generate(request: MotionModelRequest): Promise<ModelGenerationResult> {
         try {
-            const response = await this.client.responses.create({
+            const response = await this.client.chat.completions.create({
                 model: request.model,
-                instructions: request.systemInstructions,
-                input: request.prompt,
-                max_output_tokens: request.limits.maxOutputTokens,
+                messages: promptMessages(request.systemInstructions, request.prompt, request.images),
+                max_completion_tokens: request.limits.maxOutputTokens,
 
-                text: {
-                    format: {
-                        type: 'json_schema',
+                response_format: {
+                    type: 'json_schema',
+                    json_schema: {
                         name: 'motify_generation',
                         strict: true,
                         schema: motifyGenerationJsonSchema,
@@ -55,8 +71,8 @@ export class OpenAIMotionModelProvider implements MotionModelProvider {
                 },
             }, ...requestSignalOptions(request.signal));
             return {
-                generation: parseMotifyGeneration(requireModelText(response.output_text)),
-                usage: tokenUsage(response.usage?.input_tokens, response.usage?.output_tokens),
+                generation: parseMotifyGeneration(extractText(response)),
+                usage: tokenUsage(response.usage?.prompt_tokens, response.usage?.completion_tokens),
             };
         } catch (error) {
             throw normalizeProviderError(this.name, error, request.signal);
@@ -65,26 +81,59 @@ export class OpenAIMotionModelProvider implements MotionModelProvider {
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
         try {
-            const response = await this.client.responses.create({
-                model: request.model, instructions: request.systemInstructions, input: request.prompt, max_output_tokens: request.limits.maxOutputTokens,
-                text: { format: { type: 'json_schema', name: request.schemaName, strict: true, schema: z.toJSONSchema(request.schema, { target: 'draft-7' }) } },
+            const response = await this.client.chat.completions.create({
+                model: request.model,
+                messages: promptMessages(request.systemInstructions, request.prompt, request.images),
+                max_completion_tokens: request.limits.maxOutputTokens,
+
+                response_format: {
+                    type: 'json_schema',
+                    json_schema: {
+                        name: request.schemaName,
+                        strict: true,
+                        schema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
+                    },
+                },
             }, ...requestSignalOptions(request.signal));
-            return parseStructured(requireModelText(response.output_text), request.schema);
+            return parseStructured(extractText(response), request.schema);
         } catch (error) { throw normalizeProviderError(this.name, error, request.signal); }
     }
 
     async chat(request: ChatRequest): Promise<string> {
         try {
-            const response = await this.client.responses.create({
+            const response = await this.client.chat.completions.create({
                 model: request.model,
-                instructions: request.systemInstructions,
-                input: request.messages,
-                max_output_tokens: request.limits.maxOutputTokens,
+                messages: [{ role: 'system', content: request.systemInstructions }, ...chatMessagesWithImages(request.messages, request.images)],
+                max_completion_tokens: request.limits.maxOutputTokens,
 
             }, ...requestSignalOptions(request.signal));
-            return requireModelText(response.output_text);
+            return extractText(response);
         } catch (error) {
             throw normalizeProviderError(this.name, error, request.signal);
         }
     }
+}
+
+function promptMessages(
+    systemInstructions: string,
+    prompt: string,
+    images: MotionModelRequest['images'] = [],
+): ChatCompletionMessageParam[] {
+    return [
+        { role: 'system', content: systemInstructions },
+        {
+            role: 'user',
+            content: !images?.length ? prompt : [
+                { type: 'text', text: prompt },
+                ...images.map((image) => ({
+                    type: 'image_url' as const,
+                    image_url: { url: `data:${image.mediaType};base64,${image.dataBase64}` },
+                })),
+            ],
+        },
+    ];
+}
+
+function extractText(response: ChatCompletion): string {
+    return requireModelText(response.choices[0]?.message?.content ?? undefined);
 }

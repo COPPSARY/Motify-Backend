@@ -10,6 +10,8 @@ const valid = {
   FRONTEND_ORIGINS: 'https://motify.example',
   DATABASE_URL: 'postgresql://postgres.motifyref:pass@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
+  SUPABASE_SERVICE_ROLE_KEY: 'service-role-secret',
+  SUPABASE_STORAGE_BUCKET: 'motify-assets',
   SESSION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
   SESSION_COOKIE_SECURE: 'true',
   AI_MODEL: 'shared-provider-model',
@@ -20,6 +22,31 @@ describe('parseEnvironment', () => {
     expect(() => parseEnvironment({ ...valid, SESSION_COOKIE_SECURE: 'false' })).toThrow(
       'SESSION_COOKIE_SECURE',
     );
+  });
+
+  it('requires server-only Supabase Storage credentials in every environment', () => {
+    const { SUPABASE_SERVICE_ROLE_KEY: _key, ...withoutServiceRole } = valid;
+    expect(() => parseEnvironment(withoutServiceRole)).toThrow('SUPABASE_SERVICE_ROLE_KEY');
+    expect(() => parseEnvironment({
+      ...withoutServiceRole,
+      NODE_ENV: 'development',
+      SESSION_COOKIE_SECURE: 'false',
+    })).toThrow('SUPABASE_SERVICE_ROLE_KEY');
+  });
+
+  it('exposes only Supabase storage configuration', () => {
+    const environment = parseEnvironment({
+      ...valid,
+      NODE_ENV: 'development',
+      SESSION_COOKIE_SECURE: 'false',
+      OBJECT_STORAGE_DRIVER: 'local',
+      OBJECT_STORAGE_LOCAL_ROOT: './legacy-objects',
+    });
+
+    expect(environment.supabaseStorageBucket).toBe('motify-assets');
+    expect(environment.supabaseServiceRoleKey).toBe('service-role-secret');
+    expect(environment).not.toHaveProperty('objectStorageDriver');
+    expect(environment).not.toHaveProperty('objectStorageLocalRoot');
   });
 
   it('parses an allow-list of frontend origins', () => {
@@ -52,41 +79,21 @@ describe('parseEnvironment', () => {
     expect(environment.supabaseUrl).toBe('https://motifyref.supabase.co');
   });
 
-  it('rejects the removed OpenAI-compatible provider', () => {
-    expect(() => parseEnvironment({ ...valid, AI_PROVIDER: 'openai-compatible' })).toThrow();
+  it('rejects a removed OpenAI provider name', () => {
+    expect(() => parseEnvironment({ ...valid, AI_PROVIDER: 'openai' })).toThrow();
   });
 
-  it('parses the SP Cambodia provider and API key', () => {
+  it('parses the OpenAI-compatible provider, API key, and base URL', () => {
     const environment = parseEnvironment({
       ...valid,
-      AI_PROVIDER: 'sp-cambodia',
-      SP_CAMBO_API_KEY: 'sp-cambodia-key',
+      AI_PROVIDER: 'openai-compatible',
+      OPENAI_COMPATIBLE_API_KEY: 'openai-compatible-key',
+      OPENAI_COMPATIBLE_BASE_URL: 'https://api.openai.com/v1',
     });
 
-    expect(environment.aiProvider).toBe('sp-cambodia');
-    expect(environment.spCambodiaApiKey).toBe('sp-cambodia-key');
-  });
-
-  it('parses the ClaudeRouter provider and API key', () => {
-    const environment = parseEnvironment({
-      ...valid,
-      AI_PROVIDER: 'clauderouter',
-      CLAUDEROUTER_API_KEY: 'clauderouter-key',
-    });
-
-    expect(environment.aiProvider).toBe('clauderouter');
-    expect(environment.claudeRouterApiKey).toBe('clauderouter-key');
-  });
-
-  it('parses the hashn0de provider and API key', () => {
-    const environment = parseEnvironment({
-      ...valid,
-      AI_PROVIDER: 'hashn0de',
-      HASHN0DE_API_KEY: 'hashn0de-key',
-    });
-
-    expect(environment.aiProvider).toBe('hashn0de');
-    expect(environment.hashn0deApiKey).toBe('hashn0de-key');
+    expect(environment.aiProvider).toBe('openai-compatible');
+    expect(environment.openAiCompatibleApiKey).toBe('openai-compatible-key');
+    expect(environment.openAiCompatibleBaseUrl).toBe('https://api.openai.com/v1');
   });
 
   it('uses AI_MODEL as the only configured model', () => {

@@ -20,6 +20,7 @@ export const messageRole = pgEnum('message_role', ['user', 'assistant']);
 export const graphIntent = pgEnum('graph_intent', ['CHAT', 'PLAN', 'CREATE', 'EDIT', 'FIX']);
 export const generationRunStatus = pgEnum('generation_run_status', ['COMPLETED', 'FAILED']);
 export const assetState = pgEnum('asset_state', ['PENDING', 'READY', 'FAILED', 'DELETED']);
+export const assetUsageRole = pgEnum('asset_usage_role', ['REFERENCE', 'ASSET']);
 export const artifactKind = pgEnum('artifact_kind', [
   'ASSET',
   'SCREENSHOT',
@@ -142,9 +143,15 @@ export const assets = pgTable('assets', {
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
   state: assetState('state').default('PENDING').notNull(),
   fileName: text('file_name').notNull(),
+  label: text('label'),
+  tags: text('tags').array().default(sql`ARRAY[]::text[]`).notNull(),
   contentType: text('content_type').notNull(),
   byteSize: integer('byte_size').notNull(),
   checksum: text('checksum').notNull(),
+  width: integer('width'),
+  height: integer('height'),
+  storageProvider: text('storage_provider').default('supabase').notNull(),
+  storageBucket: text('storage_bucket').default('motify-assets').notNull(),
   objectKey: text('object_key').notNull().unique(),
   uploadExpiresAt: timestamp('upload_expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -157,8 +164,18 @@ export const assets = pgTable('assets', {
 export const projectAssets = pgTable('project_assets', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  role: assetUsageRole('role').default('ASSET').notNull(),
+  attachedBy: uuid('attached_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [primaryKey({ columns: [table.projectId, table.assetId] })]);
+
+export const messageAssets = pgTable('message_assets', {
+  messageId: uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'restrict' }),
+  role: assetUsageRole('role').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.messageId, table.assetId] })]);
 
 export const artifacts = pgTable('artifacts', {
   id: uuid('id').defaultRandom().primaryKey(),

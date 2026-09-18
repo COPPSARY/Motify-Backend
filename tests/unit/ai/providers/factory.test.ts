@@ -9,48 +9,25 @@ describe('createModelProvider', () => {
         expect(provider.name).toBe('gemini');
     });
 
-    it('builds the OpenAI provider from the OpenAI key', () => {
-        const provider = createModelProvider({ aiProvider: 'openai', openAiApiKey: 'openai-key' });
-
-        expect(provider.name).toBe('openai');
-    });
-
     it('builds the Anthropic provider from the Anthropic key', () => {
         const provider = createModelProvider({ aiProvider: 'anthropic', anthropicApiKey: 'anthropic-key' });
 
         expect(provider.name).toBe('anthropic');
     });
 
-    it('builds the SP Cambodia provider from its key', () => {
+    it('builds the OpenAI-compatible provider from its key and base URL', () => {
         const provider = createModelProvider({
-            aiProvider: 'sp-cambodia',
-            spCambodiaApiKey: 'sp-cambodia-key',
+            aiProvider: 'openai-compatible',
+            openAiCompatibleApiKey: 'openai-compatible-key',
+            openAiCompatibleBaseUrl: 'https://api.openai.com/v1',
         });
 
-        expect(provider.name).toBe('sp-cambodia');
-    });
-
-    it('builds the ClaudeRouter provider from its key', () => {
-        const provider = createModelProvider({
-            aiProvider: 'clauderouter',
-            claudeRouterApiKey: 'clauderouter-key',
-        });
-
-        expect(provider.name).toBe('clauderouter');
-    });
-
-    it('builds the hashn0de provider from its key', () => {
-        const provider = createModelProvider({
-            aiProvider: 'hashn0de',
-            hashn0deApiKey: 'hashn0de-key',
-        });
-
-        expect(provider.name).toBe('hashn0de');
+        expect(provider.name).toBe('openai-compatible');
     });
 
     it('names the missing variable when the selected provider has no key', () => {
-        expect(() => createModelProvider({ aiProvider: 'openai', geminiApiKey: 'gemini-key' }))
-            .toThrowError(/OPENAI_API_KEY/);
+        expect(() => createModelProvider({ aiProvider: 'anthropic', geminiApiKey: 'gemini-key' }))
+            .toThrowError(/ANTHROPIC_API_KEY/);
     });
 
     it('rejects a key that is only whitespace', () => {
@@ -58,18 +35,17 @@ describe('createModelProvider', () => {
             .toThrowError(/GEMINI_API_KEY/);
     });
 
-    it('names the SP Cambodia variable when its selected key is missing', () => {
-        expect(() => createModelProvider({ aiProvider: 'sp-cambodia' }))
-            .toThrowError(/SP_CAMBO_API_KEY/);
+    it('names the OpenAI-compatible variable when its selected key is missing', () => {
+        expect(() => createModelProvider({
+            aiProvider: 'openai-compatible',
+            openAiCompatibleBaseUrl: 'https://api.openai.com/v1',
+        })).toThrowError(/OPENAI_COMPATIBLE_API_KEY/);
     });
 
-    it('names the ClaudeRouter variable when its selected key is missing', () => {
-        expect(() => createModelProvider({ aiProvider: 'clauderouter' }))
-            .toThrowError(/CLAUDEROUTER_API_KEY/);
-    });
-
-    it('names the hashn0de variable when its selected key is missing', () => {
-        expect(() => createModelProvider({ aiProvider: 'hashn0de' }))
-            .toThrowError(/HASHN0DE_API_KEY/);
+    it('requires a base URL for the OpenAI-compatible provider', () => {
+        expect(() => createModelProvider({
+            aiProvider: 'openai-compatible',
+            openAiCompatibleApiKey: 'openai-compatible-key',
+        })).toThrowError(/OPENAI_COMPATIBLE_BASE_URL/);
     });
 });

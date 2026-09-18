@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Transform, type Readable } from 'node:stream';
@@ -8,11 +8,29 @@ import { Transform, type Readable } from 'node:stream';
 import type { PrivateObjectStorage, StoredObject } from './types.js';
 
 export class LocalFilesystemObjectStorage implements PrivateObjectStorage {
+  readonly bucket = 'local';
   private constructor(private readonly root: string) {}
 
   static async create(root: string) {
     await mkdir(root, { recursive: true });
     return new LocalFilesystemObjectStorage(await realpath(root));
+  }
+
+  async createSignedUpload(key: string) {
+    return { key, token: '', signedUrl: `local-object://${key}` };
+  }
+
+  async inspect(key: string) {
+    const metadata = await stat(await this.resolvePath(key));
+    return { key, byteSize: metadata.size, contentType: 'application/octet-stream' };
+  }
+
+  async openRead(key: string) {
+    return createReadStream(await this.resolvePath(key));
+  }
+
+  async createSignedReadUrl(key: string) {
+    return `local-object://${key}`;
   }
 
   async putFile(key: string, sourcePath: string, contentType: string): Promise<StoredObject> {

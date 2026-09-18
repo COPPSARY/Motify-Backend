@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import {
     motifyGenerationJsonSchema,
+    lastUserMessageIndex,
     normalizeProviderError,
     parseMotifyGeneration,
     parseStructured,
@@ -43,7 +44,13 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
         try {
             const response = await this.client.models.generateContent({
                 model: request.model,
-                contents: request.prompt,
+                contents: request.images?.length ? [{
+                    role: 'user',
+                    parts: [
+                        { text: request.prompt },
+                        ...request.images.map((image) => ({ inlineData: { mimeType: image.mediaType, data: image.dataBase64 } })),
+                    ],
+                }] : request.prompt,
                 config: {
                     ...(request.signal ? { abortSignal: request.signal } : {}),
                     systemInstruction: request.systemInstructions,
@@ -65,7 +72,14 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
         try {
             const response = await this.client.models.generateContent({
-                model: request.model, contents: request.prompt,
+                model: request.model,
+                contents: request.images?.length ? [{
+                    role: 'user',
+                    parts: [
+                        { text: request.prompt },
+                        ...request.images.map((image) => ({ inlineData: { mimeType: image.mediaType, data: image.dataBase64 } })),
+                    ],
+                }] : request.prompt,
                 config: {
                     ...(request.signal ? { abortSignal: request.signal } : {}),
                     systemInstruction: request.systemInstructions,
@@ -78,12 +92,18 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
     }
 
     async chat(request: ChatRequest): Promise<string> {
+        const lastUserIndex = lastUserMessageIndex(request.messages);
         try {
             const response = await this.client.models.generateContent({
                 model: request.model,
-                contents: request.messages.map((message) => ({
+                contents: request.messages.map((message, index) => ({
                     role: message.role === 'assistant' ? 'model' : 'user',
-                    parts: [{ text: message.content }],
+                    parts: [
+                        { text: message.content },
+                        ...(index === lastUserIndex ? (request.images ?? []).map((image) => ({
+                            inlineData: { mimeType: image.mediaType, data: image.dataBase64 },
+                        })) : []),
+                    ],
                 })),
                 config: {
                     ...(request.signal ? { abortSignal: request.signal } : {}),

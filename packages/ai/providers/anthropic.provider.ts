@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import {
     motifyGenerationJsonSchema,
+    chatMessagesWithImages,
     normalizeProviderError,
     parseMotifyGeneration,
     parseStructured,
@@ -59,7 +60,7 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
         try {
             const response = await this.client.chat.completions.create({
                 model: request.model,
-                messages: promptMessages(request.systemInstructions, request.prompt),
+                messages: promptMessages(request.systemInstructions, request.prompt, request.images),
                 max_completion_tokens: request.limits.maxOutputTokens,
                 response_format: {
                     type: 'json_schema',
@@ -83,7 +84,7 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
         try {
             const response = await this.client.chat.completions.create({
                 model: request.model,
-                messages: promptMessages(request.systemInstructions, request.prompt),
+                messages: promptMessages(request.systemInstructions, request.prompt, request.images),
                 max_completion_tokens: request.limits.maxOutputTokens,
                 response_format: {
                     type: 'json_schema',
@@ -106,7 +107,7 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
                 model: request.model,
                 messages: [
                     { role: 'system', content: request.systemInstructions },
-                    ...request.messages,
+                    ...chatMessagesWithImages(request.messages, request.images),
                 ],
                 max_completion_tokens: request.limits.maxOutputTokens,
             }, ...requestSignalOptions(request.signal));
@@ -117,10 +118,23 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
     }
 }
 
-function promptMessages(systemInstructions: string, prompt: string): ChatCompletionMessageParam[] {
+function promptMessages(
+    systemInstructions: string,
+    prompt: string,
+    images: MotionModelRequest['images'] = [],
+): ChatCompletionMessageParam[] {
     return [
         { role: 'system', content: systemInstructions },
-        { role: 'user', content: prompt },
+        {
+            role: 'user',
+            content: images.length === 0 ? prompt : [
+                { type: 'text', text: prompt },
+                ...images.map((image) => ({
+                    type: 'image_url' as const,
+                    image_url: { url: `data:${image.mediaType};base64,${image.dataBase64}` },
+                })),
+            ],
+        },
     ];
 }
 

@@ -140,10 +140,16 @@ describe('Motify API', () => {
     deps.sessions.resolve.mockResolvedValue({ user: identity, csrfToken: 'expected-csrf' });
     const app = createApp({ services: deps, frontendOrigins: ['http://localhost:5173'], secureCookies: false });
     const response = await request(app).post('/v1/projects/26ce88b5-1a51-4265-913e-203eb3cadbd7/messages')
-      .set('Cookie', ['motify_session=session']).set('x-csrf-token', 'expected-csrf').send({ message: 'Plan a launch.' });
+      .set('Cookie', ['motify_session=session']).set('x-csrf-token', 'expected-csrf').send({
+        message: 'Plan a launch.',
+        assets: [{ assetId: '11111111-1111-4111-8111-111111111111', role: 'reference' }],
+      });
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual({ type: 'plan', response: 'Plan only.' });
-    expect(deps.motionMessages.sendMessage).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7', { message: 'Plan a launch.' });
+    expect(deps.motionMessages.sendMessage).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7', {
+      message: 'Plan a launch.',
+      assets: [{ assetId: '11111111-1111-4111-8111-111111111111', role: 'reference' }],
+    });
   });
 
   it('does not expose workspace-scoped generation', async () => {

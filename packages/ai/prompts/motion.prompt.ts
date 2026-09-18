@@ -1,8 +1,8 @@
 import type { RoutedSkill } from '../../motify-skills/router.js';
 import type { GenerationIntent, MotifyProject } from '../graph/dependencies.js';
-import type { ChatMessage, ModelRequestLimits } from '../providers/model.provider.js';
+import type { ChatMessage, ModelImageInput, ModelRequestLimits } from '../providers/model.provider.js';
 
-export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 16_000 };
+export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 32_000 };
 
 const FENCE = '```';
 const FRONTMATTER = /^---\n[\s\S]*?\n---\n*/;
@@ -18,6 +18,12 @@ export function buildMotionSystemPrompt(skills: RoutedSkill[]): string {
 
     return [
         `MOTIFY SKILL BUNDLE VERSION: ${firstSkill.version}`,
+        [
+            'USER-FACING REPLY CONTRACT',
+            'The `reply` field must contain 2 or 3 short plain sentences.',
+            'Briefly confirm completion and summarize only the visible creative result relevant to the request.',
+            'Do not include direction notes, validation commentary, scene or object counts, timestamps, prompt instructions, code, skills, or internal process.',
+        ].join('\n'),
         ...sections,
     ].join('\n\n');
 }
@@ -28,6 +34,7 @@ export interface MotionPromptInput {
     project?: MotifyProject | undefined;
     recentMessages: ChatMessage[];
     runtimeError?: { message: string } | undefined;
+    assets?: readonly ModelImageInput[] | undefined;
 }
 
 export function buildMotionUserPrompt(input: MotionPromptInput): string {
@@ -43,8 +50,32 @@ export function buildMotionUserPrompt(input: MotionPromptInput): string {
         sections.push(`Recent conversation:\n${formatHistory(input.recentMessages)}`);
     }
 
+    sections.push(...describeImages(input.assets ?? []));
+
     sections.push(input.project ? describeProject(input.project) : NO_PROJECT_YET);
     return sections.join('\n\n');
+}
+
+/** Assets are placed in the video; references are read for layout and style only. */
+export function describeImages(assets: readonly ModelImageInput[]): string[] {
+    const placeable = assets.filter((asset) => asset.role === 'asset').map((asset) => (
+        `- ${asset.fileName} (${asset.mediaType}); required HTML source: motify-asset://${asset.assetId}`
+    ));
+    const references = assets.filter((asset) => asset.role === 'reference').map((asset) => `- ${asset.fileName} (${asset.mediaType})`);
+    return [
+        [
+            'IMAGES TO PLACE',
+            placeable.length > 0
+                ? `${placeable.join('\n')}\nUse every exact token above in a visible image source.`
+                : 'No images to place.',
+        ].join('\n'),
+        [
+            'REFERENCE IMAGES (read these; never put them on screen)',
+            references.length > 0
+                ? `${references.join('\n')}\nThese images guide layout and style only. Never embed them in the composition.`
+                : 'No reference images supplied.',
+        ].join('\n'),
+    ];
 }
 
 const INTENT_INSTRUCTIONS: Record<GenerationIntent, string> = {

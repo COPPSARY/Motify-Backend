@@ -283,7 +283,7 @@ Size it at **30–45% of frame height**, tilt it `rotateY 14–22deg` with `pers
 
 ## The end-to-end film
 
-A 22-second film, beat by beat, with the times it actually runs at. Adapt the content; keep the structure, the scale changes, and the pacing.
+One worked example, 22 seconds, beat by beat, with the times it actually ran at — this demonstrates the *rules* (scale contrast, camera discipline, pacing), not a structure to reproduce. Build your own beat count, order, ground colours, and shot choices from this request's own transformation chain (Step 1); do not default to this beat's five-part shape, its grounds, or its shot list just because it worked here. Two different products run through this skill should not land on the same beat count, the same ground palette, or the same camera pattern unless their chains genuinely call for it.
 
 **Beat 1 — 0.0 to 4.2s. The claim, oversized.**
 Ground floods in as a full-bleed dark or brand colour. The opening statement plays **Move A**: starts cropped by both frame edges at scale 2.9, pulls back to reading size over 0.65s. Hold with a drift. One word in the brand hue. Camera: a slow `cameraPull` from 1.15 to 1.0 across the whole beat so the frame is never static.
@@ -300,9 +300,9 @@ Push in hard. `cameraPush` scale 1.0 → 1.55 over 1.4s on `expo.out`, landing o
 **Beat 5 — 17.8 to 22.0s. The brand.**
 Ground floods to the brand colour full-bleed (Move D). The mark and wordmark arrive together at **25–40% of frame width**, centred, with at most four words or a bare URL beneath. The mark enters at scale 0.7 with a `back.out(1.5)` over 0.6s; the words follow 0.25s later. Hold to the last frame with a 1.0 → 1.03 drift. Nothing else is in the frame.
 
-**The scale rhythm across those five beats is the film.** Huge → medium → macro → wide → medium. If every beat sits at the same size, no amount of correct colour or easing will save it. Write the scale of each beat's subject down before you author anything, and make sure no two adjacent beats match.
+**A deliberate scale rhythm is the film — this example's Huge → medium → macro → wide → medium is one such rhythm, not the required one.** If every beat sits at the same size, no amount of correct colour or easing will save it. Write the scale of each beat's subject down before you author anything, and make sure no two adjacent beats match — the specific sequence of sizes is yours to design from the chain, not copied from here.
 
-**Only some beats get a camera move.** In the five beats above the camera holds through Beat 1 while the type pulls itself back, tracks once in Beat 2, pushes in Beat 3, holds again, then pulls back in Beat 5 — four moves across five beats, each continuing the same inward journey. What stops a still beat from freezing is the type or the object still moving inside it, plus a 1-3% drift, not a camera move bolted onto every beat.
+**Only some beats get a camera move, and which ones is a choice, not a formula.** In the example above the camera holds through Beat 1 while the type pulls itself back, tracks once in Beat 2, pushes in Beat 3, holds again, then pulls back in Beat 5 — one possible pattern of moves continuing one inward journey. Design your own pattern from what this film's beats actually need; what stops a still beat from freezing is the type or the object still moving inside it, plus a 1-3% drift, not a camera move bolted onto every beat.
 
 ## Laws that hold for every shape
 

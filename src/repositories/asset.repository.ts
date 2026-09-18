@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import type { Database } from '../../packages/database/client.js';
 import { assets, projectAssets, projects, workspaceMembers } from '../../packages/database/schema.js';
@@ -55,8 +55,24 @@ export class DatabaseAssetRepository {
     return asset ?? null;
   }
 
-  async list(workspaceId: string, page: number, pageSize: number) {
-    const where = and(eq(assets.workspaceId, workspaceId), eq(assets.state, 'READY'));
+  async markReady(assetId: string, dimensions: { width: number; height: number }) {
+    const [asset] = await this.db.update(assets).set({
+      state: 'READY',
+      width: dimensions.width,
+      height: dimensions.height,
+      updatedAt: new Date(),
+    }).where(eq(assets.id, assetId)).returning();
+    return asset ?? null;
+  }
+
+  async list(workspaceId: string, page: number, pageSize: number, query?: string) {
+    const pattern = query ? `%${escapeLike(query)}%` : null;
+    const search = pattern ? or(
+      ilike(assets.fileName, pattern),
+      ilike(assets.label, pattern),
+      sql`exists (select 1 from unnest(${assets.tags}) as tag where tag ilike ${pattern} escape '\\')`,
+    ) : undefined;
+    const where = and(eq(assets.workspaceId, workspaceId), eq(assets.state, 'READY'), search);
     const [data, total] = await Promise.all([
       this.db.select().from(assets).where(where).orderBy(desc(assets.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
       this.db.select({ value: count() }).from(assets).where(where),
@@ -64,11 +80,40 @@ export class DatabaseAssetRepository {
     return { data, totalItems: total[0]?.value ?? 0 };
   }
 
-  async attach(projectId: string, assetId: string) {
-    await this.db.insert(projectAssets).values({ projectId, assetId }).onConflictDoNothing();
+  async attach(projectId: string, assetId: string, attachedBy: string, role: 'REFERENCE' | 'ASSET' = 'ASSET') {
+    await this.db.insert(projectAssets).values({ projectId, assetId, attachedBy, role }).onConflictDoUpdate({
+      target: [projectAssets.projectId, projectAssets.assetId],
+      set: { role, attachedBy, updatedAt: new Date() },
+    });
   }
 
   async detach(projectId: string, assetId: string) {
     await this.db.delete(projectAssets).where(and(eq(projectAssets.projectId, projectId), eq(projectAssets.assetId, assetId)));
   }
+
+  async updateMetadata(assetId: string, input: { label?: string | null; tags?: string[] }) {
+    const [asset] = await this.db.update(assets).set({
+      ...input,
+      updatedAt: new Date(),
+    }).where(eq(assets.id, assetId)).returning();
+    return asset ?? null;
+  }
+
+  async countAttachments(assetId: string) {
+    const [result] = await this.db.select({ value: count() }).from(projectAssets)
+      .innerJoin(projects, eq(projects.id, projectAssets.projectId))
+      .where(and(eq(projectAssets.assetId, assetId), isNull(projects.archivedAt)));
+    return result?.value ?? 0;
+  }
+
+  async listAttached(projectId: string) {
+    return this.db.select({ asset: assets, role: projectAssets.role }).from(projectAssets)
+      .innerJoin(assets, eq(assets.id, projectAssets.assetId))
+      .where(and(eq(projectAssets.projectId, projectId), eq(assets.state, 'READY')))
+      .orderBy(projectAssets.createdAt);
+  }
+}
+
+function escapeLike(value: string) {
+  return value.replace(/[\\%_]/g, '\\$&');
 }

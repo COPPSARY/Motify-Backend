@@ -18,7 +18,13 @@ function dependencies() {
       complete: vi.fn().mockResolvedValue({ id: assetId, state: 'READY' }),
       list: vi.fn().mockResolvedValue({ data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } }),
       get: vi.fn().mockResolvedValue({ id: assetId, state: 'READY' }),
-      download: vi.fn(), remove: vi.fn(), attach: vi.fn(), detach: vi.fn(),
+      updateMetadata: vi.fn().mockResolvedValue({ id: assetId, label: 'Hero', tags: ['product'] }),
+      createAccess: vi.fn().mockResolvedValue({ url: 'https://storage/read', expiresIn: 300 }),
+      download: vi.fn().mockResolvedValue({
+        kind: 'redirect', url: 'https://storage/download', contentType: 'image/png', fileName: 'product.png',
+      }),
+      remove: vi.fn(), attach: vi.fn(), detach: vi.fn(),
+      listProjectAssets: vi.fn().mockResolvedValue([{ id: assetId, role: 'asset', token: `motify-asset://${assetId}` }]),
     },
   };
 }
@@ -38,12 +44,22 @@ describe('Asset API', () => {
     await authenticated(request(app).put(`/v1/assets/uploads/${assetId}/content`)).set('Content-Type', 'image/png').send(bytes).expect(200);
     await authenticated(request(app).post(`/v1/workspaces/${workspaceId}/assets/uploads/${assetId}/complete`)).send({}).expect(200);
     await authenticated(request(app).get(`/v1/workspaces/${workspaceId}/assets`)).expect(200);
-    await authenticated(request(app).post(`/v1/projects/${projectId}/assets`)).send({ assetId }).expect(204);
+    await authenticated(request(app).patch(`/v1/assets/${assetId}`)).send({ label: 'Hero', tags: ['product'] }).expect(200);
+    await authenticated(request(app).get(`/v1/assets/${assetId}/access`)).expect(200, {
+      data: { url: 'https://storage/read', expiresIn: 300 },
+    });
+    await authenticated(request(app).get(`/v1/assets/${assetId}/download`))
+      .expect(302)
+      .expect('Location', 'https://storage/download');
+    await authenticated(request(app).post(`/v1/projects/${projectId}/assets`)).send({ assetId, role: 'reference' }).expect(204);
+    await authenticated(request(app).get(`/v1/projects/${projectId}/assets`)).expect(200, {
+      data: [{ id: assetId, role: 'asset', token: `motify-asset://${assetId}` }],
+    });
     await authenticated(request(app).delete(`/v1/projects/${projectId}/assets/${assetId}`)).expect(204);
 
     expect(deps.assets.upload).toHaveBeenCalledWith(user.id, assetId, expect.objectContaining({ pipe: expect.any(Function) }), 'image/png');
     expect(deps.assets.complete).toHaveBeenCalledWith(user.id, workspaceId, assetId);
-    expect(deps.assets.attach).toHaveBeenCalledWith(user.id, projectId, assetId);
+    expect(deps.assets.attach).toHaveBeenCalledWith(user.id, projectId, assetId, 'reference');
   });
 
   it('rejects invalid asset metadata and missing CSRF', async () => {

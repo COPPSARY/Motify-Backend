@@ -5,6 +5,7 @@ import type {
     MotionGraphResponse,
 } from '../../packages/ai/graph/dependencies.js';
 import { ModelProviderError, type ProviderErrorCode } from '../../packages/ai/providers/model.provider.js';
+import type { ModelImageInput } from '../../packages/ai/providers/model.provider.js';
 import { AppError } from '../errors.js';
 
 /** The compiled Motify graph, narrowed to what this service needs. */
@@ -18,6 +19,20 @@ export interface MessageRequestInput {
     message: string;
     runtimeError?: { message: string } | undefined;
     revision?: number | undefined;
+    assets?: AssetAttachmentInput[] | undefined;
+}
+
+export interface AssetAttachmentInput {
+    assetId: string;
+    role: 'reference' | 'asset';
+}
+
+export interface GenerationAssetResolver {
+    resolveGenerationAssets(
+        userId: string,
+        projectId: string,
+        assets: readonly AssetAttachmentInput[] | undefined,
+    ): Promise<ModelImageInput[]>;
 }
 
 export type MessageResult =
@@ -54,6 +69,7 @@ export class GenerationService {
     constructor(
         private readonly graph: MotionGraphRunner,
         private readonly projects: ProjectAccessReader,
+        private readonly assets?: GenerationAssetResolver,
     ) {}
 
     async sendMessage(userId: string, projectId: string, input: MessageRequestInput): Promise<MessageResult> {
@@ -61,11 +77,15 @@ export class GenerationService {
         if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
         requireWriteAccess(access.role);
 
+        const images = this.assets
+            ? await this.assets.resolveGenerationAssets(userId, projectId, input.assets)
+            : [];
         return this.result(await this.invokeGraph({
             userId,
             workspaceId: access.workspaceId,
             projectId,
             message: input.message,
+            ...(images.length > 0 ? { assets: images } : {}),
             ...(input.runtimeError ? { runtimeError: input.runtimeError } : {}),
             ...(input.revision !== undefined ? { revision: input.revision } : {}),
         }));

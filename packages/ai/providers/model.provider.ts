@@ -62,11 +62,20 @@ export interface ModelRequestLimits {
     maxOutputTokens: number;
 }
 
+export interface ModelImageInput {
+    assetId: string;
+    fileName: string;
+    mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+    dataBase64: string;
+    role: 'reference' | 'asset';
+}
+
 export interface MotionModelRequest {
     model: string;
     systemInstructions: string;
     prompt: string;
     limits: ModelRequestLimits;
+    images?: readonly ModelImageInput[];
     signal?: AbortSignal;
 }
 
@@ -85,10 +94,52 @@ export interface ChatRequest {
     systemInstructions: string;
     messages: ChatMessage[];
     limits: ModelRequestLimits;
+    images?: readonly ModelImageInput[];
     signal?: AbortSignal;
 }
 
-export type ModelProviderName = 'gemini' | 'openai' | 'anthropic' | 'sp-cambodia' | 'clauderouter' | 'hashn0de';
+export type ImageChatMessage =
+    | { role: 'assistant'; content: string }
+    | {
+        role: 'user';
+        content: string | Array<
+            { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
+        >;
+    };
+
+export function lastUserMessageIndex(messages: readonly ChatMessage[]): number {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+        if (messages[index]?.role === 'user') return index;
+    }
+    return -1;
+}
+
+/** Attaches images to the newest user message so a conversational reply can see them. */
+export function chatMessagesWithImages(
+    messages: readonly ChatMessage[],
+    images: readonly ModelImageInput[] = [],
+): ImageChatMessage[] {
+    const lastUser = lastUserMessageIndex(messages);
+    return messages.map((message, index) => {
+        if (message.role === 'assistant' || index !== lastUser || images.length === 0) {
+            return message.role === 'assistant'
+                ? { role: 'assistant', content: message.content }
+                : { role: 'user', content: message.content };
+        }
+        return {
+            role: 'user',
+            content: [
+                { type: 'text', text: message.content },
+                ...images.map((image) => ({
+                    type: 'image_url' as const,
+                    image_url: { url: `data:${image.mediaType};base64,${image.dataBase64}` },
+                })),
+            ],
+        };
+    });
+}
+
+export type ModelProviderName = 'gemini' | 'openai-compatible' | 'anthropic';
 
 export type ProviderErrorCode =
     | 'PROVIDER_RATE_LIMITED'

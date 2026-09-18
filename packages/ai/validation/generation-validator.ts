@@ -15,17 +15,38 @@ export interface ValidationReport {
     errors: ValidationError[];
 }
 
+export interface GenerationValidationOptions {
+    requiredAssetTokens?: readonly string[];
+}
+
 type HtmlNode = DefaultTreeAdapterMap['node'];
 type HtmlElement = DefaultTreeAdapterMap['element'];
 type HtmlTemplate = DefaultTreeAdapterMap['template'];
 
 const forbiddenApiPattern = /\b(fetch|XMLHttpRequest|WebSocket|EventSource|localStorage|sessionStorage)\b|document\s*\.\s*cookie|window\s*\.\s*open|createElement\s*\(\s*['"]script['"]\s*\)/;
 
-export function validateMotifyGeneration(generation: MotifyGeneration): ValidationReport {
+export function validateMotifyGeneration(
+    generation: MotifyGeneration,
+    options: GenerationValidationOptions = {},
+): ValidationReport {
     const errors: ValidationError[] = [];
     validateHtml(generation.compositionHtml, errors);
     validateTimeline(generation.timelineJs, errors);
+    validateAssetTokens(generation.compositionHtml, options.requiredAssetTokens ?? [], errors);
     return { valid: errors.length === 0, errors };
+}
+
+function validateAssetTokens(html: string, required: readonly string[], errors: ValidationError[]): void {
+    const allowed = new Set(required);
+    const tokens = new Set(html.match(/motify-asset:\/\/[0-9a-f-]{36}/gi) ?? []);
+    for (const token of required) {
+        const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const visible = new RegExp(`(?:src\\s*=\\s*["']${escaped}["']|url\\(\\s*["']?${escaped}["']?\\s*\\))`, 'i').test(html);
+        if (!visible) add(errors, 'REQUIRED_ASSET_MISSING', `Required asset '${token}' is not used in a visible source.`, 'compositionHtml');
+    }
+    for (const token of tokens) {
+        if (!allowed.has(token)) add(errors, 'UNKNOWN_ASSET_TOKEN', `Unknown Motify asset token '${token}'.`, 'compositionHtml');
+    }
 }
 
 function validateHtml(html: string, errors: ValidationError[]): void {

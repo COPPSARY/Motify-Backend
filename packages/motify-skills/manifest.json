@@ -13,7 +13,7 @@
     {
       "id": "write-motify",
       "file": "write-motify/SKILL.md",
-      "sha256": "fc1a13ba147b87b52ee3d76ebe3e7b1784dd4b13ff46e0a013419043ba156a2c"
+      "sha256": "3a856c0df47a2e67ca9867f7f68b048fb7d693000da09be147238dafb4f9502a"
     },
     {
       "id": "scene-design",
@@ -28,7 +28,7 @@
     {
       "id": "preset-reference",
       "file": "preset-reference/SKILL.md",
-      "sha256": "a8523036d915bc8b0a34f7b6631838f0b678015282b306293bad6e0340e7a853"
+      "sha256": "241c10ceb3e09dbc9870f04f022d69d90f9a4a50312b84586297c993398eb232"
     },
     {
       "id": "house-style",
@@ -59,6 +59,46 @@
       "id": "cinematic-brand",
       "file": "styles/cinematic-brand/SKILL.md",
       "sha256": "709e710aa041648023a3b2843decb4a71ebf93157f24ff67ebf8337691257b6a"
+    },
+    {
+      "id": "apple-notes-workflow",
+      "file": "styles/apple-notes-workflow/SKILL.md",
+      "sha256": "427879eb7361e35b43bf9f38155b91fab09c40d5f31c2b30cd05e594ccdb1ada"
+    },
+    {
+      "id": "claude-product-journey",
+      "file": "styles/claude-product-journey/SKILL.md",
+      "sha256": "752d403134b8a5f04e5a730fd857b4ccd2f793870bd02d316265ad19340851a8"
+    },
+    {
+      "id": "kiri-voice-workflow",
+      "file": "styles/kiri-voice-workflow/SKILL.md",
+      "sha256": "3ef05fe0a985590f8c8a561c6beedbeec9dc8381050c5b9c0bdc179fa8ee93a0"
+    },
+    {
+      "id": "motify-launch-film",
+      "file": "styles/motify-launch-film/SKILL.md",
+      "sha256": "9eb35e16b1d81509ac1eada2dd4c91648fc27b767d7a510f5a517c842302bdf4"
+    },
+    {
+      "id": "motionly-promo-film",
+      "file": "styles/motionly-promo-film/SKILL.md",
+      "sha256": "381456caf3351ec311913037ba8a16621b1e98575560f18cdad6d6291800c81c"
+    },
+    {
+      "id": "recoup-recovery-story",
+      "file": "styles/recoup-recovery-story/SKILL.md",
+      "sha256": "d4a69b638feb2ac9d92c1213e37a46856a0d68aa466c72ef57f4d8a9fbc44f08"
+    },
+    {
+      "id": "relay-handoff-story",
+      "file": "styles/relay-handoff-story/SKILL.md",
+      "sha256": "a033bc8424518f857cf1fbe69a9151d4dbc6da5a8c13b21a3f5f47cf9c2760c2"
+    },
+    {
+      "id": "tessera-data-story",
+      "file": "styles/tessera-data-story/SKILL.md",
+      "sha256": "8af55f258c774d13735d54bfcb856efe379618c15bcdb0569876891b03b06120"
     }
   ]
 }

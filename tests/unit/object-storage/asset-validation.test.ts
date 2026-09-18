@@ -10,6 +10,12 @@ const directories: string[] = [];
 afterEach(async () => Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));
 
 describe('asset validation', () => {
+  it('limits the first asset release to images and SVGs', () => {
+    expect(() => validateAssetMetadata('clip.mp4', 'video/mp4', 12)).toThrow('extension');
+    expect(() => validateAssetMetadata('voice.mp3', 'audio/mpeg', 12)).toThrow('extension');
+    expect(() => validateAssetMetadata('huge.png', 'image/png', 20_000_001)).toThrow('20 MB');
+  });
+
   it('accepts matching image signatures and rejects extension/MIME spoofing', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'motify-asset-validation-'));
     directories.push(directory);
