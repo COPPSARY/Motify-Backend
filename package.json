@@ -22,7 +22,8 @@
     "eval:gemini-smoke": "node --env-file-if-exists=.env --import ./scripts/process-identity.mjs --import tsx evals/cloud-generation/gemini-smoke.ts",
     "skills:update-hashes": "node scripts/motify-skills.mjs update",
     "skills:verify": "node scripts/motify-skills.mjs verify",
-    "verify:motionly-baseline": "node scripts/verify-motionly-baseline.mjs"
+    "verify:motionly-baseline": "node scripts/verify-motionly-baseline.mjs",
+    "eval:quality": "node --env-file-if-exists=.env --import ./scripts/process-identity.mjs --import tsx evals/quality/runner.ts"
   },
   "repository": {
     "type": "git",

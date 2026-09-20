@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "prompts": [
+    {
+      "slug": "1-terse",
+      "message": "make a video about my app"
+    },
+    {
+      "slug": "2-specific",
+      "message": "Create a 15 second product film for Quill, a note-taking app that turns messy meeting notes into clean shareable summaries. Warm editorial feel, off-white ground, one accent colour."
+    },
+    {
+      "slug": "3-saas-ad",
+      "message": "make me an ad for a fintech app called Ledger that shows how fast payments settle compared to a bank transfer"
+    },
+    {
+      "slug": "4-kinetic",
+      "message": "kinetic typography intro for a podcast called Deep Field, dark background, big bold type, words landing one by one"
+    }
+  ]
+}
