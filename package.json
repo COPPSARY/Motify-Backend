@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "npm run build:api",
-    "build:api": "tsc -p tsconfig.build.json && node scripts/motify-skills.mjs copy",
+    "build:api": "tsc -p tsconfig.build.json && node scripts/motify-skills.mjs copy && node scripts/motify-references.mjs",
     "start": "node dist/src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",

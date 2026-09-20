@@ -60,6 +60,12 @@ export interface ModelGenerationResult {
 
 export interface ModelRequestLimits {
     maxOutputTokens: number;
+    /**
+     * How much reasoning the request is worth. Authoring or repairing a film is
+     * the reasoning; classification and routing are not. Left unset, the model's
+     * own default applies - which on the lite tiers means little or none.
+     */
+    thinking?: 'auto' | 'none';
 }
 
 export interface ModelImageInput {
