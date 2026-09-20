@@ -22,6 +22,7 @@ export function createRepairNode(dependencies: ResolvedMotionGraphDependencies) 
                 candidate: requireCandidate(state.generation),
                 errors: state.validationErrors,
             }),
+            images: state.referenceImages,
             limits: REPAIR_LIMITS,
         });
         return { repairAttempts: state.repairAttempts + 1, generation: result.generation, tokenUsage: result.usage };

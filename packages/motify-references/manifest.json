@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "source": "Motionly frontend src/compositions/presets",
+  "references": [
+    {
+      "id": "relay",
+      "title": "Relay - editorial handoff film",
+      "description": "Warm paper editorial film, no browser shell and no giant-type opening. One brief persists through review, approval and delivery, and the camera trails it. Use for review, approval, handoff and document products, and whenever the request wants restraint over spectacle."
+    },
+    {
+      "id": "tessera",
+      "title": "Tessera - transformation film, no app shell",
+      "description": "A transformation film with no application shell in it. Records arrive from many systems and resolve into one shared contract. Use when the product's value is a mechanism rather than an interface: pipelines, normalisation, integration, data resolution."
+    },
+    {
+      "id": "recoup",
+      "title": "Recoup - liquid-glass SaaS ad on a 3D camera",
+      "description": "A glassy SaaS ad shot on a real 3D camera. A statement owns its frame, or the interface owns its frame, never both. Use for polished product advertising with real UI moments and deliberate camera movement."
+    }
+  ]
+}

@@ -14,10 +14,36 @@ import {
     tokenUsage,
     type ChatRequest,
     type ModelGenerationResult,
+    type ModelRequestLimits,
+    type PromptImage,
     type MotionModelProvider,
     type MotionModelRequest,
     type StructuredModelRequest,
 } from './model.provider.js';
+
+/**
+ * Gemini takes a token budget rather than a mode: -1 lets the model choose, 0
+ * disables. An unset budget leaves the model's per-tier default in place.
+ */
+/**
+ * Gemini takes a prompt as either a string or a parts array. Reference images
+ * lead so the model has seen them before it reads what to do with them.
+ */
+function promptContents(prompt: string, images: readonly PromptImage[] | undefined) {
+    if (!images?.length) return prompt;
+    return [{
+        role: 'user',
+        parts: [
+            ...images.map((image) => ({ inlineData: { mimeType: image.mimeType, data: image.dataBase64 } })),
+            { text: prompt },
+        ],
+    }];
+}
+
+function thinkingConfig(limits: ModelRequestLimits) {
+    if (limits.thinking === undefined) return {};
+    return { thinkingConfig: { thinkingBudget: limits.thinking === 'auto' ? -1 : 0 } };
+}
 
 interface GeminiClient {
     models: {
@@ -43,12 +69,12 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
         try {
             const response = await this.client.models.generateContent({
                 model: request.model,
-                contents: request.prompt,
+                contents: promptContents(request.prompt, request.images),
                 config: {
                     ...(request.signal ? { abortSignal: request.signal } : {}),
                     systemInstruction: request.systemInstructions,
                     maxOutputTokens: request.limits.maxOutputTokens,
-
+                    ...thinkingConfig(request.limits),
                     responseMimeType: 'application/json',
                     responseJsonSchema: motifyGenerationJsonSchema,
                 },
@@ -70,6 +96,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                     ...(request.signal ? { abortSignal: request.signal } : {}),
                     systemInstruction: request.systemInstructions,
                     maxOutputTokens: request.limits.maxOutputTokens,
+                    ...thinkingConfig(request.limits),
                     responseMimeType: 'application/json', responseJsonSchema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
                 },
             });

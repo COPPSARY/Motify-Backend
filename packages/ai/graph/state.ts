@@ -1,7 +1,9 @@
 import { Annotation } from '@langchain/langgraph';
 
 import type { RoutedSkill } from '../../motify-skills/router.js';
-import type { ChatMessage, ModelTokenUsage, MotifyGeneration } from '../providers/model.provider.js';
+import type { ChatMessage, ModelTokenUsage, MotifyGeneration, PromptImage } from '../providers/model.provider.js';
+import type { LoadedReference } from '../../motify-references/loader.js';
+import type { MotionBrief } from '../schemas/brief.schema.js';
 import type { Intent } from '../schemas/intent.schema.js';
 import type { ValidationError } from '../validation/generation-validator.js';
 import type { MotionGraphResponse, MotifyProject } from './dependencies.js';
@@ -21,12 +23,16 @@ export const MotionGraphAnnotation = Annotation.Root({
     message: Annotation<string>,
     runtimeError: Annotation<{ message: string } | undefined>,
     revision: Annotation<number | undefined>,
+    referenceAssetIds: Annotation<string[]>({ reducer: replace, default: () => [] }),
+    referenceImages: Annotation<PromptImage[]>({ reducer: replace, default: () => [] }),
 
     startedAtMs: Annotation<number>({ reducer: replace, default: () => 0 }),
     intent: Annotation<Intent | undefined>,
     project: Annotation<MotifyProject | undefined>,
     recentMessages: Annotation<ChatMessage[]>({ reducer: replace, default: () => [] }),
     selectedSkills: Annotation<RoutedSkill[]>({ reducer: replace, default: () => [] }),
+    brief: Annotation<MotionBrief | undefined>,
+    reference: Annotation<LoadedReference | undefined>,
     generation: Annotation<MotifyGeneration | undefined>,
     tokenUsage: Annotation<ModelTokenUsage>({
         reducer: (current, next) => ({

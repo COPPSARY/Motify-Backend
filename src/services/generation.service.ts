@@ -18,6 +18,7 @@ export interface MessageRequestInput {
     message: string;
     runtimeError?: { message: string } | undefined;
     revision?: number | undefined;
+    referenceAssetIds?: string[] | undefined;
 }
 
 export type MessageResult =
@@ -68,6 +69,7 @@ export class GenerationService {
             message: input.message,
             ...(input.runtimeError ? { runtimeError: input.runtimeError } : {}),
             ...(input.revision !== undefined ? { revision: input.revision } : {}),
+            ...(input.referenceAssetIds?.length ? { referenceAssetIds: input.referenceAssetIds } : {}),
         }));
     }
 

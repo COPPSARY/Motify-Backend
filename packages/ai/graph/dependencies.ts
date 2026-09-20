@@ -1,5 +1,6 @@
 import { loadSkillBundle, type LoadedSkill, type SkillManifest } from '../../motify-skills/loader.js';
-import type { ChatMessage, MotifyGeneration, MotionModelProvider } from '../providers/model.provider.js';
+import type { ChatMessage, MotifyGeneration, MotionModelProvider, PromptImage } from '../providers/model.provider.js';
+import type { MotionBrief } from '../schemas/brief.schema.js';
 import type { Intent } from '../schemas/intent.schema.js';
 import { validateMotifyGeneration, type ValidationError, type ValidationReport } from '../validation/generation-validator.js';
 
@@ -108,11 +109,18 @@ export interface MotionGraphInput {
     runtimeError?: { message: string };
     /** Revision the caller generated against; required for runtime repair. */
     revision?: number;
+    /** Uploaded assets the caller attached to this message as visual reference. */
+    referenceAssetIds?: string[];
 }
 
 export interface SkillBundle {
     manifest: SkillManifest;
     skills: LoadedSkill[];
+}
+
+export interface BriefLog {
+    beats: number;
+    defects: string[];
 }
 
 export interface SkillSelectionLog {
@@ -132,6 +140,12 @@ export interface MotionGraphDependencies {
     maxRepairAttempts?: number;
     historyLimit?: number;
     onSkillsSelected?: (selection: SkillSelectionLog) => void;
+    onBrief?: (log: BriefLog) => void;
+    /**
+     * Resolves attached asset ids to image bytes, enforcing the caller's own read
+     * access. Absent in tests and wherever assets are not configured.
+     */
+    loadReferenceImages?: (userId: string, assetIds: string[]) => Promise<PromptImage[]>;
 }
 
 export interface ResolvedMotionGraphDependencies {
@@ -144,6 +158,8 @@ export interface ResolvedMotionGraphDependencies {
     maxRepairAttempts: number;
     historyLimit: number;
     onSkillsSelected: (selection: SkillSelectionLog) => void;
+    onBrief: (log: BriefLog) => void;
+    loadReferenceImages: (userId: string, assetIds: string[]) => Promise<PromptImage[]>;
 }
 
 export const MAX_REPAIR_ATTEMPTS = 2;
@@ -162,6 +178,8 @@ export function resolveMotionGraphDependencies(
         maxRepairAttempts: dependencies.maxRepairAttempts ?? MAX_REPAIR_ATTEMPTS,
         historyLimit: dependencies.historyLimit ?? RECENT_MESSAGE_LIMIT,
         onSkillsSelected: dependencies.onSkillsSelected ?? (() => {}),
+        onBrief: dependencies.onBrief ?? (() => {}),
+        loadReferenceImages: dependencies.loadReferenceImages ?? (async () => []),
     };
 }
 

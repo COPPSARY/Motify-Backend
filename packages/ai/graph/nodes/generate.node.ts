@@ -25,7 +25,11 @@ export function createGenerateNode(dependencies: ResolvedMotionGraphDependencies
                     project: state.project,
                     recentMessages: state.recentMessages,
                     runtimeError: state.runtimeError,
+                    brief: state.brief,
+                    reference: state.reference,
+                    referenceImages: state.referenceImages,
                 }),
+                images: state.referenceImages,
                 limits: GENERATION_LIMITS,
         });
         return { generation: result.generation, tokenUsage: result.usage };
