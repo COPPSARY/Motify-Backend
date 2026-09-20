@@ -41,6 +41,7 @@ export const MotionGraphAnnotation = Annotation.Root({
         default: () => ({ inputTokens: null, outputTokens: null }),
     }),
     validationErrors: Annotation<ValidationError[]>({ reducer: replace, default: () => [] }),
+    validationWarnings: Annotation<ValidationError[]>({ reducer: replace, default: () => [] }),
     repairAttempts: Annotation<number>({ reducer: replace, default: () => 0 }),
     savedRevision: Annotation<number | undefined>,
     response: Annotation<MotionGraphResponse | undefined>,

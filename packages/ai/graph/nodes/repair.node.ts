@@ -20,7 +20,7 @@ export function createRepairNode(dependencies: ResolvedMotionGraphDependencies) 
                 message: state.message,
                 project: state.project,
                 candidate: requireCandidate(state.generation),
-                errors: state.validationErrors,
+                errors: [...state.validationErrors, ...state.validationWarnings],
                 assets: state.assets,
             }),
             limits: REPAIR_LIMITS,
