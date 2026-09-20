@@ -1,8 +1,12 @@
+import { describeBrief } from './brief.prompt.js';
+import { describeReference } from './reference.prompt.js';
+import type { LoadedReference } from '../../motify-references/loader.js';
+import type { MotionBrief } from '../schemas/brief.schema.js';
 import type { RoutedSkill } from '../../motify-skills/router.js';
 import type { GenerationIntent, MotifyProject } from '../graph/dependencies.js';
 import type { ChatMessage, ModelImageInput, ModelRequestLimits } from '../providers/model.provider.js';
 
-export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 32_000 };
+export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 32_000, thinking: 'auto' };
 
 const FENCE = '```';
 const FRONTMATTER = /^---\n[\s\S]*?\n---\n*/;
@@ -35,6 +39,8 @@ export interface MotionPromptInput {
     recentMessages: ChatMessage[];
     runtimeError?: { message: string } | undefined;
     assets?: readonly ModelImageInput[] | undefined;
+    reference?: LoadedReference | undefined;
+    brief?: MotionBrief | undefined;
 }
 
 export function buildMotionUserPrompt(input: MotionPromptInput): string {
@@ -53,6 +59,8 @@ export function buildMotionUserPrompt(input: MotionPromptInput): string {
     sections.push(...describeImages(input.assets ?? []));
 
     sections.push(input.project ? describeProject(input.project) : NO_PROJECT_YET);
+    if (input.reference) sections.push(describeReference(input.reference));
+    if (input.brief) sections.push(describeBrief(input.brief));
     return sections.join('\n\n');
 }
 

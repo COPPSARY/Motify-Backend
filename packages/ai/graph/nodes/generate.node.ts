@@ -21,6 +21,8 @@ export function createGenerateNode(dependencies: ResolvedMotionGraphDependencies
                     recentMessages: state.recentMessages,
                     runtimeError: state.runtimeError,
                     assets: state.assets,
+                    reference: state.reference,
+                    brief: state.brief,
                 }),
                 limits: GENERATION_LIMITS,
                 images: state.assets,

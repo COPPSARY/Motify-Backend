@@ -1,6 +1,7 @@
 import { END, START, StateGraph } from '@langchain/langgraph';
 
 import { resolveMotionGraphDependencies, type MotionGraphDependencies } from './dependencies.js';
+import { createBriefNode } from './nodes/brief.node.js';
 import { createChatNode } from './nodes/chat.node.js';
 import { createClassifyIntentNode } from './nodes/classify-intent.node.js';
 import { createGenerateNode } from './nodes/generate.node.js';
@@ -9,6 +10,7 @@ import { createPlanNode } from './nodes/plan.node.js';
 import { createRepairNode } from './nodes/repair.node.js';
 import { createReportFailureNode } from './nodes/report-failure.node.js';
 import { createSaveProjectNode } from './nodes/save-project.node.js';
+import { createSelectReferenceNode } from './nodes/select-reference.node.js';
 import { createSelectSkillsNode } from './nodes/select-skills.node.js';
 import { createValidateNode } from './nodes/validate.node.js';
 import { MotionGraphAnnotation, type MotionGraphState } from './state.js';
@@ -43,6 +45,8 @@ export function createMotionGraph(dependencies: MotionGraphDependencies) {
         .addNode('plan', createPlanNode(resolved))
         .addNode('loadContext', createLoadContextNode(resolved))
         .addNode('selectSkills', createSelectSkillsNode(resolved))
+        .addNode('selectReference', createSelectReferenceNode(resolved))
+        .addNode('writeBrief', createBriefNode(resolved))
         .addNode('generate', createGenerateNode(resolved))
         .addNode('validate', createValidateNode(resolved))
         .addNode('repair', createRepairNode(resolved))
@@ -53,7 +57,9 @@ export function createMotionGraph(dependencies: MotionGraphDependencies) {
         .addEdge('chat', END)
         .addEdge('plan', END)
         .addConditionalEdges('loadContext', routeContext, ['selectSkills', END])
-        .addEdge('selectSkills', 'generate')
+        .addEdge('selectSkills', 'selectReference')
+        .addEdge('selectReference', 'writeBrief')
+        .addEdge('writeBrief', 'generate')
         .addEdge('generate', 'validate')
         .addConditionalEdges('validate', routeValidation(resolved.maxRepairAttempts), [
             'saveProject',

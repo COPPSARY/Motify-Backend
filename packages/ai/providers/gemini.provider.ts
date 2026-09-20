@@ -16,9 +16,20 @@ import {
     type ChatRequest,
     type ModelGenerationResult,
     type MotionModelProvider,
+    type ModelRequestLimits,
     type MotionModelRequest,
     type StructuredModelRequest,
 } from './model.provider.js';
+
+/**
+ * Gemini takes a token budget rather than a mode: -1 lets the model choose, 0
+ * disables. An unset budget leaves the model's per-tier default in place, which
+ * on the lite tiers is little or no reasoning.
+ */
+function thinkingConfig(limits: ModelRequestLimits) {
+    if (limits.thinking === undefined) return {};
+    return { thinkingConfig: { thinkingBudget: limits.thinking === 'auto' ? -1 : 0 } };
+}
 
 interface GeminiClient {
     models: {
@@ -55,7 +66,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                     ...(request.signal ? { abortSignal: request.signal } : {}),
                     systemInstruction: request.systemInstructions,
                     maxOutputTokens: request.limits.maxOutputTokens,
-
+                    ...thinkingConfig(request.limits),
                     responseMimeType: 'application/json',
                     responseJsonSchema: motifyGenerationJsonSchema,
                 },

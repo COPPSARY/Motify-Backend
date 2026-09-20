@@ -1,5 +1,6 @@
 import { loadSkillBundle, type LoadedSkill, type SkillManifest } from '../../motify-skills/loader.js';
 import type { ChatMessage, ModelImageInput, MotifyGeneration, MotionModelProvider } from '../providers/model.provider.js';
+import type { MotionBrief } from '../schemas/brief.schema.js';
 import type { Intent } from '../schemas/intent.schema.js';
 import { validateMotifyGeneration, type GenerationValidationOptions, type ValidationError, type ValidationReport } from '../validation/generation-validator.js';
 
@@ -117,6 +118,11 @@ export interface SkillBundle {
     skills: LoadedSkill[];
 }
 
+export interface BriefLog {
+    beats: number;
+    defects: string[];
+}
+
 export interface SkillSelectionLog {
     intent: GenerationIntent;
     manifestVersion: string;
@@ -134,6 +140,7 @@ export interface MotionGraphDependencies {
     maxRepairAttempts?: number;
     historyLimit?: number;
     onSkillsSelected?: (selection: SkillSelectionLog) => void;
+    onBrief?: (log: BriefLog) => void;
 }
 
 export interface ResolvedMotionGraphDependencies {
@@ -146,6 +153,7 @@ export interface ResolvedMotionGraphDependencies {
     maxRepairAttempts: number;
     historyLimit: number;
     onSkillsSelected: (selection: SkillSelectionLog) => void;
+    onBrief: (log: BriefLog) => void;
 }
 
 export const MAX_REPAIR_ATTEMPTS = 2;
@@ -164,6 +172,7 @@ export function resolveMotionGraphDependencies(
         maxRepairAttempts: dependencies.maxRepairAttempts ?? MAX_REPAIR_ATTEMPTS,
         historyLimit: dependencies.historyLimit ?? RECENT_MESSAGE_LIMIT,
         onSkillsSelected: dependencies.onSkillsSelected ?? (() => {}),
+        onBrief: dependencies.onBrief ?? (() => {}),
     };
 }
 
