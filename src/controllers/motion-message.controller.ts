@@ -8,6 +8,7 @@ const messageSchema = z.strictObject({
   message: z.string().trim().min(1).max(20_000),
   runtimeError: z.strictObject({ message: z.string().trim().min(1).max(4_000) }).optional(),
   revision: z.number().int().min(1).optional(),
+  referenceAssetIds: z.array(z.string().uuid()).max(4).optional(),
 }).superRefine((value, context) => {
   if (value.runtimeError && value.revision === undefined) context.addIssue({ code: 'custom', path: ['revision'], message: 'revision is required for runtime repair.' });
 });

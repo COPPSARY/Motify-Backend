@@ -10,7 +10,11 @@ import type { MotionGraphState, MotionGraphUpdate } from '../state.js';
  */
 export function createLoadContextNode(dependencies: ResolvedMotionGraphDependencies) {
     return async (state: MotionGraphState): Promise<MotionGraphUpdate> => {
-        if (!state.projectId) return {};
+        const referenceImages = state.referenceAssetIds.length > 0
+            ? await dependencies.loadReferenceImages(state.userId, state.referenceAssetIds)
+            : [];
+
+        if (!state.projectId) return { referenceImages };
 
         const loaded = await dependencies.repository.loadForGraph(state.projectId, state.userId);
         if (!loaded || loaded.project.workspaceId !== state.workspaceId) {
@@ -30,6 +34,6 @@ export function createLoadContextNode(dependencies: ResolvedMotionGraphDependenc
             intent,
         });
 
-        return { project: loaded.project, recentMessages };
+        return { project: loaded.project, recentMessages, referenceImages };
     };
 }

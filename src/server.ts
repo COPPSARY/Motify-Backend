@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm';
 import { SupabaseAuthProvider } from '../packages/auth/supabase-provider.js';
 import { TokenVault } from '../packages/auth/token-vault.js';
 import { createMotionGraph } from '../packages/ai/graph/motion.graph.js';
+import { createReferenceImageLoader } from '../packages/ai/graph/reference-images.js';
 import { createModelProvider } from '../packages/ai/providers/factory.js';
 import { createDatabase } from '../packages/database/client.js';
 import { parseEnvironment } from './config/env.js';
@@ -130,6 +131,7 @@ export async function startServer() {
       provider: createModelProvider(environment),
       repository: graphRepository,
       model: environment.aiModel,
+      loadReferenceImages: createReferenceImageLoader(assetService),
       ...(environment.nodeEnv === 'development' ? {
         onSkillsSelected: (selection) => {
           logger.info(selection, 'Motify skills selected');

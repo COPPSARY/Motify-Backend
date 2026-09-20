@@ -29,6 +29,21 @@ describe('GeminiMotionModelProvider', () => {
         expect(generateContent.mock.calls[0]?.[0].config).not.toHaveProperty('httpOptions.timeout');
     });
 
+    it('sends a thinking budget only when the request asks for one', async () => {
+        const generateContent = vi.fn().mockResolvedValue({ text: JSON.stringify(generation) });
+        const provider = new GeminiMotionModelProvider({ apiKey: 'test-key', client: { models: { generateContent } } });
+        const request = { model: 'gemini-test', systemInstructions: 'Motify rules', prompt: 'Create it' };
+
+        await provider.generate({ ...request, limits: { maxOutputTokens: 2_000, thinking: 'auto' } });
+        expect(generateContent.mock.calls[0]?.[0].config.thinkingConfig).toEqual({ thinkingBudget: -1 });
+
+        await provider.generate({ ...request, limits: { maxOutputTokens: 2_000, thinking: 'none' } });
+        expect(generateContent.mock.calls[1]?.[0].config.thinkingConfig).toEqual({ thinkingBudget: 0 });
+
+        await provider.generate({ ...request, limits: { maxOutputTokens: 2_000 } });
+        expect(generateContent.mock.calls[2]?.[0].config).not.toHaveProperty('thinkingConfig');
+    });
+
     it('returns text for chat without forcing the generation schema', async () => {
         const generateContent = vi.fn().mockResolvedValue({ text: 'What should move first?' });
         const provider = new GeminiMotionModelProvider({ apiKey: 'test-key', client: { models: { generateContent } } });

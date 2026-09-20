@@ -58,14 +58,31 @@ export interface ModelGenerationResult {
     usage: ModelTokenUsage;
 }
 
+/**
+ * A reference image the user supplied: a screenshot, storyboard or style frame.
+ * It is never placed on screen - it is read and rebuilt as authored HTML/SVG.
+ */
+export interface PromptImage {
+    mimeType: string;
+    dataBase64: string;
+}
+
 export interface ModelRequestLimits {
     maxOutputTokens: number;
+    /**
+     * How much reasoning the request is worth. Authoring or repairing a film is
+     * the reasoning; classification and routing are not. Left unset, the model's
+     * own default applies - which on the lite tiers means little or none.
+     */
+    thinking?: 'auto' | 'none';
 }
 
 export interface MotionModelRequest {
     model: string;
     systemInstructions: string;
     prompt: string;
+    /** Reference images shown alongside the prompt. Providers without vision ignore them. */
+    images?: readonly PromptImage[];
     limits: ModelRequestLimits;
     signal?: AbortSignal;
 }

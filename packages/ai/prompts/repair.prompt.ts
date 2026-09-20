@@ -2,9 +2,9 @@ import type { RoutedSkill } from '../../motify-skills/router.js';
 import type { GenerationIntent, MotifyProject } from '../graph/dependencies.js';
 import type { ModelRequestLimits, MotifyGeneration } from '../providers/model.provider.js';
 import type { ValidationError } from '../validation/generation-validator.js';
-import { buildMotionSystemPrompt, describeProject, NO_PROJECT_YET } from './motion.prompt.js';
+import { buildMotionSystemPrompt, describeProject, MAX_GENERATION_OUTPUT_TOKENS, NO_PROJECT_YET } from './motion.prompt.js';
 
-export const REPAIR_LIMITS: ModelRequestLimits = { maxOutputTokens: 16_000 };
+export const REPAIR_LIMITS: ModelRequestLimits = { maxOutputTokens: MAX_GENERATION_OUTPUT_TOKENS, thinking: 'auto' };
 
 const FENCE = '```';
 
