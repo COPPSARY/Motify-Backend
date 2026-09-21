@@ -190,3 +190,39 @@ describe('GenerationService', () => {
         });
     });
 });
+
+describe('GenerationService frame attachments', () => {
+    const frame = {
+        capturedAtSeconds: 2.4,
+        mediaType: 'image/jpeg' as const,
+        dataBase64: 'ZnJhbWU=',
+    };
+
+    it('hands frames to the graph as images the user did not supply', async () => {
+        const { service, graph } = createService();
+
+        await service.sendMessage(USER_ID, PROJECT_ID, {
+            message: 'Repair the film.',
+            frames: [frame],
+        });
+
+        const input = graph.invoke.mock.calls[0]![0];
+        // The user's own upload keeps its place; the frame follows it, and is
+        // the only one carrying the role that means "your own output".
+        expect(input.assets?.map((image) => image.role)).toEqual(['asset', 'frame']);
+        const attached = input.assets!.at(-1)!;
+        expect(attached).toMatchObject({
+            mediaType: 'image/jpeg',
+            dataBase64: 'ZnJhbWU=',
+            capturedAtSeconds: 2.4,
+        });
+    });
+
+    it('sends no frames when the editor could not render any', async () => {
+        const { service, graph } = createService();
+
+        await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Repair the film.' });
+
+        expect(graph.invoke.mock.calls[0]![0].assets?.every((image) => image.role !== 'frame')).toBe(true);
+    });
+});

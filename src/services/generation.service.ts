@@ -20,11 +20,27 @@ export interface MessageRequestInput {
     runtimeError?: { message: string } | undefined;
     revision?: number | undefined;
     assets?: AssetAttachmentInput[] | undefined;
+    frames?: FrameAttachmentInput[] | undefined;
 }
 
 export interface AssetAttachmentInput {
     assetId: string;
     role: 'reference' | 'asset';
+}
+
+/**
+ * A rendered moment of the candidate this message is repairing.
+ *
+ * This service validates source and never executes it, so it cannot see what
+ * a composition actually puts on screen. The editor can, because it mounts the
+ * film to judge it, and these are the frames it was looking at. They are the
+ * only route by which a fault that lives in the composed result rather than in
+ * the source - an object settled half outside the canvas - reaches the model.
+ */
+export interface FrameAttachmentInput {
+    capturedAtSeconds: number;
+    mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
+    dataBase64: string;
 }
 
 export interface GenerationAssetResolver {
@@ -77,9 +93,13 @@ export class GenerationService {
         if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
         requireWriteAccess(access.role);
 
-        const images = this.assets
+        const supplied = this.assets
             ? await this.assets.resolveGenerationAssets(userId, projectId, input.assets)
             : [];
+        // Frames follow the user's own images, and ride the same channel: to
+        // every node downstream a frame is one more image with a role, which
+        // is all the difference that needs to exist.
+        const images = [...supplied, ...toFrameImages(input.frames)];
         return this.result(await this.invokeGraph({
             userId,
             workspaceId: access.workspaceId,
@@ -121,12 +141,32 @@ export class GenerationService {
                         ...(error.diagnostics?.httpStatus !== undefined ? { httpStatus: error.diagnostics.httpStatus } : {}),
                         ...(error.diagnostics?.providerCode ? { providerCode: error.diagnostics.providerCode } : {}),
                         ...(error.diagnostics?.providerType ? { providerType: error.diagnostics.providerType } : {}),
+                        ...(error.diagnostics?.cause ? { cause: error.diagnostics.cause } : {}),
                     },
                 );
             }
             throw error;
         }
     }
+}
+
+/**
+ * Frames as the model sees them.
+ *
+ * They carry no stored asset, so the id is positional and the name says what
+ * the thing is. Neither is shown to the model for a frame - the prompt names
+ * the moment instead - but both keep a frame a well formed image everywhere
+ * an image is handled.
+ */
+function toFrameImages(frames: readonly FrameAttachmentInput[] | undefined): ModelImageInput[] {
+    return (frames ?? []).map((frame, index) => ({
+        assetId: `frame-${index}`,
+        fileName: `frame-${frame.capturedAtSeconds.toFixed(2)}s`,
+        mediaType: frame.mediaType,
+        dataBase64: frame.dataBase64,
+        role: 'frame' as const,
+        capturedAtSeconds: frame.capturedAtSeconds,
+    }));
 }
 
 function providerName(message: string): string {

@@ -8,6 +8,8 @@ export interface ModelProviderConfig {
     aiProvider: ModelProviderName;
     geminiApiKey?: string | undefined;
     anthropicApiKey?: string | undefined;
+    /** A Messages API gateway other than Anthropic's own. */
+    anthropicBaseUrl?: string | undefined;
     openAiCompatibleApiKey?: string | undefined;
     openAiCompatibleBaseUrl?: string | undefined;
 }
@@ -27,7 +29,10 @@ export function createModelProvider(config: ModelProviderConfig): MotionModelPro
         case 'gemini':
             return new GeminiMotionModelProvider({ apiKey: requireKey(config.aiProvider, config.geminiApiKey) });
         case 'anthropic':
-            return new AnthropicMotionModelProvider({ apiKey: requireKey(config.aiProvider, config.anthropicApiKey) });
+            return new AnthropicMotionModelProvider({
+                apiKey: requireKey(config.aiProvider, config.anthropicApiKey),
+                baseUrl: config.anthropicBaseUrl,
+            });
         case 'openai-compatible':
             return new OpenAICompatibleMotionModelProvider({
                 apiKey: requireKey(config.aiProvider, config.openAiCompatibleApiKey),

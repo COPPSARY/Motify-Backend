@@ -15,7 +15,7 @@ export function createBriefNode(dependencies: ResolvedMotionGraphDependencies) {
         if (state.intent !== 'CREATE') return {};
         try {
             const brief = await dependencies.provider.structured({
-                model: dependencies.model,
+                model: dependencies.planningModel,
                 systemInstructions: BRIEF_SYSTEM_PROMPT,
                 prompt: buildBriefPrompt(state.message),
                 schemaName: 'motify_brief',
