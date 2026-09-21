@@ -13,6 +13,12 @@ export interface ValidationError {
 export interface ValidationReport {
     valid: boolean;
     errors: ValidationError[];
+    /**
+     * Defects that make a film worse rather than broken. They are fed back to
+     * repair like an error, but a candidate still carrying them after the last
+     * attempt ships anyway - a dull film beats no film.
+     */
+    warnings: ValidationError[];
 }
 
 export interface GenerationValidationOptions {
@@ -30,10 +36,65 @@ export function validateMotifyGeneration(
     options: GenerationValidationOptions = {},
 ): ValidationReport {
     const errors: ValidationError[] = [];
+    const warnings: ValidationError[] = [];
     validateHtml(generation.compositionHtml, errors);
     validateTimeline(generation.timelineJs, errors);
     validateAssetTokens(generation.compositionHtml, options.requiredAssetTokens ?? [], errors);
-    return { valid: errors.length === 0, errors };
+    validateStyleSystem(generation.compositionHtml, warnings);
+    validateMotionVocabulary(generation.timelineJs, warnings);
+    return { valid: errors.length === 0, errors, warnings };
+}
+
+/**
+ * Sampled films declared a class-based design system and then inline-styled
+ * everything, leaving 42 of 43 class names with no rule behind them. A token
+ * style element satisfied STYLE_REQUIRED while the composition had no design
+ * system at all, so what is checked is whether the classes resolve.
+ */
+function validateStyleSystem(html: string, warnings: ValidationError[]): void {
+    const css = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
+        .map((match) => match[1] ?? '')
+        .join('\n');
+    const defined = new Set([...css.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((match) => match[1]));
+    const used = new Set(
+        [...html.matchAll(/class="([^"]*)"/g)]
+            .flatMap((match) => (match[1] ?? '').split(/\s+/))
+            .filter(Boolean),
+    );
+    const undeclared = [...used].filter((name) => !defined.has(name));
+    if (undeclared.length === 0) return;
+    add(
+        warnings,
+        'UNDEFINED_CLASS',
+        `${undeclared.length} class name(s) have no rule in the embedded style: ${undeclared.slice(0, 8).join(', ')}. Style the composition through that stylesheet instead of inline attributes.`,
+        'compositionHtml',
+    );
+}
+
+/**
+ * The runtime supplies a tuned ease vocabulary and a preset library, and the
+ * skill says the quality pass scores a film on whether it used them. Sampled
+ * films called no preset at all and reached for gsap's stock curves, whose
+ * dynamic range reads as constant velocity over a multi-second travel.
+ */
+const MOTION_PRESET_CALL = /\b(?:reveal|slide|scalePop|blurReveal|maskWipe|staggerEntrance|staggerExit|cameraPush|cameraPull|sceneHandoff|morph|splitText|textReveal|editorialTextReveal|wordSlideRotate|charSpringBounce|continuousTextGradient|gradientSweep|ambientWaves)\s*\(/;
+const STOCK_EASE = /ease\s*:\s*["'](power[0-4]|sine|expo|circ|back|elastic|bounce|none|linear)[^"']*["']/g;
+
+function validateMotionVocabulary(source: string, warnings: ValidationError[]): void {
+    if (!/\bEASE\s*\./.test(source)) {
+        add(warnings, 'EASE_VOCABULARY_UNUSED', 'timelineJs uses none of the runtime EASE curves. Pick eases from EASE rather than gsap stock curves.', 'timelineJs');
+    }
+    if (!MOTION_PRESET_CALL.test(source)) {
+        add(warnings, 'MOTION_PRESETS_UNUSED', 'timelineJs calls no motion preset. Build entrances, handoffs and text reveals from the preset library instead of raw tweens.', 'timelineJs');
+    }
+    const stock = [...source.matchAll(STOCK_EASE)].map((match) => match[1]);
+    if (stock.length === 0) return;
+    add(
+        warnings,
+        'STOCK_EASE',
+        `${stock.length} tween(s) use gsap stock easing (${[...new Set(stock)].slice(0, 5).join(', ')}). Use the EASE vocabulary so motion carries the house velocity profile.`,
+        'timelineJs',
+    );
 }
 
 function validateAssetTokens(html: string, required: readonly string[], errors: ValidationError[]): void {

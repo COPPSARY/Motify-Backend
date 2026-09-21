@@ -25,10 +25,18 @@ function routeContext(state: MotionGraphState): 'selectSkills' | typeof END {
     return state.response ? END : 'selectSkills';
 }
 
+/**
+ * Errors are blocking: a candidate that still has one after the last attempt is
+ * a failed generation. Warnings only buy a repair pass - a film that is merely
+ * dull still ships, because refusing to save it helps nobody.
+ */
 function routeValidation(maxRepairAttempts: number) {
     return (state: MotionGraphState): 'saveProject' | 'repair' | 'reportFailure' => {
-        if (state.validationErrors.length === 0) return 'saveProject';
-        return state.repairAttempts >= maxRepairAttempts ? 'reportFailure' : 'repair';
+        if (state.validationErrors.length > 0) {
+            return state.repairAttempts >= maxRepairAttempts ? 'reportFailure' : 'repair';
+        }
+        if (state.validationWarnings.length > 0 && state.repairAttempts === 0) return 'repair';
+        return 'saveProject';
     };
 }
 

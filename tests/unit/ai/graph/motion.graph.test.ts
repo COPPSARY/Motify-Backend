@@ -23,7 +23,7 @@ const currentProject: MotifyProject = {
     fps: 30,
     scenes: [],
     compositionHtml: '<template><style>.hero { color: white; }</style><main data-edit="stage"></main></template>',
-    timelineJs: 'export function buildTimeline() { return []; }',
+    timelineJs: 'export function buildTimeline({ timeline }) { textReveal(timeline, null, { ease: EASE.arrive }); return []; }',
     revision: 7,
 };
 
@@ -35,7 +35,7 @@ const validCandidate: MotifyGeneration = {
     fps: 30,
     scenes: [{ id: 'intro', label: 'Intro', start: 0, duration: 8, accent: '#7c3aed' }],
     compositionHtml: '<template><style>.hero { color: white; }</style><main data-edit="stage"><h1 data-edit="title">Launch</h1></main></template>',
-    timelineJs: 'export function buildTimeline({ timeline }) { return timeline; }',
+    timelineJs: 'export function buildTimeline({ timeline }) { textReveal(timeline, null, { ease: EASE.arrive }); return timeline; }',
     reply: 'Made the headline larger.',
 };
 
