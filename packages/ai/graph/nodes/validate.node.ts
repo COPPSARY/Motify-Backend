@@ -8,6 +8,7 @@ export function createValidateNode(dependencies: ResolvedMotionGraphDependencies
             requiredAssetTokens: state.assets
                 .filter((asset) => asset.role === 'asset')
                 .map((asset) => `motify-asset://${asset.assetId}`),
+            requiredAudioTokens: state.audio.map((track) => `motify-audio://${track.trackId}`),
         });
         return { validationErrors: report.errors, validationWarnings: report.warnings };
     };

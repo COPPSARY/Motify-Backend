@@ -4,16 +4,35 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { validateAssetMetadata, validateStoredAsset } from '../../../packages/object-storage/asset-validation.js';
+import { assetKind, validateAssetBuffer, validateAssetMetadata, validateStoredAsset } from '../../../packages/object-storage/asset-validation.js';
 
 const directories: string[] = [];
 afterEach(async () => Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));
 
 describe('asset validation', () => {
-  it('limits the first asset release to images and SVGs', () => {
+  it('limits assets to images, SVGs and audio', () => {
     expect(() => validateAssetMetadata('clip.mp4', 'video/mp4', 12)).toThrow('extension');
-    expect(() => validateAssetMetadata('voice.mp3', 'audio/mpeg', 12)).toThrow('extension');
     expect(() => validateAssetMetadata('huge.png', 'image/png', 20_000_001)).toThrow('20 MB');
+  });
+
+  it('accepts audio up to 50 MB with a matching extension', () => {
+    expect(() => validateAssetMetadata('song.mp3', 'audio/mpeg', 12)).not.toThrow();
+    expect(() => validateAssetMetadata('song.m4a', 'audio/x-m4a', 12)).not.toThrow();
+    expect(() => validateAssetMetadata('song.wav', 'audio/wav', 49_000_000)).not.toThrow();
+    expect(() => validateAssetMetadata('song.wav', 'audio/wav', 50_000_001)).toThrow('50 MB');
+    expect(() => validateAssetMetadata('song.exe', 'audio/mpeg', 12)).toThrow('extension');
+    expect(assetKind('audio/mpeg')).toBe('audio');
+    expect(assetKind('image/png')).toBe('image');
+  });
+
+  it('checks audio signatures', () => {
+    const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVEfmt ')]);
+    expect(() => validateAssetBuffer(wav, 'audio/wav')).not.toThrow();
+    expect(() => validateAssetBuffer(Buffer.from('ID3\u0004\u0000'), 'audio/mpeg')).not.toThrow();
+    expect(() => validateAssetBuffer(Buffer.from('0000ftypM4A ', 'ascii'), 'audio/mp4')).not.toThrow();
+    expect(() => validateAssetBuffer(Buffer.from([0xff, 0xf1, 0x50, 0x80]), 'audio/aac')).not.toThrow();
+    expect(() => validateAssetBuffer(wav, 'audio/mpeg')).toThrow('do not match');
+    expect(() => validateAssetBuffer(Buffer.from('89504e470d0a1a0a', 'hex'), 'audio/ogg')).toThrow('do not match');
   });
 
   it('accepts matching image signatures and rejects extension/MIME spoofing', async () => {

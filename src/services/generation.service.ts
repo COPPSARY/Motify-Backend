@@ -1,4 +1,5 @@
 import type {
+    GenerationAudioTrack,
     GraphProjectRepository,
     GraphWorkspaceRole,
     MotionGraphInput,
@@ -20,6 +21,19 @@ export interface MessageRequestInput {
     runtimeError?: { message: string } | undefined;
     revision?: number | undefined;
     assets?: AssetAttachmentInput[] | undefined;
+    audio?: AudioAttachmentInput[] | undefined;
+}
+
+export interface AudioAttachmentInput {
+    trackId: string;
+}
+
+export interface GenerationAudioResolver {
+    resolveGenerationAudio(
+        userId: string,
+        projectId: string,
+        audio: readonly AudioAttachmentInput[] | undefined,
+    ): Promise<GenerationAudioTrack[]>;
 }
 
 export interface AssetAttachmentInput {
@@ -70,6 +84,7 @@ export class GenerationService {
         private readonly graph: MotionGraphRunner,
         private readonly projects: ProjectAccessReader,
         private readonly assets?: GenerationAssetResolver,
+        private readonly audio?: GenerationAudioResolver,
     ) {}
 
     async sendMessage(userId: string, projectId: string, input: MessageRequestInput): Promise<MessageResult> {
@@ -80,12 +95,16 @@ export class GenerationService {
         const images = this.assets
             ? await this.assets.resolveGenerationAssets(userId, projectId, input.assets)
             : [];
+        const audio = this.audio
+            ? await this.audio.resolveGenerationAudio(userId, projectId, input.audio)
+            : [];
         return this.result(await this.invokeGraph({
             userId,
             workspaceId: access.workspaceId,
             projectId,
             message: input.message,
             ...(images.length > 0 ? { assets: images } : {}),
+            ...(audio.length > 0 ? { audio } : {}),
             ...(input.runtimeError ? { runtimeError: input.runtimeError } : {}),
             ...(input.revision !== undefined ? { revision: input.revision } : {}),
         }));

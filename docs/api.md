@@ -81,7 +81,35 @@ DELETE /v1/projects/:projectId/assets/:assetId
 
 The V1 local-filesystem adapter returns a short-lived authenticated API upload URL. Send the exact declared bytes and content type to that URL, then call the completion endpoint; completion verifies size and SHA-256 before marking the asset `READY`. A future S3-compatible adapter can return a signed object URL without changing this three-step lifecycle.
 
+Assets are images (PNG, JPEG, WebP, GIF up to 20 MB; SVG up to 2 MB) or audio (MP3, WAV, OGG, M4A, AAC, WebM up to 50 MB and 20 minutes). Completion reads image dimensions or audio duration from the stored bytes. Audio assets never appear in the image asset list and cannot be attached as project images; they enter the music library instead.
+
 Stored artifacts are read through `GET /v1/artifacts/:artifactId/download`.
+
+## Music library
+
+```text
+GET    /v1/workspaces/:workspaceId/audio        ?scope=all|workspace|system&q=&page=&pageSize=
+POST   /v1/workspaces/:workspaceId/audio
+GET    /v1/audio/:trackId
+GET    /v1/audio/:trackId/access
+GET    /v1/audio/:trackId/download
+PATCH  /v1/audio/:trackId
+DELETE /v1/audio/:trackId
+GET    /v1/projects/:projectId/audio
+DELETE /v1/projects/:projectId/audio/:trackId
+```
+
+The library holds two kinds of track. **Workspace tracks** are songs a user uploads: send the file through the three-step asset upload, then register the completed asset.
+
+```json
+{ "assetId": "…", "title": "Bright Future", "artist": "Studio", "genre": "electronic", "moodTags": ["upbeat"], "bpm": 120 }
+```
+
+Only `assetId` is required; `title` defaults to the file name. **System tracks** are curated by Motify developers with `npm run audio:seed -- <file> --license "<license>" [--title] [--artist] [--genre] [--mood a,b] [--bpm 120]`, which reads duration and embedded tags from the file and is a no-op for a file already seeded. Every signed-in user can list, preview, and generate with system tracks; nobody can change or delete them over the API (`403 AUDIO_TRACK_READ_ONLY`).
+
+Listing returns workspace tracks first, then system tracks, searchable across title, artist, genre, and mood tags. Each track carries a `motify-audio://<trackId>` token. `access` returns a five-minute signed URL for previews and for replacing that token in a composition. Deleting a workspace track removes its stored file and is refused with `409 AUDIO_TRACK_IN_USE` while an active project uses it; remove it from the project first.
+
+## Cloud AI generation
 
 ## Cloud AI generation
 
@@ -100,6 +128,8 @@ One endpoint drives the Motify conversation for an existing project: discussing 
 ```
 
 Only `message` is required. `revision` is the revision the client generated against. `runtimeError` reports a renderer failure and requires `revision`. Unknown fields are rejected.
+
+`audio` scores the film to music-library tracks: `"audio": [{ "trackId": "…" }]`, at most three. The model receives each track's title, duration, tempo, and mood (never the audio itself), paces scenes to it, and must place it as `<audio data-motify-audio src="motify-audio://<trackId>" data-start="0">`; the editor, not `timelineJs`, plays it in sync with the playhead. Requested tracks are attached to the project, and later messages without `audio` keep using them, so an edit does not drop the soundtrack. Omitted tracks fail validation as `REQUIRED_AUDIO_MISSING`. A track from another workspace returns `404 AUDIO_TRACK_NOT_FOUND`.
 
 The endpoint needs an authenticated session, `X-CSRF-Token`, and write access to the addressed project; viewers cannot generate. It is rate limited to 60 requests per minute per user. There is no `Idempotency-Key`, no job to poll, cancel, retry, or apply: one call returns the finished result.
 

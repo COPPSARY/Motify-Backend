@@ -31,6 +31,7 @@ export const artifactKind = pgEnum('artifact_kind', [
   'VIDEO',
 ]);
 export const artifactRetention = pgEnum('artifact_retention', ['TEMPORARY', 'PROJECT']);
+export const audioTrackScope = pgEnum('audio_track_scope', ['WORKSPACE', 'SYSTEM']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
@@ -150,6 +151,7 @@ export const assets = pgTable('assets', {
   checksum: text('checksum').notNull(),
   width: integer('width'),
   height: integer('height'),
+  durationMs: integer('duration_ms'),
   storageProvider: text('storage_provider').default('supabase').notNull(),
   storageBucket: text('storage_bucket').default('motify-assets').notNull(),
   objectKey: text('object_key').notNull().unique(),
@@ -176,6 +178,50 @@ export const messageAssets = pgTable('message_assets', {
   role: assetUsageRole('role').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [primaryKey({ columns: [table.messageId, table.assetId] })]);
+
+/**
+ * The music library. Workspace tracks are user uploads backed by an asset; system
+ * tracks are curated by Motify developers, own their object, and are readable by
+ * every signed-in user.
+ */
+export const audioTracks = pgTable('audio_tracks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  scope: audioTrackScope('scope').notNull(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
+  assetId: uuid('asset_id').unique().references(() => assets.id, { onDelete: 'restrict' }),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'restrict' }),
+  title: text('title').notNull(),
+  artist: text('artist'),
+  genre: text('genre'),
+  moodTags: text('mood_tags').array().default(sql`ARRAY[]::text[]`).notNull(),
+  bpm: integer('bpm'),
+  license: text('license'),
+  durationMs: integer('duration_ms').notNull(),
+  contentType: text('content_type').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  checksum: text('checksum').notNull(),
+  objectKey: text('object_key').notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('audio_tracks_workspace_created_idx').on(table.workspaceId, table.createdAt),
+  uniqueIndex('audio_tracks_system_checksum_unique').on(table.checksum).where(sql`${table.scope} = 'SYSTEM'`),
+  check('audio_tracks_scope_check', sql`(${table.scope} = 'SYSTEM' and ${table.workspaceId} is null and ${table.assetId} is null)
+    or (${table.scope} = 'WORKSPACE' and ${table.workspaceId} is not null and ${table.assetId} is not null and ${table.createdBy} is not null)`),
+  check('audio_tracks_bpm_check', sql`${table.bpm} is null or ${table.bpm} between 20 and 300`),
+  check('audio_tracks_duration_check', sql`${table.durationMs} > 0`),
+  check('audio_tracks_byte_size_check', sql`${table.byteSize} >= 0`),
+]);
+
+export const projectAudioTracks = pgTable('project_audio_tracks', {
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  trackId: uuid('track_id').notNull().references(() => audioTracks.id, { onDelete: 'cascade' }),
+  attachedBy: uuid('attached_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.projectId, table.trackId] }),
+  index('project_audio_tracks_track_idx').on(table.trackId),
+]);
 
 export const artifacts = pgTable('artifacts', {
   id: uuid('id').defaultRandom().primaryKey(),

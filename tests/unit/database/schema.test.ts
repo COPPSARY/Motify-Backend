@@ -15,12 +15,15 @@ import {
 } from '../../../packages/database/schema.js';
 
 describe('database schema', () => {
-  it('registers the Supabase asset migration with the Drizzle migrator', async () => {
+  it('registers the asset and audio library migrations with the Drizzle migrator', async () => {
     const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
       entries: Array<{ tag: string }>;
     };
 
-    expect(journal.entries.at(-1)?.tag).toBe('0012_supabase_asset_roles');
+    const tags = journal.entries.map((entry) => entry.tag);
+    expect(tags).toContain('0012_supabase_asset_roles');
+    expect(tags.at(-1)).toBe('0013_audio_library');
+    await expect(readFile('drizzle/migrations/0013_audio_library.sql', 'utf8')).resolves.toContain('CREATE TABLE "audio_tracks"');
   });
 
   it('stores application accounts in the users table', () => {

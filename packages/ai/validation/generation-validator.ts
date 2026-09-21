@@ -23,6 +23,7 @@ export interface ValidationReport {
 
 export interface GenerationValidationOptions {
     requiredAssetTokens?: readonly string[];
+    requiredAudioTokens?: readonly string[];
 }
 
 type HtmlNode = DefaultTreeAdapterMap['node'];
@@ -40,6 +41,7 @@ export function validateMotifyGeneration(
     validateHtml(generation.compositionHtml, errors);
     validateTimeline(generation.timelineJs, errors);
     validateAssetTokens(generation.compositionHtml, options.requiredAssetTokens ?? [], errors);
+    validateAudioTokens(generation.compositionHtml, options.requiredAudioTokens ?? [], errors);
     validateStyleSystem(generation.compositionHtml, warnings);
     validateMotionVocabulary(generation.timelineJs, warnings);
     return { valid: errors.length === 0, errors, warnings };
@@ -107,6 +109,23 @@ function validateAssetTokens(html: string, required: readonly string[], errors: 
     }
     for (const token of tokens) {
         if (!allowed.has(token)) add(errors, 'UNKNOWN_ASSET_TOKEN', `Unknown Motify asset token '${token}'.`, 'compositionHtml');
+    }
+}
+
+/** Every supplied track must be an audio element's source; no other audio token may appear. */
+function validateAudioTokens(html: string, required: readonly string[], errors: ValidationError[]): void {
+    const allowed = new Set(required);
+    const sources = new Set<string>();
+    visit(parseFragment(html), (node) => {
+        if (!isElement(node, 'audio')) return;
+        const source = node.attrs.find((attribute) => attribute.name === 'src')?.value.trim();
+        if (source) sources.add(source);
+    });
+    for (const token of required) {
+        if (!sources.has(token)) add(errors, 'REQUIRED_AUDIO_MISSING', `Required audio '${token}' is not the source of an <audio> element.`, 'compositionHtml');
+    }
+    for (const token of new Set(html.match(/motify-audio:\/\/[0-9a-f-]{36}/gi) ?? [])) {
+        if (!allowed.has(token)) add(errors, 'UNKNOWN_AUDIO_TOKEN', `Unknown Motify audio token '${token}'.`, 'compositionHtml');
     }
 }
 
