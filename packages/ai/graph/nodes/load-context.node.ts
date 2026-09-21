@@ -22,14 +22,19 @@ export function createLoadContextNode(dependencies: ResolvedMotionGraphDependenc
 
         const intent = requireGenerationIntent(state.intent);
         const recentMessages = await dependencies.repository.listRecentMessages(state.projectId, dependencies.historyLimit);
+        // Stored attachments are the user's own uploads. A frame is a picture
+        // of the candidate being repaired, carried inline for this one request
+        // and owning no stored asset to point at, so it is never recorded on
+        // the conversation.
+        const stored = state.assets.filter((asset) => asset.role !== 'frame');
         await dependencies.repository.appendMessage({
             projectId: state.projectId,
             userId: state.userId,
             role: 'user',
             content: state.message,
             intent,
-            ...(state.assets.length > 0 ? {
-                assets: state.assets.map((asset) => ({
+            ...(stored.length > 0 ? {
+                assets: stored.map((asset) => ({
                     assetId: asset.assetId,
                     role: asset.role === 'reference' ? 'REFERENCE' as const : 'ASSET' as const,
                 })),

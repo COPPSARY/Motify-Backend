@@ -68,6 +68,7 @@ interface HarnessOptions {
     history?: { role: 'user' | 'assistant'; content: string }[];
     canCreate?: boolean;
     selectedSkillIds?: string[];
+    planningModel?: string;
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -112,6 +113,7 @@ function createHarness(options: HarnessOptions = {}) {
         provider,
         repository,
         model: 'fake-model',
+        ...(options.planningModel ? { planningModel: options.planningModel } : {}),
         onSkillsSelected,
     });
     const structured = vi.spyOn(provider, 'structured');
@@ -291,6 +293,57 @@ describe('createMotionGraph', () => {
 
         expect(harness.generateRequests[0]?.images).toEqual(assets);
         expect(harness.generateRequests[0]?.prompt).toContain('motify-asset://11111111-1111-4111-8111-111111111111');
+        expect(harness.repository.appendMessage).toHaveBeenCalledWith(expect.objectContaining({
+            assets: [{ assetId: '11111111-1111-4111-8111-111111111111', role: 'ASSET' }],
+        }));
+    });
+
+    it('asks the planning model for the brief and the main model for the film', async () => {
+        const harness = createHarness({ intent: 'CREATE', planningModel: 'fake-planner' });
+
+        await harness.graph.invoke(input('Make an ad for my issue tracker.'));
+
+        // The brief is a short decision and can afford the slower model; the
+        // film reads the whole skill bundle and cannot.
+        const brief = harness.structured.mock.calls.find(([request]) => request.schemaName === 'motify_brief');
+        expect(brief?.[0].model).toBe('fake-planner');
+        expect(harness.generateRequests[0]?.model).toBe('fake-model');
+    });
+
+    it('plans with the main model when no planning model is configured', async () => {
+        const harness = createHarness({ intent: 'CREATE' });
+
+        await harness.graph.invoke(input('Make an ad for my issue tracker.'));
+
+        const brief = harness.structured.mock.calls.find(([request]) => request.schemaName === 'motify_brief');
+        expect(brief?.[0].model).toBe('fake-model');
+    });
+
+    it('shows rendered frames to the model without recording them on the conversation', async () => {
+        const harness = createHarness({ intent: 'EDIT' });
+        const logo = {
+            assetId: '11111111-1111-4111-8111-111111111111',
+            fileName: 'logo.png',
+            mediaType: 'image/png' as const,
+            dataBase64: 'aGVsbG8=',
+            role: 'asset' as const,
+        };
+        const frame = {
+            assetId: 'frame-0',
+            fileName: 'frame-2.40s',
+            mediaType: 'image/jpeg' as const,
+            dataBase64: 'ZnJhbWU=',
+            role: 'frame' as const,
+            capturedAtSeconds: 2.4,
+        };
+
+        await harness.graph.invoke(input('Repair the film.', { assets: [logo, frame] } as never));
+
+        // The model sees both, and the prompt tells it which is which.
+        expect(harness.generateRequests[0]?.images).toEqual([logo, frame]);
+        expect(harness.generateRequests[0]?.prompt).toContain('FRAMES OF THE FILM YOU ARE FIXING');
+        // The stored message records the upload alone: a frame owns no asset
+        // row to point at, and belongs to this request only.
         expect(harness.repository.appendMessage).toHaveBeenCalledWith(expect.objectContaining({
             assets: [{ assetId: '11111111-1111-4111-8111-111111111111', role: 'ASSET' }],
         }));

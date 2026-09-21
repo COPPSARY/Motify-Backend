@@ -134,6 +134,18 @@ export interface MotionGraphDependencies {
     provider: MotionModelProvider;
     repository: GraphProjectRepository;
     model: string;
+    /**
+     * The model that makes the film's structural decisions - the shot brief -
+     * before `model` writes any source. Defaults to `model`.
+     *
+     * Split because the two calls have very different shapes. The brief is a
+     * short structured decision over the user's request alone; generation reads
+     * the whole skill bundle and writes an entire composition. A slower, stronger
+     * model can afford the first and not the second: through a gateway that
+     * closes requests at about five minutes, Opus wrote a brief in about a
+     * minute and never finished a single film.
+     */
+    planningModel?: string;
     loadSkills?: () => Promise<SkillBundle>;
     validate?: (generation: MotifyGeneration, options?: GenerationValidationOptions) => ValidationReport;
     now?: () => number;
@@ -147,6 +159,7 @@ export interface ResolvedMotionGraphDependencies {
     provider: MotionModelProvider;
     repository: GraphProjectRepository;
     model: string;
+    planningModel: string;
     loadSkills: () => Promise<SkillBundle>;
     validate: (generation: MotifyGeneration, options?: GenerationValidationOptions) => ValidationReport;
     now: () => number;
@@ -166,6 +179,7 @@ export function resolveMotionGraphDependencies(
         provider: dependencies.provider,
         repository: dependencies.repository,
         model: dependencies.model,
+        planningModel: dependencies.planningModel ?? dependencies.model,
         loadSkills: dependencies.loadSkills ?? (() => loadSkillBundle('v1')),
         validate: dependencies.validate ?? validateMotifyGeneration,
         now: dependencies.now ?? (() => Date.now()),

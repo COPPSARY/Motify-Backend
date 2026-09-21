@@ -134,6 +134,7 @@ export async function startServer() {
       provider: createModelProvider(environment),
       repository: graphRepository,
       model: environment.aiModel,
+      planningModel: environment.aiPlanningModel,
       ...(environment.nodeEnv === 'development' ? {
         onSkillsSelected: (selection) => {
           logger.info(selection, 'Motify skills selected');
