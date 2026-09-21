@@ -73,7 +73,16 @@ export interface ModelImageInput {
     fileName: string;
     mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
     dataBase64: string;
-    role: 'reference' | 'asset';
+    /**
+     * What the image is to this generation. An `asset` is placed in the film
+     * and a `reference` is imitated, so both describe something the user
+     * supplied. A `frame` is neither: it is a picture of the candidate this
+     * request is repairing, rendered by the editor, and the one thing the
+     * model must not do with it is reproduce it.
+     */
+    role: 'reference' | 'asset' | 'frame';
+    /** Where in the film a `frame` was taken, in seconds. */
+    capturedAtSeconds?: number;
 }
 
 export interface MotionModelRequest {
@@ -156,12 +165,25 @@ export type ProviderErrorCode =
     | 'PROVIDER_AUTH_FAILED'
     | 'PROVIDER_ERROR';
 
+export interface ProviderDiagnostics {
+    httpStatus?: number;
+    providerCode?: string;
+    providerType?: string;
+    /**
+     * What actually went wrong, when nothing above says. A failure with no
+     * HTTP status - a dropped connection, a stream cut mid-film, an error
+     * event inside the stream - lands in the catch-all `PROVIDER_ERROR`, and
+     * without this the log reads "request failed" and nothing else.
+     */
+    cause?: string;
+}
+
 export class ModelProviderError extends Error {
     constructor(
         public readonly code: ProviderErrorCode,
         message: string,
         public readonly retryable: boolean,
-        public readonly diagnostics?: { httpStatus?: number; providerCode?: string; providerType?: string },
+        public readonly diagnostics?: ProviderDiagnostics,
     ) {
         super(message);
         this.name = 'ModelProviderError';
@@ -249,7 +271,17 @@ export function normalizeProviderError(
     if (status !== undefined && status >= 500) {
         return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true, diagnostics(error));
     }
-    return new ModelProviderError('PROVIDER_ERROR', `${provider} request failed.`, false, diagnostics(error));
+    // An overload reported inside a stream carries no HTTP status, so the
+    // checks above cannot see it. It is the upstream shedding load, the same
+    // condition a 503 describes, and the user should be told to retry.
+    if (/overloaded_error/.test(JSON.stringify((error as { error?: unknown }).error ?? '')) || (error instanceof Error && /overloaded_error/.test(error.message))) {
+        return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true, diagnostics(error));
+    }
+    const cause = describeCause(error);
+    return new ModelProviderError('PROVIDER_ERROR', `${provider} request failed.`, false, {
+        ...diagnostics(error),
+        ...(cause !== undefined ? { cause } : {}),
+    });
 }
 
 function readStatus(error: unknown): number | undefined {
@@ -259,7 +291,7 @@ function readStatus(error: unknown): number | undefined {
     return undefined;
 }
 
-function diagnostics(error: unknown): { httpStatus?: number; providerCode?: string; providerType?: string } | undefined {
+function diagnostics(error: unknown): ProviderDiagnostics | undefined {
     const httpStatus = readStatus(error);
     const providerCode = readProviderErrorField(error, 'code');
     const providerType = readProviderErrorField(error, 'type');
@@ -278,4 +310,15 @@ function readProviderErrorField(error: unknown, field: 'code' | 'type'): string 
     const fieldValue = (value as Record<string, unknown>)[field];
     if (typeof fieldValue !== 'string') return undefined;
     return /^[a-zA-Z0-9._-]{1,128}$/.test(fieldValue) ? fieldValue : undefined;
+}
+
+/**
+ * The error's class and message, bounded. Provider SDK messages name the
+ * failure ("terminated", "Connection error.", "overloaded_error") and never
+ * carry the request's credentials, which is what makes them safe to log.
+ */
+function describeCause(error: unknown): string | undefined {
+    if (!(error instanceof Error)) return undefined;
+    const inner = error.cause instanceof Error ? ` <- ${error.cause.name}: ${error.cause.message}` : '';
+    return `${error.name}: ${error.message}${inner}`.replace(/\s+/g, ' ').slice(0, 300);
 }

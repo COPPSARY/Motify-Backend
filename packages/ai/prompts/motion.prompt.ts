@@ -66,13 +66,25 @@ export function buildMotionUserPrompt(input: MotionPromptInput): string {
     return sections.join('\n\n');
 }
 
-/** Assets are placed in the video; references are read for layout and style only. */
+/**
+ * Assets are placed in the video; references are read for layout and style
+ * only; frames are the film itself, played back.
+ *
+ * The distinction between the last two is the whole point of having it. A
+ * reference is something the user admires and the model is told to rebuild
+ * faithfully. A frame is the candidate that just failed, mounted and rendered
+ * by the editor, and telling the model to rebuild what it shows would ask it
+ * to reproduce the fault. Nothing else in this service can see one: the
+ * validator reads source and never executes it, so a composition can pass
+ * every check and still put an object half outside the canvas.
+ */
 export function describeImages(assets: readonly ModelImageInput[]): string[] {
     const placeable = assets.filter((asset) => asset.role === 'asset').map((asset) => (
         `- ${asset.fileName} (${asset.mediaType}); required HTML source: motify-asset://${asset.assetId}`
     ));
     const references = assets.filter((asset) => asset.role === 'reference').map((asset) => `- ${asset.fileName} (${asset.mediaType})`);
-    return [
+    const frames = assets.filter((asset) => asset.role === 'frame');
+    const sections = [
         [
             'IMAGES TO PLACE',
             placeable.length > 0
@@ -86,6 +98,21 @@ export function describeImages(assets: readonly ModelImageInput[]): string[] {
                 : 'No reference images supplied.',
         ].join('\n'),
     ];
+    if (frames.length > 0) {
+        sections.push([
+            'FRAMES OF THE FILM YOU ARE FIXING (what a viewer would see)',
+            frames.map((frame) => `- ${describeMoment(frame)} (${frame.mediaType})`).join('\n'),
+            'The editor mounted your composition, seeked to these moments and rendered them. This is your own output: not something to imitate, and not an asset. Never embed a frame, never reference one, and never treat what it shows as the intended design. Read them for the faults the diagnostics cannot state - an object hanging off the edge of the canvas, a stack that reads as mush, a beat with nothing worth looking at - and correct those along with the listed failures.',
+        ].join('\n'));
+    }
+    return sections;
+}
+
+/** A frame is known by when it was taken, not by a file name nobody chose. */
+function describeMoment(frame: ModelImageInput): string {
+    return frame.capturedAtSeconds === undefined
+        ? frame.fileName
+        : `${frame.capturedAtSeconds.toFixed(2)}s`;
 }
 
 /**
