@@ -6,7 +6,7 @@ import type { LoadedReference } from '../../motify-references/loader.js';
 import type { MotionBrief } from '../schemas/brief.schema.js';
 import type { Intent } from '../schemas/intent.schema.js';
 import type { ValidationError } from '../validation/generation-validator.js';
-import type { MotionGraphResponse, MotifyProject } from './dependencies.js';
+import type { GenerationAudioTrack, MotionGraphResponse, MotifyProject } from './dependencies.js';
 
 function replace<T>(_current: T, next: T): T {
     return next;
@@ -24,6 +24,7 @@ export const MotionGraphAnnotation = Annotation.Root({
     runtimeError: Annotation<{ message: string } | undefined>,
     revision: Annotation<number | undefined>,
     assets: Annotation<ModelImageInput[]>({ reducer: replace, default: () => [] }),
+    audio: Annotation<GenerationAudioTrack[]>({ reducer: replace, default: () => [] }),
 
     startedAtMs: Annotation<number>({ reducer: replace, default: () => 0 }),
     intent: Annotation<Intent | undefined>,

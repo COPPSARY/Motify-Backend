@@ -2,7 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
 
 import type { PrivateObjectStorage } from '../../packages/object-storage/types.js';
-import { validateAssetBuffer, validateAssetMetadata, validateStoredAsset } from '../../packages/object-storage/asset-validation.js';
+import { assetKind, validateAssetBuffer, validateAssetMetadata, validateStoredAsset } from '../../packages/object-storage/asset-validation.js';
+import { inspectAudio } from '../../packages/object-storage/audio-metadata.js';
 import { inspectImage, toVisionImage } from '../../packages/object-storage/image-metadata.js';
 import { AppError } from '../errors.js';
 import type { AssetRecord, DatabaseAssetRepository } from '../repositories/asset.repository.js';
@@ -96,16 +97,18 @@ export class AssetService {
     if (integrity.byteSize !== access.asset.byteSize || integrity.checksum !== access.asset.checksum) {
       throw new AppError(409, 'ASSET_UPLOAD_INCOMPLETE', 'Asset content has not finished uploading or failed integrity verification.');
     }
-    let dimensions: { width: number; height: number };
+    let metadata: { width: number; height: number } | { durationMs: number };
     try {
       validateAssetBuffer(content, access.asset.contentType);
-      dimensions = await inspectImage(content, access.asset.contentType);
+      metadata = assetKind(access.asset.contentType) === 'audio'
+        ? { durationMs: (await inspectAudio(content, access.asset.contentType)).durationMs }
+        : await inspectImage(content, access.asset.contentType);
     } catch {
       await this.storage.delete(access.asset.objectKey).catch(() => undefined);
       await this.repository.updateState(uploadId, 'FAILED');
       throw new AppError(422, 'ASSET_CONTENT_INVALID', 'Uploaded asset bytes do not match an allowed safe asset type.');
     }
-    const asset = await this.repository.markReady(uploadId, dimensions);
+    const asset = await this.repository.markReady(uploadId, metadata);
     return toAssetResource(asset!);
   }
 
@@ -147,6 +150,9 @@ export class AssetService {
     if (await this.repository.countAttachments(assetId)) {
       throw new AppError(409, 'ASSET_IN_USE', 'Detach this asset from every project before deleting it.');
     }
+    if (await this.repository.isAudioTrack(assetId)) {
+      throw new AppError(409, 'ASSET_IN_USE', 'Delete this track from the music library instead.');
+    }
     await this.repository.updateState(assetId, 'DELETED');
     await this.storage.delete(access.asset.objectKey);
   }
@@ -157,6 +163,7 @@ export class AssetService {
     requireWrite(project.role);
     const asset = await this.repository.getReadableForUser(assetId, userId);
     if (!asset || asset.asset.workspaceId !== project.project.workspaceId) throw new AppError(404, 'ASSET_NOT_FOUND', 'Asset not found.');
+    requireImage(asset.asset);
     await this.repository.attach(projectId, assetId, userId, role === 'reference' ? 'REFERENCE' : 'ASSET');
   }
 
@@ -206,10 +213,11 @@ export class AssetService {
           if (!access || access.asset.workspaceId !== project.project.workspaceId) {
             throw new AppError(404, 'ASSET_NOT_FOUND', 'Asset not found.');
           }
+          requireImage(access.asset);
           await this.repository.attach(projectId, entry.assetId, userId, entry.role === 'reference' ? 'REFERENCE' : 'ASSET');
           return { asset: access.asset, role: entry.role };
         }))
-      : (await this.repository.listAttached(projectId)).map((entry) => ({
+      : (await this.repository.listAttached(projectId)).filter((entry) => assetKind(entry.asset.contentType) === 'image').map((entry) => ({
           asset: entry.asset,
           role: entry.role === 'REFERENCE' ? 'reference' as const : 'asset' as const,
         }));
@@ -228,6 +236,12 @@ export class AssetService {
         role,
       };
     }));
+  }
+}
+
+function requireImage(asset: AssetRecord) {
+  if (assetKind(asset.contentType) !== 'image') {
+    throw new AppError(422, 'ASSET_KIND_UNSUPPORTED', 'Audio is attached through the music library, not as an image asset.');
   }
 }
 
@@ -260,6 +274,7 @@ function toAssetResource(asset: AssetRecord) {
     tags: asset.tags,
     width: asset.width,
     height: asset.height,
+    durationMs: asset.durationMs,
     createdAt: asset.createdAt.toISOString(),
     downloadUrl: asset.state === 'READY' ? `/v1/assets/${asset.id}/download` : null,
   };

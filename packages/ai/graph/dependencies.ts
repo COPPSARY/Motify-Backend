@@ -13,6 +13,20 @@ export type GenerationIntent = Extract<Intent, 'CREATE' | 'EDIT' | 'FIX'>;
 /** Mirrors the `workspace_role` database enum. */
 export type GraphWorkspaceRole = 'owner' | 'editor' | 'viewer';
 
+/**
+ * A music-library track offered to a generation. Only metadata reaches the model;
+ * it places the track by its `motify-audio://` token and paces the film to it.
+ */
+export interface GenerationAudioTrack {
+    trackId: string;
+    title: string;
+    artist: string | null;
+    genre: string | null;
+    moodTags: string[];
+    bpm: number | null;
+    durationMs: number;
+}
+
 /** The current, mutable Motify project state the frontend renders. */
 export interface MotifyProject {
     id: string;
@@ -111,6 +125,7 @@ export interface MotionGraphInput {
     /** Revision the caller generated against; required for runtime repair. */
     revision?: number;
     assets?: ModelImageInput[];
+    audio?: GenerationAudioTrack[];
 }
 
 export interface SkillBundle {

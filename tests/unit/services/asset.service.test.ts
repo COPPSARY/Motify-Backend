@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import type { DatabaseAssetRepository } from '../../../src/repositories/asset.repository.js';
 import { AssetService } from '../../../src/services/asset.service.js';
 import { LocalFilesystemObjectStorage } from '../../../packages/object-storage/local-filesystem.js';
+import { wavBytes } from '../object-storage/wav.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));
@@ -254,7 +255,11 @@ async function pngBytes() {
   return sharp({ create: { width: 2, height: 2, channels: 4, background: '#7c3aed' } }).png().toBuffer();
 }
 
-function fakeRepository(integrity: { byteSize: number; checksum: string; objectKey: string }, initialState: 'PENDING' | 'READY' = 'PENDING') {
+function fakeRepository(
+  integrity: { byteSize: number; checksum: string; objectKey: string },
+  initialState: 'PENDING' | 'READY' = 'PENDING',
+  overrides: { contentType?: string; fileName?: string } = {},
+) {
   const asset = {
     id: 'asset-id',
     workspaceId: 'workspace-id',
@@ -269,6 +274,7 @@ function fakeRepository(integrity: { byteSize: number; checksum: string; objectK
     storageProvider: 'local',
     storageBucket: 'local',
     ...integrity,
+    ...overrides,
     uploadExpiresAt: new Date(Date.now() + 60_000),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -276,6 +282,57 @@ function fakeRepository(integrity: { byteSize: number; checksum: string; objectK
   return {
     getForCompletion: vi.fn().mockResolvedValue({ asset, role: 'owner' }),
     updateState: vi.fn(),
-    markReady: vi.fn().mockImplementation(async (_id: string, dimensions: { width: number; height: number }) => ({ ...asset, ...dimensions, state: 'READY' })),
+    markReady: vi.fn().mockImplementation(async (_id: string, metadata: object) => ({ ...asset, ...metadata, state: 'READY' })),
   };
 }
+
+describe('AssetService audio', () => {
+  it('records the duration of verified audio instead of image dimensions', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'motify-audio-ready-'));
+    temporaryDirectories.push(root);
+    const storage = await LocalFilesystemObjectStorage.create(root);
+    const stored = await storage.putBuffer('workspace/assets/song', wavBytes(2), 'audio/wav');
+    const repository = fakeRepository(
+      { byteSize: stored.byteSize, checksum: stored.checksum, objectKey: stored.key },
+      'PENDING',
+      { contentType: 'audio/wav', fileName: 'song.wav' },
+    );
+    const service = new AssetService(repository as unknown as DatabaseAssetRepository, storage);
+
+    await expect(service.complete('user-id', 'workspace-id', 'asset-id')).resolves.toMatchObject({ state: 'READY', durationMs: 2000 });
+    expect(repository.markReady).toHaveBeenCalledWith('asset-id', { durationMs: 2000 });
+  });
+
+  it('keeps audio out of project image attachments and the vision path', async () => {
+    const audio = { id: 'audio-id', workspaceId: 'workspace-id', contentType: 'audio/mpeg', byteSize: 10, objectKey: 'k', fileName: 'a.mp3' };
+    const repository = {
+      getProjectAccess: vi.fn().mockResolvedValue({ project: { id: 'project-id', workspaceId: 'workspace-id' }, role: 'editor' }),
+      getReadableForUser: vi.fn().mockResolvedValue({ asset: audio, role: 'editor' }),
+      listAttached: vi.fn().mockResolvedValue([{ asset: audio, role: 'ASSET' }]),
+      attach: vi.fn(),
+    };
+    const storage = { openRead: vi.fn() };
+    const service = new AssetService(repository as never, storage as never);
+
+    await expect(service.attach('user-id', 'project-id', 'audio-id', 'asset')).rejects.toMatchObject({ code: 'ASSET_KIND_UNSUPPORTED' });
+    await expect(service.resolveGenerationAssets('user-id', 'project-id', [{ assetId: 'audio-id', role: 'asset' }]))
+      .rejects.toMatchObject({ code: 'ASSET_KIND_UNSUPPORTED' });
+    await expect(service.resolveGenerationAssets('user-id', 'project-id', undefined)).resolves.toEqual([]);
+    expect(repository.attach).not.toHaveBeenCalled();
+    expect(storage.openRead).not.toHaveBeenCalled();
+  });
+
+  it('refuses to delete an asset that backs a music library track', async () => {
+    const repository = {
+      getReadableForUser: vi.fn().mockResolvedValue({ asset: { id: 'audio-id', objectKey: 'k' }, role: 'owner' }),
+      countAttachments: vi.fn().mockResolvedValue(0),
+      isAudioTrack: vi.fn().mockResolvedValue(true),
+      updateState: vi.fn(),
+    };
+    const storage = { delete: vi.fn() };
+    const service = new AssetService(repository as never, storage as never);
+
+    await expect(service.remove('user-id', 'audio-id')).rejects.toMatchObject({ code: 'ASSET_IN_USE' });
+    expect(storage.delete).not.toHaveBeenCalled();
+  });
+});

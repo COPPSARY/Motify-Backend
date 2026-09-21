@@ -7,12 +7,33 @@ const extensions: Record<string, readonly string[]> = {
   'image/webp': ['.webp'],
   'image/gif': ['.gif'],
   'image/svg+xml': ['.svg'],
+  'audio/mpeg': ['.mp3'],
+  'audio/wav': ['.wav'],
+  'audio/x-wav': ['.wav'],
+  'audio/ogg': ['.ogg', '.oga'],
+  'audio/mp4': ['.m4a'],
+  'audio/x-m4a': ['.m4a'],
+  'audio/aac': ['.aac'],
+  'audio/webm': ['.weba', '.webm'],
 };
+
+export const AUDIO_MAX_BYTES = 50_000_000;
+
+export type AssetKind = 'image' | 'audio';
+
+/** Images are placed or read by the model; audio is only ever described to it. */
+export function assetKind(contentType: string): AssetKind {
+  return contentType.startsWith('audio/') ? 'audio' : 'image';
+}
 
 export function validateAssetMetadata(fileName: string, contentType: string, byteSize: number) {
   const allowed = extensions[contentType];
   if (!allowed || !allowed.includes(path.extname(fileName).toLowerCase())) {
     throw new Error('Asset filename extension does not match its content type.');
+  }
+  if (assetKind(contentType) === 'audio') {
+    if (byteSize > AUDIO_MAX_BYTES) throw new Error('Audio assets are limited to 50 MB.');
+    return;
   }
   if (contentType === 'image/svg+xml' && byteSize > 2_000_000) throw new Error('SVG assets are limited to 2 MB.');
   if (contentType !== 'image/svg+xml' && byteSize > 20_000_000) throw new Error('Raster image assets are limited to 20 MB.');
@@ -79,8 +100,13 @@ function matchesSignature(contentType: string, header: Buffer) {
     case 'video/quicktime': return ascii.slice(4, 8) === 'ftyp';
     case 'video/webm': return hex.startsWith('1a45dfa3');
     case 'audio/mpeg': return ascii.startsWith('ID3') || (header[0] === 0xff && (header[1]! & 0xe0) === 0xe0);
-    case 'audio/wav': return ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WAVE';
+    case 'audio/wav':
+    case 'audio/x-wav': return ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WAVE';
     case 'audio/ogg': return ascii.startsWith('OggS');
+    case 'audio/mp4':
+    case 'audio/x-m4a': return ascii.slice(4, 8) === 'ftyp';
+    case 'audio/aac': return header[0] === 0xff && (header[1]! & 0xf6) === 0xf0;
+    case 'audio/webm': return hex.startsWith('1a45dfa3');
     case 'font/woff': return ascii.startsWith('wOFF');
     case 'font/woff2': return ascii.startsWith('wOF2');
     case 'font/ttf': return hex.startsWith('00010000') || ascii.startsWith('true');

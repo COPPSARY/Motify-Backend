@@ -3,7 +3,7 @@ import { describeReference } from './reference.prompt.js';
 import type { LoadedReference } from '../../motify-references/loader.js';
 import type { MotionBrief } from '../schemas/brief.schema.js';
 import type { RoutedSkill } from '../../motify-skills/router.js';
-import type { GenerationIntent, MotifyProject } from '../graph/dependencies.js';
+import type { GenerationAudioTrack, GenerationIntent, MotifyProject } from '../graph/dependencies.js';
 import type { ChatMessage, ModelImageInput, ModelRequestLimits } from '../providers/model.provider.js';
 
 export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 32_000, thinking: 'auto' };
@@ -39,6 +39,7 @@ export interface MotionPromptInput {
     recentMessages: ChatMessage[];
     runtimeError?: { message: string } | undefined;
     assets?: readonly ModelImageInput[] | undefined;
+    audio?: readonly GenerationAudioTrack[] | undefined;
     reference?: LoadedReference | undefined;
     brief?: MotionBrief | undefined;
 }
@@ -57,6 +58,7 @@ export function buildMotionUserPrompt(input: MotionPromptInput): string {
     }
 
     sections.push(...describeImages(input.assets ?? []));
+    if (input.audio?.length) sections.push(describeAudio(input.audio));
 
     sections.push(input.project ? describeProject(input.project) : NO_PROJECT_YET);
     if (input.reference) sections.push(describeReference(input.reference));
@@ -111,6 +113,35 @@ function describeMoment(frame: ModelImageInput): string {
     return frame.capturedAtSeconds === undefined
         ? frame.fileName
         : `${frame.capturedAtSeconds.toFixed(2)}s`;
+}
+
+/**
+ * The model cannot hear the track, so it gets what it needs to score the film to
+ * it: length, tempo and mood. The editor, not timelineJs, drives playback from
+ * the playhead, which keeps scrubbing and export in sync.
+ */
+export function describeAudio(tracks: readonly GenerationAudioTrack[]): string {
+    const lines = tracks.map((track) => {
+        const details = [
+            `${formatSeconds(track.durationMs)} long`,
+            track.bpm ? `${track.bpm} BPM (one beat every ${(60 / track.bpm).toFixed(3)}s, one 4/4 bar every ${(240 / track.bpm).toFixed(3)}s)` : 'tempo unknown',
+            track.genre ? `genre ${track.genre}` : null,
+            track.moodTags.length > 0 ? `mood ${track.moodTags.join(', ')}` : null,
+        ].filter(Boolean).join('; ');
+        const name = track.artist ? `"${track.title}" by ${track.artist}` : `"${track.title}"`;
+        return `- ${name}: ${details}; required audio source: motify-audio://${track.trackId}`;
+    });
+    return [
+        'SOUNDTRACK',
+        lines.join('\n'),
+        'Place each track exactly once, directly inside the template, as <audio data-motify-audio src="motify-audio://..." data-start="0" preload="auto"></audio>.',
+        'data-start is the timeline second where the track begins; data-volume (0 to 1) is optional. Do not add autoplay, loop, or controls, and never reference the audio element from timelineJs; the editor plays it in sync with the timeline.',
+        'Keep the film no longer than the music unless the user asks otherwise. When the tempo is known, land scene changes on bar lines and key entrances on beats, and let the energy of the motion follow the mood.',
+    ].join('\n');
+}
+
+function formatSeconds(durationMs: number): string {
+    return `${(durationMs / 1000).toFixed(1)}s`;
 }
 
 const INTENT_INSTRUCTIONS: Record<GenerationIntent, string> = {

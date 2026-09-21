@@ -103,6 +103,18 @@ describe('GenerationService', () => {
         }));
     });
 
+    it('resolves requested music tracks and passes their metadata to the graph', async () => {
+        const { graph, projects, assets } = createService();
+        const track = { trackId: '22222222-2222-4222-8222-222222222222', title: 'Bright Future', artist: null, genre: null, moodTags: [], bpm: 120, durationMs: 32_000 };
+        const audio = { resolveGenerationAudio: vi.fn(async () => [track]) };
+        const withAudio = new GenerationService(graph, projects, assets, audio);
+
+        await withAudio.sendMessage(USER_ID, PROJECT_ID, { message: 'Score it to this song.', audio: [{ trackId: track.trackId }] });
+
+        expect(audio.resolveGenerationAudio).toHaveBeenCalledWith(USER_ID, PROJECT_ID, [{ trackId: track.trackId }]);
+        expect(graph.invoke).toHaveBeenCalledWith(expect.objectContaining({ audio: [track] }));
+    });
+
     it('maps a stale revision to a conflict that carries the current revision', async () => {
         const { service } = createService({
             response: { type: 'error', code: 'REVISION_CONFLICT', message: 'Changed.', currentRevision: 9 },

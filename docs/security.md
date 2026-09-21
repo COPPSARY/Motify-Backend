@@ -15,6 +15,8 @@ Every project, asset, and render operation is authorized at the workspace bounda
 - Store asset and render binaries in private object-storage buckets, not PostgreSQL.
 - Issue short-lived authenticated upload sessions. The local V1 adapter streams downloads through authorized API routes; a future remote-storage adapter may use short-lived signed URLs.
 - Validate asset size, SHA-256, filename extension, MIME type, and content before use; the completion step re-verifies stored bytes so partial/crash-left uploads cannot become `READY`.
+- Audio duration and tags are read with a pure-JavaScript parser; the API never passes uploaded audio to a native decoder or `ffmpeg`, and never sends audio bytes to a model provider.
+- System music-library tracks are written only by the developer seed script with the service-role key; the API exposes them read-only, and workspace tracks stay scoped to their workspace.
 - Never send database credentials, storage credentials, service-role keys, or authentication secrets to the browser.
 - Redact secrets and internal exception details from responses and logs.
 

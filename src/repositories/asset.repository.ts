@@ -1,7 +1,7 @@
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, isNull, notLike, or, sql } from 'drizzle-orm';
 
 import type { Database } from '../../packages/database/client.js';
-import { assets, projectAssets, projects, workspaceMembers } from '../../packages/database/schema.js';
+import { assets, audioTracks, projectAssets, projects, workspaceMembers } from '../../packages/database/schema.js';
 
 export type AssetRecord = typeof assets.$inferSelect;
 
@@ -55,11 +55,10 @@ export class DatabaseAssetRepository {
     return asset ?? null;
   }
 
-  async markReady(assetId: string, dimensions: { width: number; height: number }) {
+  async markReady(assetId: string, metadata: { width: number; height: number } | { durationMs: number }) {
     const [asset] = await this.db.update(assets).set({
       state: 'READY',
-      width: dimensions.width,
-      height: dimensions.height,
+      ...metadata,
       updatedAt: new Date(),
     }).where(eq(assets.id, assetId)).returning();
     return asset ?? null;
@@ -72,7 +71,8 @@ export class DatabaseAssetRepository {
       ilike(assets.label, pattern),
       sql`exists (select 1 from unnest(${assets.tags}) as tag where tag ilike ${pattern} escape '\\')`,
     ) : undefined;
-    const where = and(eq(assets.workspaceId, workspaceId), eq(assets.state, 'READY'), search);
+    // Audio lives in the music library, not the image library.
+    const where = and(eq(assets.workspaceId, workspaceId), eq(assets.state, 'READY'), notLike(assets.contentType, 'audio/%'), search);
     const [data, total] = await Promise.all([
       this.db.select().from(assets).where(where).orderBy(desc(assets.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
       this.db.select({ value: count() }).from(assets).where(where),
@@ -104,6 +104,11 @@ export class DatabaseAssetRepository {
       .innerJoin(projects, eq(projects.id, projectAssets.projectId))
       .where(and(eq(projectAssets.assetId, assetId), isNull(projects.archivedAt)));
     return result?.value ?? 0;
+  }
+
+  async isAudioTrack(assetId: string) {
+    const [track] = await this.db.select({ id: audioTracks.id }).from(audioTracks).where(eq(audioTracks.assetId, assetId)).limit(1);
+    return Boolean(track);
   }
 
   async listAttached(projectId: string) {

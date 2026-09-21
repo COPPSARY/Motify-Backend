@@ -1,8 +1,8 @@
 import type { RoutedSkill } from '../../motify-skills/router.js';
-import type { GenerationIntent, MotifyProject } from '../graph/dependencies.js';
+import type { GenerationAudioTrack, GenerationIntent, MotifyProject } from '../graph/dependencies.js';
 import type { ModelImageInput, ModelRequestLimits, MotifyGeneration } from '../providers/model.provider.js';
 import type { ValidationError } from '../validation/generation-validator.js';
-import { buildMotionSystemPrompt, describeImages, describeProject, NO_PROJECT_YET } from './motion.prompt.js';
+import { buildMotionSystemPrompt, describeAudio, describeImages, describeProject, NO_PROJECT_YET } from './motion.prompt.js';
 
 export const REPAIR_LIMITS: ModelRequestLimits = { maxOutputTokens: 32_000 };
 
@@ -26,6 +26,7 @@ export interface RepairPromptInput {
     candidate: MotifyGeneration;
     errors: ValidationError[];
     assets?: readonly ModelImageInput[] | undefined;
+    audio?: readonly GenerationAudioTrack[] | undefined;
 }
 
 export function buildRepairUserPrompt(input: RepairPromptInput): string {
@@ -40,6 +41,7 @@ export function buildRepairUserPrompt(input: RepairPromptInput): string {
             `${FENCE}js\n${input.candidate.timelineJs}\n${FENCE}`,
         ].join('\n'),
         ...describeImages(input.assets ?? []),
+        ...(input.audio?.length ? [describeAudio(input.audio)] : []),
         input.project ? describeProject(input.project) : NO_PROJECT_YET,
     ].join('\n\n');
 }

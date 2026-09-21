@@ -30,6 +30,7 @@ const messageSchema = z.strictObject({
     assetId: z.string().uuid(),
     role: z.enum(['reference', 'asset']),
   })).max(10).optional(),
+  audio: z.array(z.strictObject({ trackId: z.string().uuid() })).max(3).optional(),
   frames: z.array(frameSchema).max(4).optional(),
 }).superRefine((value, context) => {
   if (value.runtimeError && value.revision === undefined) context.addIssue({ code: 'custom', path: ['revision'], message: 'revision is required for runtime repair.' });
