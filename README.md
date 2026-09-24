@@ -299,10 +299,9 @@ GET    /v1/projects/:projectId
 PATCH  /v1/projects/:projectId
 DELETE /v1/projects/:projectId
 GET    /v1/projects/:projectId/source
-PUT    /v1/projects/:projectId/source
 ```
 
-Saving source requires the last known project revision. A stale revision returns `409 Conflict`. Identical source returns `unchanged: true` without incrementing the revision; changed source atomically replaces the four stored files.
+Source is saved through `PATCH /v1/projects/:projectId`, with `compositionHtml` and `timelineJs` alongside any other changed fields; there is no separate source-write route. The request carries the last known project `revision`. A stale revision returns `409 Conflict`; a matching revision atomically replaces the stored files and increments it.
 
 ### Assets
 
