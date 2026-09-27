@@ -36,7 +36,7 @@ function dependencies() {
       list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn(),
     },
     motionMessages: {
-      sendMessage: vi.fn().mockResolvedValue({ type: 'plan', response: 'Plan only.' }),
+      sendMessage: vi.fn().mockResolvedValue({ type: 'chat', response: 'Plan only.' }),
     },
   };
 }
@@ -145,7 +145,7 @@ describe('Motify API', () => {
         assets: [{ assetId: '11111111-1111-4111-8111-111111111111', role: 'reference' }],
       });
     expect(response.status).toBe(200);
-    expect(response.body.data).toEqual({ type: 'plan', response: 'Plan only.' });
+    expect(response.body.data).toEqual({ type: 'chat', response: 'Plan only.' });
     expect(deps.motionMessages.sendMessage).toHaveBeenCalledWith(identity.id, '26ce88b5-1a51-4265-913e-203eb3cadbd7', {
       message: 'Plan a launch.',
       assets: [{ assetId: '11111111-1111-4111-8111-111111111111', role: 'reference' }],

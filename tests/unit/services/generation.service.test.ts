@@ -174,6 +174,29 @@ describe('GenerationService', () => {
         expect((failure as AppError).message).not.toContain('API key');
     });
 
+    it('logs the actual provider for a generic output-invalid failure, not the message\'s first word', async () => {
+        // Regression: parseMotifyGeneration/parseStructured/requireModelText throw
+        // ModelProviderError with a generic "The model ..." message that has no
+        // provider name in it. Before ModelProviderError carried a `provider`
+        // field, the log fell back to the message's first word ("The").
+        const { service } = createService({
+            error: new ModelProviderError(
+                'PROVIDER_OUTPUT_INVALID',
+                'The model returned invalid JSON.',
+                false,
+                undefined,
+                'openrouter',
+            ),
+        });
+
+        const failure = await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make it.' }).catch((error: unknown) => error);
+
+        expect(failure).toMatchObject({
+            status: 502,
+            logDetails: { provider: 'openrouter' },
+        });
+    });
+
     it('preserves sanitized provider diagnostics for server logs only', async () => {
         const { service } = createService({
             error: new ModelProviderError(

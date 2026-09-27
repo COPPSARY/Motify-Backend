@@ -170,12 +170,12 @@ describe('createMotionGraph', () => {
         expect(harness.repository.overwriteForGraph).not.toHaveBeenCalled();
     });
 
-    it('returns a plan without loading context or writing project state', async () => {
-        const harness = createHarness({ intent: 'PLAN', chat: 'Scene 1 logo, scene 2 headline.' });
+    it('returns a plan as chat without loading context or writing project state', async () => {
+        const harness = createHarness({ intent: 'CHAT', chat: 'Scene 1 logo, scene 2 headline.' });
 
         const result = await harness.graph.invoke(input('Plan a 10-second launch animation without changing it.'));
 
-        expect(result.response).toEqual({ type: 'plan', message: 'Scene 1 logo, scene 2 headline.' });
+        expect(result.response).toEqual({ type: 'chat', message: 'Scene 1 logo, scene 2 headline.' });
         expect(harness.repository.loadForGraph).not.toHaveBeenCalled();
         expect(harness.repository.overwriteForGraph).not.toHaveBeenCalled();
         expect(harness.repository.recordRun).not.toHaveBeenCalled();

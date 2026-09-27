@@ -6,7 +6,6 @@ import { createChatNode } from './nodes/chat.node.js';
 import { createClassifyIntentNode } from './nodes/classify-intent.node.js';
 import { createGenerateNode } from './nodes/generate.node.js';
 import { createLoadContextNode } from './nodes/load-context.node.js';
-import { createPlanNode } from './nodes/plan.node.js';
 import { createRepairNode } from './nodes/repair.node.js';
 import { createReportFailureNode } from './nodes/report-failure.node.js';
 import { createSaveProjectNode } from './nodes/save-project.node.js';
@@ -15,10 +14,8 @@ import { createSelectSkillsNode } from './nodes/select-skills.node.js';
 import { createValidateNode } from './nodes/validate.node.js';
 import { MotionGraphAnnotation, type MotionGraphState } from './state.js';
 
-function routeIntent(state: MotionGraphState): 'chat' | 'plan' | 'loadContext' {
-    if (state.intent === 'CHAT') return 'chat';
-    if (state.intent === 'PLAN') return 'plan';
-    return 'loadContext';
+function routeIntent(state: MotionGraphState): 'chat' | 'loadContext' {
+    return state.intent === 'CHAT' ? 'chat' : 'loadContext';
 }
 
 function routeContext(state: MotionGraphState): 'selectSkills' | typeof END {
@@ -50,7 +47,6 @@ export function createMotionGraph(dependencies: MotionGraphDependencies) {
     return new StateGraph(MotionGraphAnnotation)
         .addNode('classifyIntent', createClassifyIntentNode(resolved))
         .addNode('chat', createChatNode(resolved))
-        .addNode('plan', createPlanNode(resolved))
         .addNode('loadContext', createLoadContextNode(resolved))
         .addNode('selectSkills', createSelectSkillsNode(resolved))
         .addNode('selectReference', createSelectReferenceNode(resolved))
@@ -61,9 +57,8 @@ export function createMotionGraph(dependencies: MotionGraphDependencies) {
         .addNode('saveProject', createSaveProjectNode(resolved))
         .addNode('reportFailure', createReportFailureNode(resolved))
         .addEdge(START, 'classifyIntent')
-        .addConditionalEdges('classifyIntent', routeIntent, ['chat', 'plan', 'loadContext'])
+        .addConditionalEdges('classifyIntent', routeIntent, ['chat', 'loadContext'])
         .addEdge('chat', END)
-        .addEdge('plan', END)
         .addConditionalEdges('loadContext', routeContext, ['selectSkills', END])
         .addEdge('selectSkills', 'selectReference')
         .addEdge('selectReference', 'writeBrief')

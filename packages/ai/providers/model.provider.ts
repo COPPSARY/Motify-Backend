@@ -154,7 +154,7 @@ export function chatMessagesWithImages(
     });
 }
 
-export type ModelProviderName = 'gemini' | 'openai-compatible' | 'anthropic';
+export type ModelProviderName = 'gemini' | 'openai-compatible' | 'anthropic' | 'openrouter';
 
 export type ProviderErrorCode =
     | 'PROVIDER_RATE_LIMITED'
@@ -184,6 +184,13 @@ export class ModelProviderError extends Error {
         message: string,
         public readonly retryable: boolean,
         public readonly diagnostics?: ProviderDiagnostics,
+        /**
+         * Which provider raised this. Unset when thrown by a shared helper
+         * (`parseStructured`, `parseMotifyGeneration`, `requireModelText`) that
+         * has no provider context of its own - `normalizeProviderError` fills
+         * it in from the provider that called it.
+         */
+        public provider?: ModelProviderName,
     ) {
         super(message);
         this.name = 'ModelProviderError';
@@ -208,13 +215,42 @@ function normalizeTokenCount(value: unknown): number | null {
     return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
 
+/**
+ * The schema, said out loud in the prompt as well as declared on the request.
+ *
+ * The provider-level constraint (`output_config.format`, `response_format`,
+ * `responseJsonSchema`) is the real enforcement mechanism and is always sent
+ * alongside this. But every provider here can be pointed at a gateway or
+ * routed to an upstream endpoint that relays the call without honouring
+ * structured output: the request still succeeds, and a model that never saw
+ * the schema invents its own field names. Asked to classify an intent, one
+ * answered `{"classification":"CREATE"}` where the schema said `intent`,
+ * which arrives as "the model output does not match the requested schema"
+ * with no hint of why.
+ *
+ * Restating the schema costs a few hundred tokens and makes the call correct
+ * on an endpoint that honours the constraint and on one that ignores it.
+ */
+export function withSchemaPrompt(systemInstructions: string, schema: Record<string, unknown>): string {
+    return [
+        systemInstructions,
+        '',
+        'OUTPUT FORMAT',
+        'Reply with a single JSON object and nothing else: no prose before or after it, and no markdown code fence.',
+        'It must validate against this JSON Schema, using exactly these field names:',
+        JSON.stringify(schema),
+    ].join('\n');
+}
+
 export function parseStructured<T>(text: string, schema: z.ZodType<T>): T {
     let value: unknown;
     try { value = JSON.parse(text); } catch {
-        throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model returned invalid JSON.', false);
+        throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model returned invalid JSON.', false, { cause: truncateForLog(text) });
     }
     const parsed = schema.safeParse(value);
-    if (!parsed.success) throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model output does not match the requested schema.', false);
+    if (!parsed.success) {
+        throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model output does not match the requested schema.', false, { cause: summarizeSchemaIssues(parsed.error) });
+    }
     return parsed.data;
 }
 
@@ -222,8 +258,8 @@ export function parseMotifyGeneration(text: string): MotifyGeneration {
     let value: unknown;
     try {
         value = JSON.parse(text);
-    } catch {
-        throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model returned invalid JSON.', false);
+    } catch (error) {
+        throw new ModelProviderError('PROVIDER_OUTPUT_INVALID', 'The model returned invalid JSON.', false, { cause: describeJsonParseFailure(text, error) });
     }
 
     const parsed = motifyGenerationSchema.safeParse(value);
@@ -232,9 +268,50 @@ export function parseMotifyGeneration(text: string): MotifyGeneration {
             'PROVIDER_OUTPUT_INVALID',
             'The model output does not match the Motify generation schema.',
             false,
+            { cause: summarizeSchemaIssues(parsed.error) },
         );
     }
     return parsed.data;
+}
+
+/**
+ * Where the JSON actually broke, not just the head of a response that can run
+ * to tens of KB once `compositionHtml`/`timelineJs` are inside it. V8 reports
+ * the failing character's offset ("Unexpected token ... in JSON at position
+ * N", "Unexpected non-whitespace character after JSON at position N"); a
+ * window around that offset shows the actual defect - an unescaped quote, a
+ * stray control character, a truncated string - instead of 300 characters of
+ * syntactically fine JSON that came before it. Falls back to the truncated
+ * head when the message carries no position (e.g. "Unexpected end of JSON
+ * input", which means the response was cut off, not malformed mid-stream).
+ */
+function describeJsonParseFailure(text: string, error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    const position = /position (\d+)/.exec(message)?.[1];
+    if (position === undefined) return `${message}: ${truncateForLog(text)}`;
+    const index = Number(position);
+    const windowStart = Math.max(0, index - 150);
+    const windowEnd = Math.min(text.length, index + 150);
+    return `${message} (chars ${windowStart}-${windowEnd} of ${text.length}): ${text.slice(windowStart, windowEnd)}`;
+}
+
+/**
+ * Truncated model output for the `cause` diagnostic. Bounded like
+ * `describeCause` below - this is a server log, not a user-facing message,
+ * but a film's `compositionHtml`/`timelineJs` can run to tens of KB and
+ * shouldn't blow up the log line just to show where the JSON broke.
+ */
+export function truncateForLog(text: string, maxLength = 300): string {
+    return text.length > maxLength ? `${text.slice(0, maxLength)} … (${text.length} chars total)` : text;
+}
+
+/** Which fields failed and how, not the whole (potentially large) value that failed. */
+function summarizeSchemaIssues(error: z.ZodError, maxIssues = 5): string {
+    const issues = error.issues
+        .slice(0, maxIssues)
+        .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+        .join('; ');
+    return error.issues.length > maxIssues ? `${issues}; …(${error.issues.length} issues total)` : issues;
 }
 
 export function requireModelText(text: string | undefined): string {
@@ -253,35 +330,38 @@ export function normalizeProviderError(
     error: unknown,
     signal?: AbortSignal,
 ): ModelProviderError {
-    if (error instanceof ModelProviderError) return error;
+    if (error instanceof ModelProviderError) {
+        error.provider ??= provider;
+        return error;
+    }
     if (signal?.aborted) {
-        return new ModelProviderError('PROVIDER_TIMEOUT', 'The model request timed out or was cancelled.', false);
+        return new ModelProviderError('PROVIDER_TIMEOUT', 'The model request timed out or was cancelled.', false, undefined, provider);
     }
 
     const status = readStatus(error);
     if (status === 401 || status === 403) {
-        return new ModelProviderError('PROVIDER_AUTH_FAILED', `${provider} rejected the configured API key.`, false, diagnostics(error));
+        return new ModelProviderError('PROVIDER_AUTH_FAILED', `${provider} rejected the configured API key.`, false, diagnostics(error), provider);
     }
     if (status === 404) {
-        return new ModelProviderError('PROVIDER_MODEL_UNAVAILABLE', `The configured ${provider} model is unavailable.`, false, diagnostics(error));
+        return new ModelProviderError('PROVIDER_MODEL_UNAVAILABLE', `The configured ${provider} model is unavailable.`, false, diagnostics(error), provider);
     }
     if (status === 429) {
-        return new ModelProviderError('PROVIDER_RATE_LIMITED', `${provider} rate limit reached.`, true, diagnostics(error));
+        return new ModelProviderError('PROVIDER_RATE_LIMITED', `${provider} rate limit reached.`, true, diagnostics(error), provider);
     }
     if (status !== undefined && status >= 500) {
-        return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true, diagnostics(error));
+        return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true, diagnostics(error), provider);
     }
     // An overload reported inside a stream carries no HTTP status, so the
     // checks above cannot see it. It is the upstream shedding load, the same
     // condition a 503 describes, and the user should be told to retry.
     if (/overloaded_error/.test(JSON.stringify((error as { error?: unknown }).error ?? '')) || (error instanceof Error && /overloaded_error/.test(error.message))) {
-        return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true, diagnostics(error));
+        return new ModelProviderError('PROVIDER_UNAVAILABLE', `${provider} is temporarily unavailable.`, true, diagnostics(error), provider);
     }
     const cause = describeCause(error);
     return new ModelProviderError('PROVIDER_ERROR', `${provider} request failed.`, false, {
         ...diagnostics(error),
         ...(cause !== undefined ? { cause } : {}),
-    });
+    }, provider);
 }
 
 function readStatus(error: unknown): number | undefined {

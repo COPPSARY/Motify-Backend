@@ -14,7 +14,7 @@ function dependencies() {
   return {
     auth: {} as never, workspaces: {} as never, projects: {} as never,
     sessions: { resolve: vi.fn().mockResolvedValue({ user, csrfToken: 'csrf-token' }) },
-    motionMessages: { sendMessage: vi.fn().mockResolvedValue({ type: 'plan', response: 'Plan only.' }) },
+    motionMessages: { sendMessage: vi.fn().mockResolvedValue({ type: 'chat', response: 'Plan only.' }) },
     audio: {
       register: vi.fn().mockResolvedValue({ id: trackId, scope: 'workspace', token: `motify-audio://${trackId}` }),
       list: vi.fn().mockResolvedValue({ data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } }),

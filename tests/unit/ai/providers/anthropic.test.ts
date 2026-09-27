@@ -2,6 +2,21 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AnthropicMotionModelProvider } from '../../../../packages/ai/providers/anthropic.provider.js';
 import { intentSchema } from '../../../../packages/ai/schemas/intent.schema.js';
+import { motionBriefSchema } from '../../../../packages/ai/schemas/brief.schema.js';
+import { skillSelectionSchema } from '../../../../packages/ai/schemas/skill-selection.schema.js';
+
+/** Recursively collects every object key present anywhere in a JSON Schema tree. */
+function schemaKeys(node: unknown, found = new Set<string>()): Set<string> {
+    if (Array.isArray(node)) {
+        for (const entry of node) schemaKeys(entry, found);
+    } else if (node !== null && typeof node === 'object') {
+        for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+            found.add(key);
+            schemaKeys(value, found);
+        }
+    }
+    return found;
+}
 
 const generation = {
     title: 'Launch', duration: 8, width: 1920, height: 1080, fps: 30,
@@ -72,7 +87,7 @@ describe('AnthropicMotionModelProvider', () => {
             system: expect.stringContaining('Motify rules'),
             messages: [{ role: 'user', content: 'Create it' }],
             output_config: {
-                effort: 'high',
+                effort: 'low',
                 format: { type: 'json_schema', schema: expect.any(Object) },
             },
             thinking: { type: 'adaptive' },
@@ -127,7 +142,7 @@ describe('AnthropicMotionModelProvider', () => {
         const create = vi.fn().mockResolvedValue({
             ...reply(JSON.stringify(generation)),
             content: [
-                { type: 'text', text: '\u2060', citations: null },
+                { type: 'text', text: '⁠', citations: null },
                 { type: 'text', text: JSON.stringify(generation), citations: null },
             ],
         });
@@ -330,6 +345,82 @@ describe('AnthropicMotionModelProvider', () => {
             limits: { maxOutputTokens: 32_000, thinking: 'auto' },
         })).rejects.toMatchObject({ code: 'PROVIDER_ERROR' });
         expect(create).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads the schema response from a tool_use block when a gateway emulates output_config.format that way', async () => {
+        // This provider declares no `tools`, so a `tool_use` block only ever
+        // arrives from a relaying gateway forcing one to emulate structured
+        // output for a model that lacks native support - see `withSchema`.
+        const create = vi.fn().mockResolvedValue({
+            id: 'msg_test', type: 'message', role: 'assistant', model: 'claude-sonnet-5',
+            content: [{ type: 'tool_use', id: 'call_1', name: 'motify_generation', input: generation }],
+            stop_reason: 'tool_use', stop_sequence: null,
+        });
+
+        await expect(providerWith(create).provider.generate({
+            model: 'claude-sonnet-5', systemInstructions: 'Motify rules', prompt: 'Create it',
+            limits: { maxOutputTokens: 32_000, thinking: 'auto' },
+        })).resolves.toEqual({ generation, usage: { inputTokens: null, outputTokens: null } });
+    });
+
+    it('reports stop reason and thinking length when the response is genuinely empty', async () => {
+        const create = vi.fn().mockResolvedValue({
+            id: 'msg_test', type: 'message', role: 'assistant', model: 'claude-sonnet-5',
+            content: [{ type: 'thinking', thinking: 'reasoning'.repeat(1000), signature: 'sig' }],
+            stop_reason: 'max_tokens', stop_sequence: null,
+        });
+
+        await expect(providerWith(create).provider.generate({
+            model: 'claude-sonnet-5', systemInstructions: 'Motify rules', prompt: 'Create it',
+            limits: { maxOutputTokens: 32_000, thinking: 'auto' },
+        })).rejects.toEqual(expect.objectContaining({
+            code: 'PROVIDER_OUTPUT_INVALID',
+            diagnostics: expect.objectContaining({
+                cause: expect.stringMatching(/stopReason: max_tokens.*blocks: thinking.*thinking: \d+ chars/),
+            }),
+        }));
+    });
+
+    it('strips array/string/number bounds output_config.format rejects with a 400, from a schema with a bounded array', async () => {
+        // Seen live: `skillIds: z.array(...).max(5)` produced 400 "For 'array'
+        // type, property 'maxItems' is not supported" - uncaught in
+        // select-skills.node.ts, surfacing as a 502 to the caller.
+        const create = vi.fn().mockResolvedValue(reply(JSON.stringify({ skillIds: [] })));
+
+        await providerWith(create).provider.structured({
+            model: 'claude-sonnet-5', systemInstructions: 'Select skills.', prompt: 'Pick some',
+            schemaName: 'motify_skill_selection', schema: skillSelectionSchema,
+            limits: { maxOutputTokens: 128 },
+        });
+
+        const sentSchema = sent(create)?.[0].output_config.format.schema;
+        expect(schemaKeys(sentSchema)).not.toContain('maxItems');
+    });
+
+    it('strips min/max item counts and string/number bounds from a nested schema', async () => {
+        // `beats: z.array(beatSchema).min(3).max(6)` plus `.min(1)` on several
+        // string fields inside `beatSchema` - the same class of bug, nested
+        // deeper. Confirms the sanitizer recurses through `items`/`properties`.
+        const create = vi.fn().mockResolvedValue(reply(JSON.stringify({
+            concept: 'c', carrier: 'c', ground: 'g', accent: '#fff',
+            beats: [
+                { label: 'a', seconds: 1, onScreen: 'x', action: 'y', framing: 'wide', copy: '' },
+                { label: 'b', seconds: 1, onScreen: 'x', action: 'y', framing: 'medium', copy: '' },
+                { label: 'c', seconds: 1, onScreen: 'x', action: 'y', framing: 'detail', copy: '' },
+            ],
+        })));
+
+        await providerWith(create).provider.structured({
+            model: 'claude-sonnet-5', systemInstructions: 'Write a brief.', prompt: 'Plan it',
+            schemaName: 'motify_brief', schema: motionBriefSchema,
+            limits: { maxOutputTokens: 2_000 },
+        });
+
+        const sentSchema = sent(create)?.[0].output_config.format.schema;
+        const keys = schemaKeys(sentSchema);
+        for (const dropped of ['maxItems', 'minLength', 'minItems']) {
+            expect(keys).not.toContain(dropped);
+        }
     });
 
     it('rejects an empty key rather than failing on the first call', () => {

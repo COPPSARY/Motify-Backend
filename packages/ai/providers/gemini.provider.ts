@@ -13,6 +13,7 @@ import {
     parseStructured,
     requireModelText,
     tokenUsage,
+    withSchemaPrompt,
     type ChatRequest,
     type ModelGenerationResult,
     type MotionModelProvider,
@@ -64,7 +65,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                 }] : request.prompt,
                 config: {
                     ...(request.signal ? { abortSignal: request.signal } : {}),
-                    systemInstruction: request.systemInstructions,
+                    systemInstruction: withSchemaPrompt(request.systemInstructions, motifyGenerationJsonSchema),
                     maxOutputTokens: request.limits.maxOutputTokens,
                     ...thinkingConfig(request.limits),
                     responseMimeType: 'application/json',
@@ -82,6 +83,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
         try {
+            const schema = z.toJSONSchema(request.schema, { target: 'draft-7' }) as Record<string, unknown>;
             const response = await this.client.models.generateContent({
                 model: request.model,
                 contents: request.images?.length ? [{
@@ -93,9 +95,9 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                 }] : request.prompt,
                 config: {
                     ...(request.signal ? { abortSignal: request.signal } : {}),
-                    systemInstruction: request.systemInstructions,
+                    systemInstruction: withSchemaPrompt(request.systemInstructions, schema),
                     maxOutputTokens: request.limits.maxOutputTokens,
-                    responseMimeType: 'application/json', responseJsonSchema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
+                    responseMimeType: 'application/json', responseJsonSchema: schema,
                 },
             });
             return parseStructured(requireModelText(response.text), request.schema);

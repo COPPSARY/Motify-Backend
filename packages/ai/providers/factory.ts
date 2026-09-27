@@ -2,6 +2,7 @@ import { AnthropicMotionModelProvider } from './anthropic.provider.js';
 import { GeminiMotionModelProvider } from './gemini.provider.js';
 import type { ModelProviderName, MotionModelProvider } from './model.provider.js';
 import { OpenAICompatibleMotionModelProvider } from './openai.provider.js';
+import { OpenRouterMotionModelProvider } from './openrouter.provider.js';
 
 /** The provider-selection slice of the parsed environment. */
 export interface ModelProviderConfig {
@@ -12,12 +13,20 @@ export interface ModelProviderConfig {
     anthropicBaseUrl?: string | undefined;
     openAiCompatibleApiKey?: string | undefined;
     openAiCompatibleBaseUrl?: string | undefined;
+    openRouterApiKey?: string | undefined;
+    /** An OpenRouter-compatible gateway other than OpenRouter's own. */
+    openRouterBaseUrl?: string | undefined;
+    /** Sent as HTTP-Referer for OpenRouter's attribution/rankings. Optional. */
+    openRouterSiteUrl?: string | undefined;
+    /** Sent as X-Title for OpenRouter's attribution/rankings. Optional. */
+    openRouterAppName?: string | undefined;
 }
 
 const KEY_VARIABLES: Record<ModelProviderName, string> = {
     gemini: 'GEMINI_API_KEY',
     anthropic: 'ANTHROPIC_API_KEY',
     'openai-compatible': 'OPENAI_COMPATIBLE_API_KEY',
+    openrouter: 'OPENROUTER_API_KEY',
 };
 
 /**
@@ -37,6 +46,13 @@ export function createModelProvider(config: ModelProviderConfig): MotionModelPro
             return new OpenAICompatibleMotionModelProvider({
                 apiKey: requireKey(config.aiProvider, config.openAiCompatibleApiKey),
                 baseURL: requireBaseUrl(config.openAiCompatibleBaseUrl),
+            });
+        case 'openrouter':
+            return new OpenRouterMotionModelProvider({
+                apiKey: requireKey(config.aiProvider, config.openRouterApiKey),
+                baseURL: config.openRouterBaseUrl,
+                siteUrl: config.openRouterSiteUrl,
+                appName: config.openRouterAppName,
             });
     }
 }

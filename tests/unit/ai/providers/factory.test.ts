@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createModelProvider } from '../../../../packages/ai/providers/factory.js';
+import { OPENROUTER_BASE_URL } from '../../../../packages/ai/providers/openrouter.provider.js';
 
 describe('createModelProvider', () => {
     it('builds the Gemini provider from the Gemini key', () => {
@@ -47,5 +48,27 @@ describe('createModelProvider', () => {
             aiProvider: 'openai-compatible',
             openAiCompatibleApiKey: 'openai-compatible-key',
         })).toThrowError(/OPENAI_COMPATIBLE_BASE_URL/);
+    });
+
+    it('builds the OpenRouter provider defaulting to OpenRouter\'s own base URL', () => {
+        const provider = createModelProvider({ aiProvider: 'openrouter', openRouterApiKey: 'openrouter-key' });
+
+        expect(provider.name).toBe('openrouter');
+    });
+
+    it('lets OpenRouter\'s base URL be overridden', () => {
+        const provider = createModelProvider({
+            aiProvider: 'openrouter',
+            openRouterApiKey: 'openrouter-key',
+            openRouterBaseUrl: 'https://proxy.example.com/v1',
+        });
+
+        expect(provider.name).toBe('openrouter');
+        expect(OPENROUTER_BASE_URL).toBe('https://openrouter.ai/api/v1');
+    });
+
+    it('names the OpenRouter variable when its selected key is missing', () => {
+        expect(() => createModelProvider({ aiProvider: 'openrouter' }))
+            .toThrowError(/OPENROUTER_API_KEY/);
     });
 });

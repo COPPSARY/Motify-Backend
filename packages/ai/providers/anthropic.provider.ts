@@ -3,12 +3,13 @@ import type { ContentBlockParam, Message, MessageParam } from '@anthropic-ai/sdk
 import { z } from 'zod';
 
 import {
+    ModelProviderError,
     motifyGenerationJsonSchema,
     normalizeProviderError,
     parseMotifyGeneration,
     parseStructured,
-    requireModelText,
     tokenUsage,
+    withSchemaPrompt,
     type ChatRequest,
     type ModelGenerationResult,
     type ModelImageInput,
@@ -113,11 +114,11 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
             const message = await this.attempt(() => this.client.messages.stream({
                 model: request.model,
                 max_tokens: request.limits.maxOutputTokens,
-                system: withSchema(request.systemInstructions, motifyGenerationJsonSchema),
+                system: withSchemaPrompt(request.systemInstructions, motifyGenerationJsonSchema),
                 messages: [userTurn(request.prompt, request.images)],
                 output_config: {
                     ...effortFor(request.limits),
-                    format: { type: 'json_schema', schema: motifyGenerationJsonSchema },
+                    format: { type: 'json_schema', schema: ANTHROPIC_GENERATION_SCHEMA },
                 },
                 ...thinkingFor(request.limits),
             }, signalOptions(request.signal)).finalMessage(), request.signal);
@@ -136,11 +137,11 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
             const message = await this.attempt(() => this.client.messages.stream({
                 model: request.model,
                 max_tokens: request.limits.maxOutputTokens,
-                system: withSchema(request.systemInstructions, schema),
+                system: withSchemaPrompt(request.systemInstructions, schema),
                 messages: [userTurn(request.prompt, request.images)],
                 output_config: {
                     ...effortFor(request.limits),
-                    format: { type: 'json_schema', schema },
+                    format: { type: 'json_schema', schema: anthropicCompatibleSchema(schema) as Record<string, unknown> },
                 },
                 ...thinkingFor(request.limits),
             }, signalOptions(request.signal)).finalMessage(), request.signal);
@@ -172,30 +173,37 @@ function signalOptions(signal: AbortSignal | undefined): { signal?: AbortSignal 
 }
 
 /**
- * The schema, said out loud in the prompt as well as declared on the request.
- *
- * `output_config.format` is the real mechanism and is always sent. But this
- * provider is pointed at whatever Messages API endpoint is configured, and a
- * gateway that relays the call without implementing structured outputs drops
- * the schema silently: the request succeeds, and the model - never having seen
- * the schema - invents its own field names. Asked to classify an intent, it
- * answered `{"classification":"CREATE"}` where the schema said `intent`, which
- * arrives as "the model output does not match the requested schema" with no
- * hint of why.
- *
- * Restating the schema costs a few hundred tokens and makes the call correct
- * on an endpoint that honours `format` and on one that ignores it.
+ * `output_config.format` accepts only a restricted subset of JSON Schema: no
+ * numeric bounds, no string length or pattern constraints, no `maxItems`, and
+ * `minItems` only at 0 or 1 - anything else is a 400 (seen live: `beats.max(6)`
+ * and a skill-selection `.max(5)` both surfaced as "property 'maxItems' is not
+ * supported"). The Zod schemas keep their real constraints; `parseStructured`
+ * and `parseMotifyGeneration` validate the parsed response against those in
+ * full. This only trims what Anthropic would reject from the copy of the
+ * schema it is told to constrain generation against - the same tradeoff
+ * Anthropic's own SDKs make for their `messages.parse()` helper.
  */
-function withSchema(systemInstructions: string, schema: Record<string, unknown>): string {
-    return [
-        systemInstructions,
-        '',
-        'OUTPUT FORMAT',
-        'Reply with a single JSON object and nothing else: no prose before or after it, and no markdown code fence.',
-        'It must validate against this JSON Schema, using exactly these field names:',
-        JSON.stringify(schema),
-    ].join('\n');
+const DROPPED_SCHEMA_KEYS = new Set([
+    'minLength', 'maxLength', 'pattern',
+    'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',
+    'maxItems', 'uniqueItems',
+]);
+
+function anthropicCompatibleSchema(node: unknown): unknown {
+    if (Array.isArray(node)) return node.map(anthropicCompatibleSchema);
+    if (node === null || typeof node !== 'object') return node;
+    const entries = Object.entries(node as Record<string, unknown>)
+        .filter(([key, value]) => {
+            if (DROPPED_SCHEMA_KEYS.has(key)) return false;
+            if (key === 'minItems') return typeof value === 'number' && value <= 1;
+            return true;
+        })
+        .map(([key, value]) => [key, anthropicCompatibleSchema(value)] as const);
+    return Object.fromEntries(entries);
 }
+
+/** Computed once: the generation schema never changes between calls. */
+const ANTHROPIC_GENERATION_SCHEMA = anthropicCompatibleSchema(motifyGenerationJsonSchema) as Record<string, unknown>;
 
 /**
  * The JSON in a reply that was asked for JSON.
@@ -230,11 +238,15 @@ function reasons(limits: ModelRequestLimits): boolean {
 
 /**
  * Effort, not a thinking budget: `budget_tokens` is rejected by the current
- * models. Low effort is also what keeps a thinking-off call cheap without
- * asking the model to suppress reasoning it was told not to do.
+ * models. `high` is documented as spending as many tokens as the task
+ * needs, with no ceiling of its own - a request that overthinks can hit
+ * `max_tokens` with nothing but a `thinking` block to show for it regardless
+ * of how large that ceiling is. `low` is the officially recommended
+ * cost-saving step-down; start there and raise it only if evals show it
+ * costs real quality on this task.
  */
-function effortFor(limits: ModelRequestLimits): { effort: 'low' | 'high' } {
-    return { effort: reasons(limits) ? 'high' : 'low' };
+function effortFor(_limits: ModelRequestLimits): { effort: 'low' } {
+    return { effort: 'low' };
 }
 
 function thinkingFor(limits: ModelRequestLimits): { thinking: { type: 'adaptive' } | { type: 'disabled' } } {
@@ -285,11 +297,41 @@ function chatTurns(request: ChatRequest): MessageParam[] {
  */
 const EDGE_INVISIBLES = /^[\s​-‏⁠-⁤﻿]+|[\s​-‏⁠-⁤﻿]+$/g;
 
+/**
+ * A `tool_use` block never appears here in normal operation: this provider
+ * declares no `tools`, so nothing should call one. It exists as the same
+ * defense-in-depth as `withSchemaPrompt` above - a relaying gateway that emulates
+ * `output_config.format` for a model that lacks native support can do so by
+ * forcing a tool call, which leaves every text block empty with the schema's
+ * answer sitting in a tool call's `input` instead.
+ */
+function toolUseInput(message: Message): string | undefined {
+    const block = message.content.find(
+        (candidate): candidate is Extract<Message['content'][number], { type: 'tool_use' }> => candidate.type === 'tool_use',
+    );
+    return block ? JSON.stringify(block.input) : undefined;
+}
+
 function textOf(message: Message): string {
     const text = message.content
         .filter((block): block is Extract<Message['content'][number], { type: 'text' }> => block.type === 'text')
         .map((block) => block.text)
         .join('')
         .replace(EDGE_INVISIBLES, '');
-    return requireModelText(text);
+    if (text.trim()) return text;
+    const fallback = toolUseInput(message);
+    if (fallback?.trim()) return fallback;
+    const thinkingChars = message.content
+        .filter((block): block is Extract<Message['content'][number], { type: 'thinking' }> => block.type === 'thinking')
+        .reduce((sum, block) => sum + block.thinking.length, 0);
+    throw new ModelProviderError(
+        'PROVIDER_OUTPUT_INVALID',
+        'The model returned an empty response.',
+        false,
+        {
+            cause: `stopReason: ${message.stop_reason ?? 'unknown'}, `
+                + `blocks: ${message.content.map((block) => block.type).join(',') || 'none'}, `
+                + `thinking: ${thinkingChars > 0 ? `${thinkingChars} chars` : 'none'}`,
+        },
+    );
 }
