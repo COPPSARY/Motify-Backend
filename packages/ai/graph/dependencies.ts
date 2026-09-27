@@ -108,7 +108,6 @@ export interface GraphProjectRepository {
 
 export type MotionGraphResponse =
     | { type: 'chat'; message: string }
-    | { type: 'plan'; message: string }
     | { type: 'generation'; message: string; projectId: string; revision: number; created: boolean }
     | { type: 'error'; code: 'PROJECT_NOT_FOUND' | 'FORBIDDEN'; message: string }
     | { type: 'error'; code: 'REVISION_CONFLICT'; message: string; currentRevision: number }

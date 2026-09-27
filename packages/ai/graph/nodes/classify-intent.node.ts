@@ -26,7 +26,7 @@ export function createClassifyIntentNode(dependencies: ResolvedMotionGraphDepend
 }
 
 function normalizeIntent(intent: Intent, state: MotionGraphState): Intent {
-    if (intent === 'CHAT' || intent === 'PLAN') return intent;
+    if (intent === 'CHAT') return intent;
     if (!state.projectId) return 'CREATE';
     return intent === 'FIX' ? 'EDIT' : intent;
 }

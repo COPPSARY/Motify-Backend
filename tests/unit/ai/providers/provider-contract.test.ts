@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { FakeMotionModelProvider } from '../../../../packages/ai/providers/fake.provider.js';
+import { ModelProviderError, normalizeProviderError, parseMotifyGeneration, parseStructured } from '../../../../packages/ai/providers/model.provider.js';
+import { intentSchema } from '../../../../packages/ai/schemas/intent.schema.js';
 
 const generation = {
     title: 'Launch',
@@ -63,5 +65,58 @@ describe('MotionModelProvider contract', () => {
             limits: { maxOutputTokens: 500 },
             signal: controller.signal,
         })).rejects.toEqual(expect.objectContaining({ code: 'PROVIDER_TIMEOUT' }));
+    });
+
+    it('tags a generic output-invalid error with the calling provider instead of leaving it unset', () => {
+        // parseMotifyGeneration has no provider context of its own - it's a shared
+        // helper called from every provider's generate() - so its message never
+        // names one. normalizeProviderError, called from the provider's catch
+        // block, is what attaches the real provider for logging.
+        let thrown: unknown;
+        try {
+            parseMotifyGeneration('not json');
+        } catch (error) {
+            thrown = error;
+        }
+        expect(thrown).toBeInstanceOf(ModelProviderError);
+        expect((thrown as ModelProviderError).provider).toBeUndefined();
+
+        const normalized = normalizeProviderError('openrouter', thrown);
+        expect(normalized.provider).toBe('openrouter');
+        expect(normalized.code).toBe('PROVIDER_OUTPUT_INVALID');
+    });
+
+    it('records the offending text when the model output is not JSON at all', () => {
+        try {
+            parseMotifyGeneration('not json at all');
+            expect.unreachable();
+        } catch (error) {
+            expect((error as ModelProviderError).diagnostics?.cause).toContain('not json at all');
+        }
+    });
+
+    it('shows a window around the failing character instead of only the head of a long response', () => {
+        // A literal unescaped newline inside a JSON string - exactly what a
+        // large compositionHtml/timelineJs value risks - fails deep into the
+        // text; the first 300 characters (the old fallback) would never show it.
+        const filler = '"x": "'.padEnd(1000, 'a');
+        const broken = `{${filler}\nbroken"}`;
+        try {
+            parseMotifyGeneration(broken);
+            expect.unreachable();
+        } catch (error) {
+            const cause = (error as ModelProviderError).diagnostics?.cause;
+            expect(cause).toContain('position');
+            expect(cause).toContain('broken');
+        }
+    });
+
+    it('records which fields failed schema validation, not the whole value', () => {
+        try {
+            parseStructured('{"intent":"NOT_A_REAL_INTENT"}', intentSchema);
+            expect.unreachable();
+        } catch (error) {
+            expect((error as ModelProviderError).diagnostics?.cause).toContain('intent');
+        }
     });
 });

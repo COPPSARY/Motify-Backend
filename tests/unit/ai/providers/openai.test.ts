@@ -27,11 +27,28 @@ describe('OpenAICompatibleMotionModelProvider', () => {
             model: 'gpt-test',
             max_completion_tokens: 2_000,
             messages: [
-                { role: 'system', content: 'Motify rules' },
+                { role: 'system', content: expect.stringContaining('Motify rules') },
                 { role: 'user', content: 'Create it' },
             ],
             response_format: { type: 'json_schema', json_schema: expect.objectContaining({ name: 'motify_generation' }) },
         }));
+    });
+
+    it('states the schema in the prompt as well as declaring it', async () => {
+        // response_format is the real enforcement, but a gateway relaying to
+        // an OpenAI-compatible endpoint can accept it and drop it; restating
+        // the schema in-prompt means the model still sees the field names.
+        const create = vi.fn().mockResolvedValue({ choices: [{ message: { content: JSON.stringify(generation) } }] });
+        const provider = new OpenAICompatibleMotionModelProvider({ apiKey: 'test-key', baseURL, client: { chat: { completions: { create } } } });
+
+        await provider.generate({
+            model: 'gpt-test', systemInstructions: 'Motify rules', prompt: 'Create it',
+            limits: { maxOutputTokens: 2_000 },
+        });
+
+        const systemContent = create.mock.calls[0]?.[0].messages[0].content;
+        expect(systemContent).toContain('compositionHtml');
+        expect(systemContent).toContain('OUTPUT FORMAT');
     });
 
     it('returns the OpenAI chat-completion text for chat', async () => {

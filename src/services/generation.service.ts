@@ -67,7 +67,6 @@ export interface GenerationAssetResolver {
 
 export type MessageResult =
     | { type: 'chat'; response: string; projectId?: string; revision?: number }
-    | { type: 'plan'; response: string; projectId?: string; revision?: number }
     | { type: 'generation'; response: string; projectId: string; revision: number };
 
 const PROVIDER_STATUS: Record<ProviderErrorCode, number> = {
@@ -156,7 +155,7 @@ export class GenerationService {
                     PROVIDER_MESSAGE[error.code],
                     undefined,
                     {
-                        provider: providerName(error.message),
+                        provider: error.provider ?? providerName(error.message),
                         ...(error.diagnostics?.httpStatus !== undefined ? { httpStatus: error.diagnostics.httpStatus } : {}),
                         ...(error.diagnostics?.providerCode ? { providerCode: error.diagnostics.providerCode } : {}),
                         ...(error.diagnostics?.providerType ? { providerType: error.diagnostics.providerType } : {}),

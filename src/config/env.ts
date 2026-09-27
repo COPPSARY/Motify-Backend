@@ -21,7 +21,7 @@ const schema = z.object({
   ),
   SESSION_COOKIE_SECURE: booleanString,
   LOG_LEVEL: logLevel,
-  AI_PROVIDER: z.enum(['gemini', 'openai-compatible', 'anthropic']).default('gemini'),
+  AI_PROVIDER: z.enum(['gemini', 'openai-compatible', 'anthropic', 'openrouter']).default('gemini'),
   AI_MODEL: z.string().min(1),
   AI_PLANNING_MODEL: z.string().min(1).optional(),
   GEMINI_API_KEY: z.string().min(1).optional(),
@@ -29,6 +29,10 @@ const schema = z.object({
   ANTHROPIC_BASE_URL: z.string().min(1).optional(),
   OPENAI_COMPATIBLE_API_KEY: z.string().min(1).optional(),
   OPENAI_COMPATIBLE_BASE_URL: z.string().min(1).optional(),
+  OPENROUTER_API_KEY: z.string().min(1).optional(),
+  OPENROUTER_BASE_URL: z.string().min(1).optional(),
+  OPENROUTER_SITE_URL: z.string().min(1).optional(),
+  OPENROUTER_APP_NAME: z.string().min(1).optional(),
   GENERATION_MAX_ACTIVE_PER_USER: z.coerce.number().int().min(1).max(100).default(3),
 });
 
@@ -63,6 +67,10 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     anthropicBaseUrl: parsed.ANTHROPIC_BASE_URL,
     openAiCompatibleApiKey: parsed.OPENAI_COMPATIBLE_API_KEY,
     openAiCompatibleBaseUrl: parsed.OPENAI_COMPATIBLE_BASE_URL,
+    openRouterApiKey: parsed.OPENROUTER_API_KEY,
+    openRouterBaseUrl: parsed.OPENROUTER_BASE_URL,
+    openRouterSiteUrl: parsed.OPENROUTER_SITE_URL,
+    openRouterAppName: parsed.OPENROUTER_APP_NAME,
     generationMaxActivePerUser: parsed.GENERATION_MAX_ACTIVE_PER_USER,
   };
 }

@@ -15,6 +15,7 @@ import {
     requireModelText,
     requestSignalOptions,
     tokenUsage,
+    withSchemaPrompt,
     type ChatRequest,
     type ModelGenerationResult,
     type MotionModelProvider,
@@ -58,7 +59,7 @@ export class OpenAICompatibleMotionModelProvider implements MotionModelProvider 
         try {
             const response = await this.client.chat.completions.create({
                 model: request.model,
-                messages: promptMessages(request.systemInstructions, request.prompt, request.images),
+                messages: promptMessages(withSchemaPrompt(request.systemInstructions, motifyGenerationJsonSchema), request.prompt, request.images),
                 max_completion_tokens: request.limits.maxOutputTokens,
 
                 response_format: {
@@ -81,9 +82,10 @@ export class OpenAICompatibleMotionModelProvider implements MotionModelProvider 
 
     async structured<T>(request: StructuredModelRequest<T>): Promise<T> {
         try {
+            const schema = z.toJSONSchema(request.schema, { target: 'draft-7' }) as Record<string, unknown>;
             const response = await this.client.chat.completions.create({
                 model: request.model,
-                messages: promptMessages(request.systemInstructions, request.prompt, request.images),
+                messages: promptMessages(withSchemaPrompt(request.systemInstructions, schema), request.prompt, request.images),
                 max_completion_tokens: request.limits.maxOutputTokens,
 
                 response_format: {
@@ -91,7 +93,7 @@ export class OpenAICompatibleMotionModelProvider implements MotionModelProvider 
                     json_schema: {
                         name: request.schemaName,
                         strict: true,
-                        schema: z.toJSONSchema(request.schema, { target: 'draft-7' }),
+                        schema,
                     },
                 },
             }, ...requestSignalOptions(request.signal));

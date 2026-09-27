@@ -6,7 +6,7 @@ import type { RoutedSkill } from '../../motify-skills/router.js';
 import type { GenerationAudioTrack, GenerationIntent, MotifyProject } from '../graph/dependencies.js';
 import type { ChatMessage, ModelImageInput, ModelRequestLimits } from '../providers/model.provider.js';
 
-export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 32_000, thinking: 'auto' };
+export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 48_000, thinking: 'auto' };
 
 const FENCE = '```';
 const FRONTMATTER = /^---\n[\s\S]*?\n---\n*/;

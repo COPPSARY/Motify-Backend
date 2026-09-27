@@ -4,7 +4,7 @@ import type { ModelImageInput, ModelRequestLimits, MotifyGeneration } from '../p
 import type { ValidationError } from '../validation/generation-validator.js';
 import { buildMotionSystemPrompt, describeAudio, describeImages, describeProject, NO_PROJECT_YET } from './motion.prompt.js';
 
-export const REPAIR_LIMITS: ModelRequestLimits = { maxOutputTokens: 32_000 };
+export const REPAIR_LIMITS: ModelRequestLimits = { maxOutputTokens: 48_000 };
 
 const FENCE = '```';
 
