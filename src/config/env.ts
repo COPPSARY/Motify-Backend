@@ -33,6 +33,7 @@ const schema = z.object({
   OPENROUTER_BASE_URL: z.string().min(1).optional(),
   OPENROUTER_SITE_URL: z.string().min(1).optional(),
   OPENROUTER_APP_NAME: z.string().min(1).optional(),
+  SIGNUP_CREDITS: z.coerce.number().min(0).max(1000).default(50),
   GENERATION_MAX_ACTIVE_PER_USER: z.coerce.number().int().min(1).max(100).default(3),
 });
 
@@ -71,6 +72,8 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     openRouterBaseUrl: parsed.OPENROUTER_BASE_URL,
     openRouterSiteUrl: parsed.OPENROUTER_SITE_URL,
     openRouterAppName: parsed.OPENROUTER_APP_NAME,
+    // Whole hundredths of a credit, the unit balances are stored in.
+    signupCreditUnits: Math.round(parsed.SIGNUP_CREDITS * 100),
     generationMaxActivePerUser: parsed.GENERATION_MAX_ACTIVE_PER_USER,
   };
 }

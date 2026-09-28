@@ -32,6 +32,7 @@ export const artifactKind = pgEnum('artifact_kind', [
 ]);
 export const artifactRetention = pgEnum('artifact_retention', ['TEMPORARY', 'PROJECT']);
 export const audioTrackScope = pgEnum('audio_track_scope', ['WORKSPACE', 'SYSTEM']);
+export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RESERVE', 'SETTLE', 'REFUND', 'ADJUSTMENT']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
@@ -238,4 +239,39 @@ export const artifacts = pgTable('artifacts', {
 }, (table) => [
   index('artifacts_expiry_idx').on(table.expiresAt),
   check('artifacts_byte_size_check', sql`${table.byteSize} >= 0`),
+]);
+
+/**
+ * A user's spendable credits, in hundredths of a credit (5000 is 50 credits).
+ *
+ * Nothing writes `balance` directly. A database trigger on `credit_ledger`
+ * moves it in the same statement that records why, so the two cannot disagree,
+ * and the check below refuses any change that would take it below zero.
+ */
+export const creditAccounts = pgTable('credit_accounts', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  balance: integer('balance').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [check('credit_accounts_balance_check', sql`${table.balance} >= 0`)]);
+
+/**
+ * Append-only record of every credit movement; positive amounts add credits.
+ * Rows are never updated (a trigger refuses it), so the history is trustworthy
+ * and `credit_accounts.balance` is always the sum of a user's rows.
+ */
+export const creditLedger = pgTable('credit_ledger', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: creditEntryKind('kind').notNull(),
+  amount: integer('amount').notNull(),
+  referenceType: text('reference_type'),
+  referenceId: uuid('reference_id'),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('credit_ledger_user_created_idx').on(table.userId, table.createdAt.desc(), table.id.desc()),
+  uniqueIndex('credit_ledger_signup_grant_unique').on(table.userId).where(sql`${table.kind} = 'SIGNUP_GRANT'`),
+  uniqueIndex('credit_ledger_reference_unique').on(table.referenceId, table.kind).where(sql`${table.referenceId} is not null`),
+  check('credit_ledger_amount_check', sql`${table.amount} <> 0`),
 ]);
