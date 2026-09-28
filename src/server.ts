@@ -46,7 +46,7 @@ import { GenerationService } from './services/generation.service.js';
 import { ProjectService } from './services/project.service.js';
 import { AssetService } from './services/asset.service.js';
 import { AudioService } from './services/audio.service.js';
-import { CreditService } from './services/credit.service.js';
+import { CreditService, toCredits } from './services/credit.service.js';
 import { SupabaseObjectStorage } from '../packages/object-storage/supabase-storage.js';
 import { WorkspaceService } from './services/workspace.service.js';
 import type { SessionResolver } from './types/http.js';
@@ -150,7 +150,13 @@ export async function startServer() {
   const assetService = new AssetService(assetRepository, objectStorage);
   const audioService = new AudioService(new DatabaseAudioRepository(db), assetRepository, objectStorage);
   const creditRepository = new DatabaseCreditRepository(db);
-  const credits = new CreditService(creditRepository);
+  // Lets the editor show what a request will cost before it is sent. Only
+  // meaningful when requests are actually charged for.
+  const credits = new CreditService(creditRepository, environment.creditsEnforced ? {
+    typical: toCredits(environment.creditHoldUnits),
+    min: toCredits(environment.creditMinUnits),
+    max: toCredits(environment.creditPricing.maxChargeUnits),
+  } : undefined);
   const billing = new GenerationBilling(creditRepository, environment.creditPricing, {
     enforced: environment.creditsEnforced,
     holdUnits: environment.creditHoldUnits,

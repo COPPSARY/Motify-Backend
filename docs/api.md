@@ -182,6 +182,14 @@ Every account has a credit balance. New accounts start with `SIGNUP_CREDITS` (de
 { "data": { "balance": 50 } }
 ```
 
+With `CREDITS_ENFORCED=true`, the response also carries `estimate`, so the editor can show what a request will cost **before** it is sent:
+
+```json
+{ "data": { "balance": 50, "estimate": { "typical": 10, "min": 0.5, "max": 30 } } }
+```
+
+`estimate` is fixed for the deployment, not computed per request: `typical` is what an average generation costs, `min` is the fewest credits a request needs to be accepted at all (below it, `POST /v1/projects/:projectId/messages` returns `402 INSUFFICIENT_CREDITS`), and `max` is the most any single request can ever cost. `estimate` is absent when credits are not being charged for.
+
 `history` lists ledger entries newest first. `limit` is 1 to 50 (default 20); pass the returned `nextCursor` as `cursor` for the next page. Unknown query fields are rejected and a cursor the server did not issue returns `400 INVALID_CURSOR`.
 
 ```json
