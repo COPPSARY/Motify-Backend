@@ -268,10 +268,15 @@ export const creditLedger = pgTable('credit_ledger', {
   referenceType: text('reference_type'),
   referenceId: uuid('reference_id'),
   note: text('note'),
+  // What a generation used, recorded on its SETTLE row so a charge can be audited.
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  model: text('model'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('credit_ledger_user_created_idx').on(table.userId, table.createdAt.desc(), table.id.desc()),
   uniqueIndex('credit_ledger_signup_grant_unique').on(table.userId).where(sql`${table.kind} = 'SIGNUP_GRANT'`),
   uniqueIndex('credit_ledger_reference_unique').on(table.referenceId, table.kind).where(sql`${table.referenceId} is not null`),
-  check('credit_ledger_amount_check', sql`${table.amount} <> 0`),
+  // A SETTLE of exactly zero is real: it closes a hold whose cost matched it.
+  check('credit_ledger_amount_check', sql`${table.amount} <> 0 or ${table.kind} = 'SETTLE'`),
 ]);

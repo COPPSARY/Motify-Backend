@@ -158,6 +158,7 @@ The endpoint needs an authenticated session, `X-CSRF-Token`, and write access to
 | `PROJECT_NOT_FOUND` | 404 | The addressed project is unavailable to the caller. |
 | `REVISION_CONFLICT` | 409 | The project moved while generating; `details.currentRevision` is the revision to reload. |
 | `GENERATION_INVALID` | 422 | The model never produced valid source; `details.errors` lists the diagnostics. |
+| `INSUFFICIENT_CREDITS` | 402 | Fewer credits than one request needs; `details` has `balance` and `required`. No model was called. |
 | `RATE_LIMITED` | 429 | Per-user request limit. |
 | `PROVIDER_RATE_LIMITED` | 429 | The model provider throttled the request. |
 | `PROVIDER_TIMEOUT` | 504 | The model did not answer in time. |
@@ -194,7 +195,17 @@ Every account has a credit balance. New accounts start with `SIGNUP_CREDITS` (de
 }
 ```
 
-`amount` is in credits and signed (a spend is negative). Nothing consumes credits yet; generation charging is Phase 2 in `credits.md`.
+`amount` is in credits and signed (a spend is negative). A request shows as one entry with its net cost: a charged generation is negative, and one that failed is `REFUND` with an amount of `0` ("Not charged").
+
+### Charging
+
+With `CREDITS_ENFORCED=true`, `POST /v1/projects/:projectId/messages` charges for the tokens the request really used, across every model call it made, so a small edit costs a few credits and a full film about ten. Credits are held before any model runs, then the real cost is charged and the rest of the hold returned. **Nothing is charged when the user gets nothing:** a provider error, a timeout, a film that never validated (`GENERATION_INVALID`) and a `REVISION_CONFLICT` all return the whole hold. The response then carries what it cost and what is left:
+
+```json
+{ "data": { "type": "generation", "response": "…", "projectId": "…", "revision": 8, "credits": { "charged": 3.4, "remaining": 46.6 } } }
+```
+
+`credits` is absent when charging is off. Pricing and the environment variables are in `credits.md`.
 
 ## Rendering
 

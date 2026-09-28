@@ -34,6 +34,14 @@ const schema = z.object({
   OPENROUTER_SITE_URL: z.string().min(1).optional(),
   OPENROUTER_APP_NAME: z.string().min(1).optional(),
   SIGNUP_CREDITS: z.coerce.number().min(0).max(1000).default(50),
+  // Off until real usage has been compared with the pricing; then metering only logs.
+  CREDITS_ENFORCED: booleanString,
+  AI_INPUT_PRICE_PER_MTOK: z.coerce.number().positive().default(2),
+  AI_OUTPUT_PRICE_PER_MTOK: z.coerce.number().positive().default(10),
+  CREDIT_USD_VALUE: z.coerce.number().positive().default(0.0416),
+  CREDIT_MIN_CHARGE: z.coerce.number().positive().default(0.5),
+  CREDIT_MAX_CHARGE: z.coerce.number().positive().default(30),
+  CREDIT_RESERVE: z.coerce.number().positive().default(10),
   GENERATION_MAX_ACTIVE_PER_USER: z.coerce.number().int().min(1).max(100).default(3),
 });
 
@@ -74,6 +82,18 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     openRouterAppName: parsed.OPENROUTER_APP_NAME,
     // Whole hundredths of a credit, the unit balances are stored in.
     signupCreditUnits: Math.round(parsed.SIGNUP_CREDITS * 100),
+    creditsEnforced: parsed.CREDITS_ENFORCED,
+    creditPricing: {
+      inputUsdPerMillionTokens: parsed.AI_INPUT_PRICE_PER_MTOK,
+      outputUsdPerMillionTokens: parsed.AI_OUTPUT_PRICE_PER_MTOK,
+      usdPerCredit: parsed.CREDIT_USD_VALUE,
+      minChargeUnits: Math.round(parsed.CREDIT_MIN_CHARGE * 100),
+      maxChargeUnits: Math.round(parsed.CREDIT_MAX_CHARGE * 100),
+      // A call with no reported usage is priced as one average generation.
+      unreportedChargeUnits: Math.round(parsed.CREDIT_RESERVE * 100),
+    },
+    creditHoldUnits: Math.round(parsed.CREDIT_RESERVE * 100),
+    creditMinUnits: Math.round(parsed.CREDIT_MIN_CHARGE * 100),
     generationMaxActivePerUser: parsed.GENERATION_MAX_ACTIVE_PER_USER,
   };
 }

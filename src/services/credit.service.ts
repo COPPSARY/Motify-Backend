@@ -40,7 +40,7 @@ const DESCRIPTIONS: Record<CreditEntryKind, string> = {
   SIGNUP_GRANT: 'Welcome credits',
   RESERVE: 'Held for a generation',
   SETTLE: 'Generation',
-  REFUND: 'Refund',
+  REFUND: 'Not charged (generation failed)',
   ADJUSTMENT: 'Adjustment',
 };
 
