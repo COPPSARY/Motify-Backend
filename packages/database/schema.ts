@@ -33,6 +33,9 @@ export const artifactKind = pgEnum('artifact_kind', [
 export const artifactRetention = pgEnum('artifact_retention', ['TEMPORARY', 'PROJECT']);
 export const audioTrackScope = pgEnum('audio_track_scope', ['WORKSPACE', 'SYSTEM']);
 export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RESERVE', 'SETTLE', 'REFUND', 'ADJUSTMENT']);
+export const billingPlan = pgEnum('billing_plan', ['starter', 'pro', 'studio']);
+export const paymentCurrency = pgEnum('payment_currency', ['USD', 'KHR']);
+export const paymentStatus = pgEnum('payment_status', ['PENDING', 'PAID', 'EXPIRED', 'FAILED']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
@@ -274,4 +277,42 @@ export const creditLedger = pgTable('credit_ledger', {
   uniqueIndex('credit_ledger_signup_grant_unique').on(table.userId).where(sql`${table.kind} = 'SIGNUP_GRANT'`),
   uniqueIndex('credit_ledger_reference_unique').on(table.referenceId, table.kind).where(sql`${table.referenceId} is not null`),
   check('credit_ledger_amount_check', sql`${table.amount} <> 0`),
+]);
+
+export const payments = pgTable('payments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  plan: billingPlan('plan').notNull(),
+  amountMinor: integer('amount_minor').notNull(),
+  currency: paymentCurrency('currency').notNull(),
+  billNumber: text('bill_number').notNull().unique(),
+  qr: text('qr').notNull(),
+  md5: text('md5').notNull().unique(),
+  status: paymentStatus('status').default('PENDING').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  bakongHash: text('bakong_hash').unique(),
+  payerAccountId: text('payer_account_id'),
+  failureReason: text('failure_reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('payments_workspace_created_idx').on(table.workspaceId, table.createdAt),
+  index('payments_pending_expiry_idx').on(table.expiresAt).where(sql`${table.status} = 'PENDING'`),
+  check('payments_amount_check', sql`${table.amountMinor} > 0`),
+  check('payments_paid_check', sql`${table.status} <> 'PAID' or (${table.paidAt} is not null and ${table.bakongHash} is not null)`),
+]);
+
+export const workspaceSubscriptions = pgTable('workspace_subscriptions', {
+  workspaceId: uuid('workspace_id').primaryKey().references(() => workspaces.id, { onDelete: 'cascade' }),
+  plan: billingPlan('plan').notNull(),
+  currentPeriodStart: timestamp('current_period_start', { withTimezone: true }).notNull(),
+  currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }).notNull(),
+  lastPaymentId: uuid('last_payment_id').notNull().references(() => payments.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  check('workspace_subscriptions_period_check', sql`${table.currentPeriodEnd} > ${table.currentPeriodStart}`),
 ]);

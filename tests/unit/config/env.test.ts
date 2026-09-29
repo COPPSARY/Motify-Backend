@@ -123,4 +123,27 @@ describe('parseEnvironment', () => {
     expect(() => parseEnvironment({ ...valid, SIGNUP_CREDITS: '1000000' })).toThrow('SIGNUP_CREDITS');
     expect(() => parseEnvironment({ ...valid, SIGNUP_CREDITS: 'lots' })).toThrow('SIGNUP_CREDITS');
   });
+
+  it('leaves Bakong payments disabled until a token and account are set', () => {
+    expect(parseEnvironment(valid).bakong).toBeNull();
+    expect(() => parseEnvironment({ ...valid, BAKONG_TOKEN: 'token' })).toThrow('BAKONG_TOKEN and BAKONG_ACCOUNT_ID');
+    expect(() => parseEnvironment({ ...valid, BAKONG_TOKEN: 'token', BAKONG_ACCOUNT_ID: 'not-an-account' })).toThrow('name@bank');
+  });
+
+  it('parses Bakong settings with KHQR-safe defaults', () => {
+    const environment = parseEnvironment({ ...valid, BAKONG_TOKEN: 'token', BAKONG_ACCOUNT_ID: 'motify@aclb', BAKONG_API_BASE_URL: 'https://kh-proxy.motify.example/' });
+    expect(environment.bakong).toEqual({
+      apiBaseUrl: 'https://kh-proxy.motify.example',
+      token: 'token',
+      accountId: 'motify@aclb',
+      merchantName: 'Motify',
+      merchantCity: 'Phnom Penh',
+      merchantId: undefined,
+      acquiringBank: undefined,
+      qrTtlSeconds: 180,
+      reconcileIntervalSeconds: 30,
+    });
+    expect(() => parseEnvironment({ ...valid, BAKONG_TOKEN: 'token', BAKONG_ACCOUNT_ID: 'motify@aclb', BAKONG_MERCHANT_NAME: 'M'.repeat(26) })).toThrow();
+    expect(() => parseEnvironment({ ...valid, BAKONG_TOKEN: 'token', BAKONG_ACCOUNT_ID: 'motify@aclb', BAKONG_MERCHANT_ID: '1' })).toThrow('BAKONG_ACQUIRING_BANK');
+  });
 });

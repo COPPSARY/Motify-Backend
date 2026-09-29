@@ -9,6 +9,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Logger } from 'pino';
 import { sql } from 'drizzle-orm';
 
+import { BakongClient, bakongTokenExpiry } from '../packages/bakong/client.js';
+import { generateDynamicKhqr } from '../packages/bakong/khqr.js';
 import { SupabaseAuthProvider } from '../packages/auth/supabase-provider.js';
 import { TokenVault } from '../packages/auth/token-vault.js';
 import { createMotionGraph } from '../packages/ai/graph/motion.graph.js';
@@ -23,6 +25,7 @@ import { AssetController, type AssetControllerService } from './controllers/asse
 import { AudioController, type AudioControllerService } from './controllers/audio.controller.js';
 import { CreditController, type CreditControllerService } from './controllers/credit.controller.js';
 import { WorkspaceController, type WorkspaceControllerService } from './controllers/workspace.controller.js';
+import { PaymentController, type PaymentControllerService } from './controllers/payment.controller.js';
 import { requireAuthentication, resolveSession } from './middleware/authentication.js';
 import { errorHandler, notFound } from './middleware/error-handler.js';
 import { createRequestLogger } from './middleware/request-logger.js';
@@ -33,6 +36,7 @@ import { DatabaseAudioRepository } from './repositories/audio.repository.js';
 import { DatabaseCreditRepository } from './repositories/credit.repository.js';
 import { DatabaseMotionGraphRepository } from './repositories/motion-graph.repository.js';
 import { DatabaseWorkspaceRepository } from './repositories/workspace.repository.js';
+import { DatabasePaymentRepository } from './repositories/payment.repository.js';
 import { createAuthRoutes } from './routes/auth.routes.js';
 import { createProjectRoutes, createWorkspaceProjectRoutes } from './routes/project.routes.js';
 import { createMotionMessageRoutes } from './routes/motion-message.routes.js';
@@ -40,6 +44,7 @@ import { createAssetRoutes, createProjectAssetRoutes, createWorkspaceAssetRoutes
 import { createAudioRoutes, createProjectAudioRoutes, createWorkspaceAudioRoutes } from './routes/audio.routes.js';
 import { createCreditRoutes } from './routes/credit.routes.js';
 import { createWorkspaceRoutes } from './routes/workspace.routes.js';
+import { createBillingRoutes, createPaymentRoutes, createWorkspaceBillingRoutes } from './routes/payment.routes.js';
 import { AuthService } from './services/auth.service.js';
 import { GenerationService } from './services/generation.service.js';
 import { ProjectService } from './services/project.service.js';
@@ -48,6 +53,7 @@ import { AudioService } from './services/audio.service.js';
 import { CreditService } from './services/credit.service.js';
 import { SupabaseObjectStorage } from '../packages/object-storage/supabase-storage.js';
 import { WorkspaceService } from './services/workspace.service.js';
+import { PaymentService } from './services/payment.service.js';
 import type { SessionResolver } from './types/http.js';
 
 interface AppOptions {
@@ -60,6 +66,7 @@ interface AppOptions {
     assets?: AssetControllerService;
     audio?: AudioControllerService;
     credits?: CreditControllerService;
+    payments?: PaymentControllerService;
   };
   frontendOrigins: string[];
   secureCookies: boolean;
@@ -102,6 +109,7 @@ export function createApp(options: AppOptions) {
   const assetController = options.services.assets ? new AssetController(options.services.assets) : null;
   const audioController = options.services.audio ? new AudioController(options.services.audio) : null;
   const creditController = options.services.credits ? new CreditController(options.services.credits) : null;
+  const paymentController = options.services.payments ? new PaymentController(options.services.payments) : null;
 
   app.use('/v1', resolveSession(options.services.sessions));
   app.use('/v1/auth', createAuthRoutes(authController));
@@ -116,6 +124,11 @@ export function createApp(options: AppOptions) {
     app.use('/v1/audio', requireAuthentication, createAudioRoutes(audioController));
   }
   if (creditController) app.use('/v1/credits', requireAuthentication, createCreditRoutes(creditController));
+  if (paymentController) {
+    app.use('/v1/billing', createBillingRoutes(paymentController));
+    app.use('/v1/workspaces/:workspaceId/billing', requireAuthentication, createWorkspaceBillingRoutes(paymentController));
+    app.use('/v1/payments', requireAuthentication, createPaymentRoutes(paymentController));
+  }
   app.use('/v1/workspaces/:workspaceId/projects', requireAuthentication, createWorkspaceProjectRoutes(projectController));
   app.use('/v1/workspaces', requireAuthentication, createWorkspaceRoutes(workspaceController));
   app.use('/v1/projects', requireAuthentication, createProjectRoutes(projectController));
@@ -166,8 +179,12 @@ export async function startServer() {
     assetService,
     audioService,
   );
+  const payments = createPaymentService(environment, db, logger);
   const app = createApp({
-    services: { auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService, audio: audioService, credits },
+    services: {
+      auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService, audio: audioService, credits,
+      ...(payments ? { payments } : {}),
+    },
     frontendOrigins: environment.frontendOrigins,
     secureCookies: environment.secureCookies,
     logger,
@@ -176,12 +193,26 @@ export async function startServer() {
   });
   const server = createServer(app);
 
+  let reconcileTimer: NodeJS.Timeout | undefined;
+  if (payments && environment.bakong) {
+    let reconciling = false;
+    reconcileTimer = setInterval(() => {
+      if (reconciling) return;
+      reconciling = true;
+      payments.reconcilePending()
+        .catch((error: unknown) => logger.error({ err: error }, 'Bakong payment reconciliation failed'))
+        .finally(() => { reconciling = false; });
+    }, environment.bakong.reconcileIntervalSeconds * 1000);
+    reconcileTimer.unref();
+  }
+
   server.listen(environment.apiPort, environment.apiHost, () => {
     logger.info({ port: environment.apiPort }, 'Motify API started');
   });
 
   let shutdownPromise: Promise<void> | undefined;
   const shutdown = () => shutdownPromise ??= (async () => {
+    clearInterval(reconcileTimer);
     await new Promise<void>((resolve) => {
       let settled = false;
       const finish = () => {
@@ -204,6 +235,35 @@ export async function startServer() {
   process.once('SIGINT', () => void shutdown());
   process.once('SIGTERM', () => void shutdown());
   return server;
+}
+
+export function createPaymentService(environment: ReturnType<typeof parseEnvironment>, db: ReturnType<typeof createDatabase>['db'], logger: Logger) {
+  const bakong = environment.bakong;
+  if (!bakong) {
+    logger.info('Bakong payments disabled: set BAKONG_TOKEN and BAKONG_ACCOUNT_ID to enable them');
+    return null;
+  }
+  const expiry = bakongTokenExpiry(bakong.token);
+  if (expiry) {
+    const daysLeft = Math.floor((expiry.getTime() - Date.now()) / 86_400_000);
+    if (daysLeft < 14) logger.warn({ expiresAt: expiry.toISOString(), daysLeft }, 'BAKONG_TOKEN expires soon; renew it at api-bakong.nbc.gov.kh');
+  }
+  const receiver = {
+    accountId: bakong.accountId,
+    merchantName: bakong.merchantName,
+    merchantCity: bakong.merchantCity,
+    ...(bakong.merchantId && bakong.acquiringBank ? { merchantId: bakong.merchantId, acquiringBank: bakong.acquiringBank } : {}),
+  };
+  return new PaymentService(
+    new DatabasePaymentRepository(db),
+    new BakongClient({ baseUrl: bakong.apiBaseUrl, token: bakong.token }),
+    {
+      receiverAccountId: bakong.accountId,
+      generateKhqr: (payment) => generateDynamicKhqr(receiver, payment),
+      qrTtlMs: bakong.qrTtlSeconds * 1000,
+      logger,
+    },
+  );
 }
 
 const entryFile = process.argv[1];

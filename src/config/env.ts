@@ -35,12 +35,27 @@ const schema = z.object({
   OPENROUTER_APP_NAME: z.string().min(1).optional(),
   SIGNUP_CREDITS: z.coerce.number().min(0).max(1000).default(50),
   GENERATION_MAX_ACTIVE_PER_USER: z.coerce.number().int().min(1).max(100).default(3),
+  BAKONG_API_BASE_URL: z.url().default('https://api-bakong.nbc.gov.kh'),
+  BAKONG_TOKEN: z.string().min(1).optional(),
+  BAKONG_ACCOUNT_ID: z.string().regex(/^[^@\s]+@[^@\s]+$/, 'BAKONG_ACCOUNT_ID must look like name@bank').max(32).optional(),
+  BAKONG_MERCHANT_NAME: z.string().trim().min(1).max(25).default('Motify'),
+  BAKONG_MERCHANT_CITY: z.string().trim().min(1).max(15).default('Phnom Penh'),
+  BAKONG_MERCHANT_ID: z.string().min(1).max(32).optional(),
+  BAKONG_ACQUIRING_BANK: z.string().min(1).max(32).optional(),
+  BAKONG_QR_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(180),
+  BAKONG_RECONCILE_INTERVAL_SECONDS: z.coerce.number().int().min(10).max(3_600).default(30),
 });
 
 export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, string | undefined>) {
   const parsed = schema.parse(source);
   if (parsed.NODE_ENV === 'production' && !parsed.SESSION_COOKIE_SECURE) {
     throw new Error('SESSION_COOKIE_SECURE must be true in production');
+  }
+  if (Boolean(parsed.BAKONG_TOKEN) !== Boolean(parsed.BAKONG_ACCOUNT_ID)) {
+    throw new Error('BAKONG_TOKEN and BAKONG_ACCOUNT_ID must be set together to enable Bakong payments');
+  }
+  if (Boolean(parsed.BAKONG_MERCHANT_ID) !== Boolean(parsed.BAKONG_ACQUIRING_BANK)) {
+    throw new Error('BAKONG_MERCHANT_ID and BAKONG_ACQUIRING_BANK must be set together');
   }
   const frontendOrigins = parsed.FRONTEND_ORIGINS.split(',').map((origin) => {
     const normalized = origin.trim().replace(/\/$/, '');
@@ -75,6 +90,17 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     // Whole hundredths of a credit, the unit balances are stored in.
     signupCreditUnits: Math.round(parsed.SIGNUP_CREDITS * 100),
     generationMaxActivePerUser: parsed.GENERATION_MAX_ACTIVE_PER_USER,
+    bakong: parsed.BAKONG_TOKEN && parsed.BAKONG_ACCOUNT_ID ? {
+      apiBaseUrl: parsed.BAKONG_API_BASE_URL.replace(/\/$/, ''),
+      token: parsed.BAKONG_TOKEN,
+      accountId: parsed.BAKONG_ACCOUNT_ID,
+      merchantName: parsed.BAKONG_MERCHANT_NAME,
+      merchantCity: parsed.BAKONG_MERCHANT_CITY,
+      merchantId: parsed.BAKONG_MERCHANT_ID,
+      acquiringBank: parsed.BAKONG_ACQUIRING_BANK,
+      qrTtlSeconds: parsed.BAKONG_QR_TTL_SECONDS,
+      reconcileIntervalSeconds: parsed.BAKONG_RECONCILE_INTERVAL_SECONDS,
+    } : null,
   };
 }
 

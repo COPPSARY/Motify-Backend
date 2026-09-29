@@ -109,6 +109,44 @@ Only `assetId` is required; `title` defaults to the file name. **System tracks**
 
 Listing returns workspace tracks first, then system tracks, searchable across title, artist, genre, and mood tags. Each track carries a `motify-audio://<trackId>` token. `access` returns a five-minute signed URL for previews and for replacing that token in a composition. Deleting a workspace track removes its stored file and is refused with `409 AUDIO_TRACK_IN_USE` while an active project uses it; remove it from the project first.
 
+## Billing (Bakong KHQR)
+
+```text
+GET  /v1/billing/plans
+GET  /v1/workspaces/:workspaceId/billing/subscription
+POST /v1/workspaces/:workspaceId/billing/payments
+GET  /v1/payments/:paymentId
+```
+
+Plans are bought per workspace by paying a Bakong KHQR, the QR code any Cambodian banking app can scan. The routes are mounted only when `BAKONG_TOKEN` and `BAKONG_ACCOUNT_ID` are set. `plans` needs no session and lists the catalog in `src/services/billing-plans.ts`, which mirrors the public pricing page.
+
+A workspace owner starts a checkout with `{ "plan": "starter" | "pro" }`. The response carries the KHQR string in `qr`; render it as a QR image, or pass it to Bakong's deeplink on mobile. It expires at `expiresAt`, 3 minutes by default. Asking again for the same plan while a checkout is open returns that checkout instead of a new QR. `studio` returns `409 PLAN_UNAVAILABLE` until it goes on sale, and members who are not owners get `403`.
+
+```json
+{ "data": { "id": "…", "plan": "pro", "amount": 20, "currency": "USD", "billNumber": "MTF-7KQ2M9XH4P", "status": "PENDING", "qr": "000201…", "expiresAt": "…", "paidAt": null, "createdAt": "…" } }
+```
+
+Bakong sends no webhooks, so the client polls `GET /v1/payments/:paymentId` every 3–5 seconds while the QR is on screen. Each poll of a `PENDING` payment asks Bakong's `check_transaction_by_md5`, at most once every 3 seconds per payment. When Bakong reports a transaction to our account for the exact amount and currency, the payment becomes `PAID` and the workspace plan is activated in the same database transaction; the response then includes `subscription`. The API also sweeps every `PENDING` payment every `BAKONG_RECONCILE_INTERVAL_SECONDS`, so a plan still activates when the payer closes the tab.
+
+| Status | Meaning |
+| --- | --- |
+| `PENDING` | Waiting for the payer. `qr` is set. |
+| `PAID` | Money received; plan active. |
+| `EXPIRED` | Not paid within `expiresAt` plus a 2-minute grace period. Start a new checkout. |
+| `FAILED` | Bakong reported the transaction failed, or it did not match the order (logged for manual review). |
+
+If Bakong cannot be reached, the payment stays `PENDING` instead of expiring, so an outage never loses a payment.
+
+A subscription lasts 30 days from payment. Paying for the plan that is already active extends it by 30 days; paying for a different plan, or after the period lapsed, starts a new 30-day period at payment time. KHQR has no automatic recurring charge, so each period is a new checkout.
+
+```json
+{ "data": { "status": "active", "plan": "pro", "currentPeriodStart": "…", "currentPeriodEnd": "…" } }
+```
+
+To test a real payment without a frontend, run `npm run payments:test -- --email <account email> [--plan starter]`. It opens a checkout for that account's personal workspace, prints the KHQR in the terminal and saves it as a PNG, then polls until Bakong confirms and the plan activates. It charges real money to `BAKONG_ACCOUNT_ID`.
+
+`status` is `none` for a workspace that never paid, and `expired` once `currentPeriodEnd` has passed. Credits listed on each plan are informational until credit metering ships.
+
 ## Cloud AI generation
 
 ## Cloud AI generation
