@@ -21,6 +21,7 @@ import {
     type MotionModelRequest,
     type StructuredModelRequest,
 } from './model.provider.js';
+import { recordModelUsage } from '../usage/usage-meter.js';
 
 /** OpenRouter's own Chat Completions endpoint. Override for a self-hosted proxy in front of it. */
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
@@ -90,6 +91,7 @@ export class OpenRouterMotionModelProvider implements MotionModelProvider {
                 },
             }, ...requestSignalOptions(request.signal));
             const result = requireChatResult(response);
+            recordModelUsage(result.usage?.promptTokens, result.usage?.completionTokens);
             return {
                 generation: parseMotifyGeneration(extractText(result)),
                 usage: tokenUsage(result.usage?.promptTokens, result.usage?.completionTokens),
@@ -119,7 +121,9 @@ export class OpenRouterMotionModelProvider implements MotionModelProvider {
                     provider: REQUIRE_SCHEMA_SUPPORT,
                 },
             }, ...requestSignalOptions(request.signal));
-            return parseStructured(extractText(requireChatResult(response)), request.schema);
+            const result = requireChatResult(response);
+            recordModelUsage(result.usage?.promptTokens, result.usage?.completionTokens);
+            return parseStructured(extractText(result), request.schema);
         } catch (error) {
             throw normalizeProviderError(this.name, error, request.signal);
         }
@@ -138,7 +142,9 @@ export class OpenRouterMotionModelProvider implements MotionModelProvider {
                     ...reasoningFor(request.limits),
                 },
             }, ...requestSignalOptions(request.signal));
-            return extractText(requireChatResult(response));
+            const result = requireChatResult(response);
+            recordModelUsage(result.usage?.promptTokens, result.usage?.completionTokens);
+            return extractText(result);
         } catch (error) {
             throw normalizeProviderError(this.name, error, request.signal);
         }

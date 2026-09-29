@@ -27,6 +27,20 @@ export interface CreditReader {
   listEntries(userId: string, page: { limit: number; before?: CreditCursor | undefined }): Promise<CreditLedgerRow[]>;
 }
 
+/**
+ * What a request is expected to cost, so the editor can show it before the
+ * user sends one. Fixed for the deployment (it comes straight from the
+ * billing config, not from tokenizing anything), so one value serves every
+ * request: `typical` is what an average generation costs, `min` is the
+ * fewest credits a request needs to be accepted at all, and `max` is the
+ * most any single request can ever cost.
+ */
+export interface CreditEstimate {
+  typical: number;
+  min: number;
+  max: number;
+}
+
 export interface CreditEntry {
   id: string;
   kind: CreditEntryKind;
@@ -40,7 +54,7 @@ const DESCRIPTIONS: Record<CreditEntryKind, string> = {
   SIGNUP_GRANT: 'Welcome credits',
   RESERVE: 'Held for a generation',
   SETTLE: 'Generation',
-  REFUND: 'Refund',
+  REFUND: 'Not charged (generation failed)',
   ADJUSTMENT: 'Adjustment',
 };
 
@@ -72,10 +86,15 @@ export function decodeCursor(value: string): CreditCursor {
  * server-side code that records a ledger entry, never on a client's say-so.
  */
 export class CreditService {
-  constructor(private readonly credits: CreditReader) {}
+  constructor(
+    private readonly credits: CreditReader,
+    /** Absent when credits are not being enforced: nothing is charged, so no estimate applies. */
+    private readonly estimate?: CreditEstimate,
+  ) {}
 
-  async getBalance(userId: string): Promise<{ balance: number }> {
-    return { balance: toCredits(await this.credits.getBalance(userId)) };
+  async getBalance(userId: string): Promise<{ balance: number; estimate?: CreditEstimate }> {
+    const balance = toCredits(await this.credits.getBalance(userId));
+    return this.estimate ? { balance, estimate: this.estimate } : { balance };
   }
 
   async listHistory(

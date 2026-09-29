@@ -11,6 +11,7 @@ import { createMotionGraph } from '../../../../packages/ai/graph/motion.graph.js
 import { FakeMotionModelProvider } from '../../../../packages/ai/providers/fake.provider.js';
 import type { MotifyGeneration, MotionModelRequest, StructuredModelRequest } from '../../../../packages/ai/providers/model.provider.js';
 import type { Intent } from '../../../../packages/ai/schemas/intent.schema.js';
+import { UsageMeter, runWithUsageMeter } from '../../../../packages/ai/usage/usage-meter.js';
 import { loadSkillBundle } from '../../../../packages/motify-skills/loader.js';
 
 const currentProject: MotifyProject = {
@@ -69,6 +70,7 @@ interface HarnessOptions {
     canCreate?: boolean;
     selectedSkillIds?: string[];
     planningModel?: string;
+    callUsage?: { inputTokens: number; outputTokens: number };
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -82,6 +84,7 @@ function createHarness(options: HarnessOptions = {}) {
             ? { skillIds: options.selectedSkillIds ?? ['technical-data'] }
             : { intent: options.intent ?? 'EDIT' },
         chat: options.chat ?? 'Motify is ready.',
+        ...(options.callUsage ? { callUsage: options.callUsage } : {}),
         generation: (request: MotionModelRequest) => {
             generateRequests.push(request);
             const candidate = candidates[Math.min(candidateIndex, candidates.length - 1)];
@@ -131,6 +134,27 @@ function workspaceInput(message: string): MotionGraphInput {
 }
 
 describe('createMotionGraph', () => {
+    it('reports every model call of a run to the usage meter, not only generate and repair', async () => {
+        const harness = createHarness({ callUsage: { inputTokens: 100, outputTokens: 10 } });
+        const meter = new UsageMeter();
+
+        await runWithUsageMeter(meter, () => harness.graph.invoke(input('Make the headline larger')));
+
+        const usage = meter.snapshot();
+        const structuredCalls = harness.structured.mock.calls.length;
+        expect(structuredCalls).toBeGreaterThan(1);
+        expect(usage.calls).toBe(structuredCalls + harness.generateRequests.length);
+        // The intent, skill and brief calls all report; the scripted generation reports none.
+        expect(usage.inputTokens).toBe(structuredCalls * 100);
+        expect(usage.outputTokens).toBe(structuredCalls * 10);
+        expect(usage.unreportedCalls).toBe(harness.generateRequests.length);
+    });
+
+    it('counts nothing when no meter is running', async () => {
+        const harness = createHarness({ callUsage: { inputTokens: 100, outputTokens: 10 } });
+        await expect(harness.graph.invoke(input('Make the headline larger'))).resolves.toBeDefined();
+    });
+
     it('uses the AI intent classifier for a workspace greeting', async () => {
         const harness = createHarness({ intent: 'CHAT', chat: 'Hello! What would you like to make?' });
 

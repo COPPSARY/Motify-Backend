@@ -30,7 +30,7 @@ describe('database schema', () => {
     expect(tags).toContain('0012_supabase_asset_roles');
     expect(tags).toContain('0013_audio_library');
     expect(tags).toContain('0014_credits');
-    expect(tags.at(-1)).toBe('0015_bakong_payments');
+    expect(tags).toContain('0015_bakong_payments');
     await expect(readFile('drizzle/migrations/0013_audio_library.sql', 'utf8')).resolves.toContain('CREATE TABLE "audio_tracks"');
     await expect(readFile('drizzle/migrations/0015_bakong_payments.sql', 'utf8')).resolves.toContain('CREATE TABLE "payments"');
   });
@@ -56,7 +56,9 @@ describe('database schema', () => {
     const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
       entries: Array<{ tag: string }>;
     };
-    expect(journal.entries.map((entry) => entry.tag)).toContain('0014_credits');
+    const tags = journal.entries.map((entry) => entry.tag);
+    expect(tags).toContain('0014_credits');
+    expect(tags.at(-1)).toBe('0016_generation_credits');
 
     const sql = await readFile('drizzle/migrations/0014_credits.sql', 'utf8');
     // Supabase exposes public tables to browsers with the publishable key, so both

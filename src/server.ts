@@ -46,11 +46,12 @@ import { createCreditRoutes } from './routes/credit.routes.js';
 import { createWorkspaceRoutes } from './routes/workspace.routes.js';
 import { createBillingRoutes, createPaymentRoutes, createWorkspaceBillingRoutes } from './routes/payment.routes.js';
 import { AuthService } from './services/auth.service.js';
+import { GenerationBilling } from './services/generation-billing.js';
 import { GenerationService } from './services/generation.service.js';
 import { ProjectService } from './services/project.service.js';
 import { AssetService } from './services/asset.service.js';
 import { AudioService } from './services/audio.service.js';
-import { CreditService } from './services/credit.service.js';
+import { CreditService, toCredits } from './services/credit.service.js';
 import { SupabaseObjectStorage } from '../packages/object-storage/supabase-storage.js';
 import { WorkspaceService } from './services/workspace.service.js';
 import { PaymentService } from './services/payment.service.js';
@@ -161,7 +162,24 @@ export async function startServer() {
   const assetRepository = new DatabaseAssetRepository(db);
   const assetService = new AssetService(assetRepository, objectStorage);
   const audioService = new AudioService(new DatabaseAudioRepository(db), assetRepository, objectStorage);
-  const credits = new CreditService(new DatabaseCreditRepository(db));
+  const creditRepository = new DatabaseCreditRepository(db);
+  // Lets the editor show what a request will cost before it is sent. Only
+  // meaningful when requests are actually charged for.
+  const credits = new CreditService(creditRepository, environment.creditsEnforced ? {
+    typical: toCredits(environment.creditHoldUnits),
+    min: toCredits(environment.creditMinUnits),
+    max: toCredits(environment.creditPricing.maxChargeUnits),
+  } : undefined);
+  const billing = new GenerationBilling(creditRepository, environment.creditPricing, {
+    enforced: environment.creditsEnforced,
+    holdUnits: environment.creditHoldUnits,
+    minUnits: environment.creditMinUnits,
+    // Far longer than any request can run, so a live request is never swept.
+    staleAfterMs: 15 * 60 * 1000,
+  }, environment.aiModel, logger);
+  logger.info({ enforced: environment.creditsEnforced }, environment.creditsEnforced
+    ? 'Credits are being charged for generations'
+    : 'Credits are metered but not charged (CREDITS_ENFORCED is off)');
   const graphRepository = new DatabaseMotionGraphRepository(db);
   const generations = new GenerationService(
     createMotionGraph({
@@ -178,6 +196,7 @@ export async function startServer() {
     graphRepository,
     assetService,
     audioService,
+    billing,
   );
   const payments = createPaymentService(environment, db, logger);
   const app = createApp({
@@ -205,6 +224,13 @@ export async function startServer() {
     }, environment.bakong.reconcileIntervalSeconds * 1000);
     reconcileTimer.unref();
   }
+  // Gives back credits held by a request that never finished, such as when the server restarted mid-generation.
+  const sweepHolds = () => billing.releaseStale().catch((error: unknown) => {
+    logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Credit hold sweep failed');
+  });
+  void sweepHolds();
+  const holdSweeper = setInterval(() => void sweepHolds(), 5 * 60 * 1000);
+  holdSweeper.unref();
 
   server.listen(environment.apiPort, environment.apiHost, () => {
     logger.info({ port: environment.apiPort }, 'Motify API started');
@@ -229,6 +255,7 @@ export async function startServer() {
       server.close(finish);
       server.closeIdleConnections();
     });
+    clearInterval(holdSweeper);
     await pool.end();
     logger.info('Motify API stopped');
   })();

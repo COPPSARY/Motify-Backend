@@ -10,11 +10,14 @@ import {
     tokenUsage,
     type StructuredModelRequest,
 } from './model.provider.js';
+import { recordModelUsage } from '../usage/usage-meter.js';
 
 export interface FakeProviderScript {
     generation: unknown | ((request: MotionModelRequest) => unknown | Promise<unknown>);
     chat: string | ((request: ChatRequest) => string | Promise<string>);
     structured?: unknown | ((request: StructuredModelRequest<unknown>) => unknown | Promise<unknown>);
+    /** Tokens each structured or chat call reports to the usage meter. Unset reports none. */
+    callUsage?: { inputTokens: number; outputTokens: number };
 }
 
 export class FakeMotionModelProvider implements MotionModelProvider {
@@ -28,6 +31,8 @@ export class FakeMotionModelProvider implements MotionModelProvider {
             ? await this.script.generation(request)
             : this.script.generation;
         const candidate = isGenerationResult(value) ? value.generation : value;
+        if (isGenerationResult(value)) recordModelUsage(value.usage.inputTokens, value.usage.outputTokens);
+        else recordModelUsage(undefined, undefined);
         const parsed = motifyGenerationSchema.safeParse(candidate);
         if (!parsed.success) {
             throw new ModelProviderError(
@@ -49,12 +54,18 @@ export class FakeMotionModelProvider implements MotionModelProvider {
         const value = typeof this.script.structured === 'function'
             ? await this.script.structured(request)
             : this.script.structured;
+        this.reportCallUsage();
         return parseStructured(JSON.stringify(value), request.schema);
     }
 
     async chat(request: ChatRequest): Promise<string> {
         requireActive(request.signal);
+        this.reportCallUsage();
         return typeof this.script.chat === 'function' ? this.script.chat(request) : this.script.chat;
+    }
+
+    private reportCallUsage(): void {
+        recordModelUsage(this.script.callUsage?.inputTokens, this.script.callUsage?.outputTokens);
     }
 }
 

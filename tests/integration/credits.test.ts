@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../src/errors.js';
 import { createApp } from '../../src/server.js';
 
 const user = {
@@ -106,5 +107,35 @@ describe('credits API', () => {
   it('does not add credit routes when the service is not configured', async () => {
     const { app } = build({ withCredits: false });
     expect((await request(app).get('/v1/credits').set('Cookie', session)).status).toBe(404);
+  });
+
+  it('answers 402 with the balance when a generation cannot be paid for', async () => {
+    const paid = createApp({
+      services: {
+        auth: {
+          signUpWithEmail: vi.fn(), loginWithEmail: vi.fn(), beginGoogleLogin: vi.fn(),
+          completeGoogleLogin: vi.fn(), completeEmailVerification: vi.fn(), logout: vi.fn(),
+        },
+        sessions: { resolve: vi.fn().mockResolvedValue({ user, csrfToken: 'csrf-token' }) },
+        workspaces: {
+          list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(),
+          listMembers: vi.fn(), addMember: vi.fn(), updateMember: vi.fn(), removeMember: vi.fn(),
+        },
+        projects: { list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn() },
+        motionMessages: {
+          sendMessage: vi.fn().mockRejectedValue(
+            new AppError(402, 'INSUFFICIENT_CREDITS', 'You do not have enough credits for this request.', { balance: 0.2, required: 0.5 }),
+          ),
+        },
+      },
+      frontendOrigins: ['http://localhost:5173'],
+      secureCookies: false,
+    });
+    const response = await request(paid)
+      .post('/v1/projects/9a4f2e10-7b53-4a1c-9f0d-2c8b6d5e1a33/messages')
+      .set('Cookie', session).set('X-CSRF-Token', 'csrf-token')
+      .send({ message: 'Make a film' });
+    expect(response.status).toBe(402);
+    expect(response.body.error).toMatchObject({ code: 'INSUFFICIENT_CREDITS', details: { balance: 0.2, required: 0.5 } });
   });
 });
