@@ -168,6 +168,34 @@ Behind the endpoint, a LangGraph workflow classifies the request, loads the proj
 
 The provider is chosen by `AI_PROVIDER` with `AI_MODEL`; only the selected provider's API key is required. The backend never renders, previews, or exports — the frontend runs the generated source. Implementation detail lives in `cloud-ai-implementation.md`.
 
+## Credits
+
+```text
+GET /v1/credits
+GET /v1/credits/history?limit=20&cursor=...
+```
+
+Every account has a credit balance. New accounts start with `SIGNUP_CREDITS` (default 50); accounts that existed when credits shipped were granted 50 by migration. Both endpoints need an authenticated session and are **read-only**: there is no endpoint to set, add, or spend credits, and the user is always the session's own, so a client cannot read or change anyone else's. Responses are `Cache-Control: no-store` and rate limited to 60 requests per minute per user.
+
+```json
+{ "data": { "balance": 50 } }
+```
+
+`history` lists ledger entries newest first. `limit` is 1 to 50 (default 20); pass the returned `nextCursor` as `cursor` for the next page. Unknown query fields are rejected and a cursor the server did not issue returns `400 INVALID_CURSOR`.
+
+```json
+{
+  "data": {
+    "entries": [
+      { "id": "…", "kind": "SIGNUP_GRANT", "amount": 50, "description": "Welcome credits", "createdAt": "2026-09-28T09:00:00.000Z" }
+    ],
+    "nextCursor": null
+  }
+}
+```
+
+`amount` is in credits and signed (a spend is negative). Nothing consumes credits yet; generation charging is Phase 2 in `credits.md`.
+
 ## Rendering
 
 ```text

@@ -21,6 +21,7 @@ import { ProjectController, type ProjectControllerService } from './controllers/
 import { MotionMessageController, type MotionMessageService } from './controllers/motion-message.controller.js';
 import { AssetController, type AssetControllerService } from './controllers/asset.controller.js';
 import { AudioController, type AudioControllerService } from './controllers/audio.controller.js';
+import { CreditController, type CreditControllerService } from './controllers/credit.controller.js';
 import { WorkspaceController, type WorkspaceControllerService } from './controllers/workspace.controller.js';
 import { requireAuthentication, resolveSession } from './middleware/authentication.js';
 import { errorHandler, notFound } from './middleware/error-handler.js';
@@ -29,6 +30,7 @@ import { DatabaseAccountProvisioner, DatabaseAuthFlowStore, DatabaseSessionStore
 import { DatabaseProjectRepository } from './repositories/project.repository.js';
 import { DatabaseAssetRepository } from './repositories/asset.repository.js';
 import { DatabaseAudioRepository } from './repositories/audio.repository.js';
+import { DatabaseCreditRepository } from './repositories/credit.repository.js';
 import { DatabaseMotionGraphRepository } from './repositories/motion-graph.repository.js';
 import { DatabaseWorkspaceRepository } from './repositories/workspace.repository.js';
 import { createAuthRoutes } from './routes/auth.routes.js';
@@ -36,12 +38,14 @@ import { createProjectRoutes, createWorkspaceProjectRoutes } from './routes/proj
 import { createMotionMessageRoutes } from './routes/motion-message.routes.js';
 import { createAssetRoutes, createProjectAssetRoutes, createWorkspaceAssetRoutes } from './routes/asset.routes.js';
 import { createAudioRoutes, createProjectAudioRoutes, createWorkspaceAudioRoutes } from './routes/audio.routes.js';
+import { createCreditRoutes } from './routes/credit.routes.js';
 import { createWorkspaceRoutes } from './routes/workspace.routes.js';
 import { AuthService } from './services/auth.service.js';
 import { GenerationService } from './services/generation.service.js';
 import { ProjectService } from './services/project.service.js';
 import { AssetService } from './services/asset.service.js';
 import { AudioService } from './services/audio.service.js';
+import { CreditService } from './services/credit.service.js';
 import { SupabaseObjectStorage } from '../packages/object-storage/supabase-storage.js';
 import { WorkspaceService } from './services/workspace.service.js';
 import type { SessionResolver } from './types/http.js';
@@ -55,6 +59,7 @@ interface AppOptions {
     motionMessages?: MotionMessageService;
     assets?: AssetControllerService;
     audio?: AudioControllerService;
+    credits?: CreditControllerService;
   };
   frontendOrigins: string[];
   secureCookies: boolean;
@@ -96,6 +101,7 @@ export function createApp(options: AppOptions) {
   const motionMessageController = options.services.motionMessages ? new MotionMessageController(options.services.motionMessages) : null;
   const assetController = options.services.assets ? new AssetController(options.services.assets) : null;
   const audioController = options.services.audio ? new AudioController(options.services.audio) : null;
+  const creditController = options.services.credits ? new CreditController(options.services.credits) : null;
 
   app.use('/v1', resolveSession(options.services.sessions));
   app.use('/v1/auth', createAuthRoutes(authController));
@@ -109,6 +115,7 @@ export function createApp(options: AppOptions) {
     app.use('/v1/projects/:projectId/audio', requireAuthentication, createProjectAudioRoutes(audioController));
     app.use('/v1/audio', requireAuthentication, createAudioRoutes(audioController));
   }
+  if (creditController) app.use('/v1/credits', requireAuthentication, createCreditRoutes(creditController));
   app.use('/v1/workspaces/:workspaceId/projects', requireAuthentication, createWorkspaceProjectRoutes(projectController));
   app.use('/v1/workspaces', requireAuthentication, createWorkspaceRoutes(workspaceController));
   app.use('/v1/projects', requireAuthentication, createProjectRoutes(projectController));
@@ -124,7 +131,7 @@ export async function startServer() {
   const { db, pool } = createDatabase(environment.databaseUrl);
   const provider = new SupabaseAuthProvider(environment.supabaseUrl, environment.supabasePublishableKey);
   const vault = new TokenVault(environment.sessionEncryptionKey);
-  const accounts = new DatabaseAccountProvisioner(db);
+  const accounts = new DatabaseAccountProvisioner(db, environment.signupCreditUnits);
   const sessions = new DatabaseSessionStore(db, vault, provider);
   const flows = new DatabaseAuthFlowStore(db, vault);
   const auth = new AuthService(provider, accounts, sessions, flows, {
@@ -141,6 +148,7 @@ export async function startServer() {
   const assetRepository = new DatabaseAssetRepository(db);
   const assetService = new AssetService(assetRepository, objectStorage);
   const audioService = new AudioService(new DatabaseAudioRepository(db), assetRepository, objectStorage);
+  const credits = new CreditService(new DatabaseCreditRepository(db));
   const graphRepository = new DatabaseMotionGraphRepository(db);
   const generations = new GenerationService(
     createMotionGraph({
@@ -159,7 +167,7 @@ export async function startServer() {
     audioService,
   );
   const app = createApp({
-    services: { auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService, audio: audioService },
+    services: { auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService, audio: audioService, credits },
     frontendOrigins: environment.frontendOrigins,
     secureCookies: environment.secureCookies,
     logger,

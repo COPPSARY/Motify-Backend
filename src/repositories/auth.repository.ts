@@ -5,7 +5,9 @@ import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import type { AuthProvider } from '../../packages/auth/types.js';
 import { TokenVault } from '../../packages/auth/token-vault.js';
 import type { Database } from '../../packages/database/client.js';
-import { authSessions, oauthAttempts, users, workspaceMembers, workspaces } from '../../packages/database/schema.js';
+import {
+  authSessions, creditAccounts, creditLedger, oauthAttempts, users, workspaceMembers, workspaces,
+} from '../../packages/database/schema.js';
 import type { AccountProvisioner, AuthFlowStore, SessionCreator } from '../services/auth.service.js';
 
 function hash(value: string) {
@@ -16,8 +18,14 @@ function slugPart(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 40) || 'workspace';
 }
 
+/** Credits a new account starts with, in hundredths of a credit (50 credits). */
+export const DEFAULT_SIGNUP_CREDIT_UNITS = 5000;
+
 export class DatabaseAccountProvisioner implements AccountProvisioner {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    private readonly signupCreditUnits: number = DEFAULT_SIGNUP_CREDIT_UNITS,
+  ) {}
 
   async existsByEmail(email: string) {
     const [user] = await this.db.select({ id: users.id }).from(users)
@@ -54,6 +62,21 @@ export class DatabaseAccountProvisioner implements AccountProvisioner {
         userId: identity.id,
         role: 'owner',
       }).onConflictDoNothing();
+
+      // Provisioning runs on every login, so the grant is made exactly once by
+      // the ledger's unique index, not by guessing whether the user is new. The
+      // trigger on the ledger adds the amount to the balance only for a row
+      // that was really inserted.
+      await transaction.insert(creditAccounts).values({ userId: identity.id }).onConflictDoNothing();
+      if (this.signupCreditUnits > 0) {
+        await transaction.insert(creditLedger).values({
+          userId: identity.id,
+          kind: 'SIGNUP_GRANT',
+          amount: this.signupCreditUnits,
+          referenceType: 'signup',
+          note: 'Welcome credits',
+        }).onConflictDoNothing();
+      }
     });
   }
 }

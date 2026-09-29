@@ -111,4 +111,16 @@ describe('parseEnvironment', () => {
     const { AI_MODEL: _aiModel, ...withoutAiModel } = valid;
     expect(() => parseEnvironment({ ...withoutAiModel, GEMINI_MODEL: 'ignored-gemini-model' })).toThrow();
   });
+
+  it('starts each account with 50 credits, stored in hundredths', () => {
+    expect(parseEnvironment(valid).signupCreditUnits).toBe(5000);
+    expect(parseEnvironment({ ...valid, SIGNUP_CREDITS: '12.5' }).signupCreditUnits).toBe(1250);
+    expect(parseEnvironment({ ...valid, SIGNUP_CREDITS: '0' }).signupCreditUnits).toBe(0);
+  });
+
+  it('rejects a negative or absurd signup grant', () => {
+    expect(() => parseEnvironment({ ...valid, SIGNUP_CREDITS: '-1' })).toThrow('SIGNUP_CREDITS');
+    expect(() => parseEnvironment({ ...valid, SIGNUP_CREDITS: '1000000' })).toThrow('SIGNUP_CREDITS');
+    expect(() => parseEnvironment({ ...valid, SIGNUP_CREDITS: 'lots' })).toThrow('SIGNUP_CREDITS');
+  });
 });

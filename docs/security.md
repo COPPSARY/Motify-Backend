@@ -47,3 +47,10 @@ Every project, asset, and render operation is authorized at the workspace bounda
 - Local development object/workspace roots (`data/` and `tmp/`) are ignored by Git; production deployments must place them on access-controlled volumes with retention and backup policies appropriate to their different lifetimes.
 - Publication is conditional on the pinned project version/revision, so concurrent work is retained.
 - Prompt content, project files, raw provider errors, keys, and container internals are not written to normal application logs.
+
+## Credits
+
+- Credit balances are changed only by server code. No HTTP route writes credits, and the read routes take the user from the session, never from the request.
+- `credit_accounts.balance` is moved by a database trigger when a row is inserted into `credit_ledger`, so the balance and its history cannot disagree. A check constraint refuses a negative balance, and a second trigger refuses any update to a ledger row (history is append-only).
+- The signup grant is idempotent: a unique index allows one `SIGNUP_GRANT` per user, so repeated or concurrent logins cannot mint credits.
+- Both tables have row level security on with no policies, and `anon` and `authenticated` are revoked. Supabase exposes `public` tables to browsers through the publishable key, so without this a user could edit their own balance directly. Only the backend's database connection can touch them.
