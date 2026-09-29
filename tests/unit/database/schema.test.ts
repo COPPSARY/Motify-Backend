@@ -32,7 +32,9 @@ describe('database schema', () => {
     const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
       entries: Array<{ tag: string }>;
     };
-    expect(journal.entries.at(-1)?.tag).toBe('0014_credits');
+    const tags = journal.entries.map((entry) => entry.tag);
+    expect(tags).toContain('0014_credits');
+    expect(tags.at(-1)).toBe('0015_generation_credits');
 
     const sql = await readFile('drizzle/migrations/0014_credits.sql', 'utf8');
     // Supabase exposes public tables to browsers with the publishable key, so both

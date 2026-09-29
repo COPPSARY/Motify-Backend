@@ -123,4 +123,35 @@ describe('parseEnvironment', () => {
     expect(() => parseEnvironment({ ...valid, SIGNUP_CREDITS: '1000000' })).toThrow('SIGNUP_CREDITS');
     expect(() => parseEnvironment({ ...valid, SIGNUP_CREDITS: 'lots' })).toThrow('SIGNUP_CREDITS');
   });
+
+  it('leaves credits unenforced until asked, priced from the sheet by default', () => {
+    const environment = parseEnvironment(valid);
+    expect(environment.creditsEnforced).toBe(false);
+    expect(environment.creditPricing).toEqual({
+      inputUsdPerMillionTokens: 2,
+      outputUsdPerMillionTokens: 10,
+      usdPerCredit: 0.0416,
+      minChargeUnits: 50,
+      maxChargeUnits: 3_000,
+      unreportedChargeUnits: 1_000,
+    });
+    expect(environment.creditHoldUnits).toBe(1_000);
+    expect(environment.creditMinUnits).toBe(50);
+    expect(parseEnvironment({ ...valid, CREDITS_ENFORCED: 'true' }).creditsEnforced).toBe(true);
+  });
+
+  it('takes the model price and credit value from the environment', () => {
+    const environment = parseEnvironment({
+      ...valid, AI_INPUT_PRICE_PER_MTOK: '0.5', AI_OUTPUT_PRICE_PER_MTOK: '3', CREDIT_USD_VALUE: '0.05', CREDIT_MAX_CHARGE: '20',
+    });
+    expect(environment.creditPricing).toMatchObject({
+      inputUsdPerMillionTokens: 0.5, outputUsdPerMillionTokens: 3, usdPerCredit: 0.05, maxChargeUnits: 2_000,
+    });
+  });
+
+  it('rejects a price of zero or less, which would make every generation free', () => {
+    for (const name of ['AI_INPUT_PRICE_PER_MTOK', 'AI_OUTPUT_PRICE_PER_MTOK', 'CREDIT_USD_VALUE']) {
+      expect(() => parseEnvironment({ ...valid, [name]: '0' })).toThrow(name);
+    }
+  });
 });

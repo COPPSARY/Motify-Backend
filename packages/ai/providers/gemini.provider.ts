@@ -21,6 +21,7 @@ import {
     type MotionModelRequest,
     type StructuredModelRequest,
 } from './model.provider.js';
+import { recordModelUsage } from '../usage/usage-meter.js';
 
 /**
  * Gemini takes a token budget rather than a mode: -1 lets the model choose, 0
@@ -30,6 +31,19 @@ import {
 function thinkingConfig(limits: ModelRequestLimits) {
     if (limits.thinking === undefined) return {};
     return { thinkingConfig: { thinkingBudget: limits.thinking === 'auto' ? -1 : 0 } };
+}
+
+/**
+ * Gemini bills reasoning as output, but reports it apart from the candidate
+ * tokens, so a call that mostly thought would otherwise count as nearly free.
+ */
+function recordGeminiUsage(response: GenerateContentResponse): void {
+    const usage = response.usageMetadata;
+    const reportsOutput = usage?.candidatesTokenCount !== undefined || usage?.thoughtsTokenCount !== undefined;
+    recordModelUsage(
+        usage?.promptTokenCount,
+        reportsOutput ? (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0) : undefined,
+    );
 }
 
 interface GeminiClient {
@@ -72,6 +86,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                     responseJsonSchema: motifyGenerationJsonSchema,
                 },
             });
+            recordGeminiUsage(response);
             return {
                 generation: parseMotifyGeneration(requireModelText(response.text)),
                 usage: tokenUsage(response.usageMetadata?.promptTokenCount, response.usageMetadata?.candidatesTokenCount),
@@ -100,6 +115,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
                     responseMimeType: 'application/json', responseJsonSchema: schema,
                 },
             });
+            recordGeminiUsage(response);
             return parseStructured(requireModelText(response.text), request.schema);
         } catch (error) { throw normalizeProviderError(this.name, error, request.signal); }
     }
@@ -125,6 +141,7 @@ export class GeminiMotionModelProvider implements MotionModelProvider {
 
                 },
             });
+            recordGeminiUsage(response);
             return requireModelText(response.text);
         } catch (error) {
             throw normalizeProviderError(this.name, error, request.signal);

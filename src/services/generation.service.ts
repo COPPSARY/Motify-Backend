@@ -6,8 +6,10 @@ import type {
     MotionGraphResponse,
 } from '../../packages/ai/graph/dependencies.js';
 import { ModelProviderError, type ProviderErrorCode } from '../../packages/ai/providers/model.provider.js';
+import { runWithUsageMeter } from '../../packages/ai/usage/usage-meter.js';
 import type { ModelImageInput } from '../../packages/ai/providers/model.provider.js';
 import { AppError } from '../errors.js';
+import type { GenerationBilling, GenerationCharge } from './generation-billing.js';
 
 /** The compiled Motify graph, narrowed to what this service needs. */
 export interface MotionGraphRunner {
@@ -65,9 +67,14 @@ export interface GenerationAssetResolver {
     ): Promise<ModelImageInput[]>;
 }
 
+/** What the request cost and what is left, present when credits are being charged. */
+interface CreditsField {
+    credits?: GenerationCharge;
+}
+
 export type MessageResult =
-    | { type: 'chat'; response: string; projectId?: string; revision?: number }
-    | { type: 'generation'; response: string; projectId: string; revision: number };
+    | ({ type: 'chat'; response: string; projectId?: string; revision?: number } & CreditsField)
+    | ({ type: 'generation'; response: string; projectId: string; revision: number } & CreditsField);
 
 const PROVIDER_STATUS: Record<ProviderErrorCode, number> = {
     PROVIDER_RATE_LIMITED: 429,
@@ -100,6 +107,7 @@ export class GenerationService {
         private readonly projects: ProjectAccessReader,
         private readonly assets?: GenerationAssetResolver,
         private readonly audio?: GenerationAudioResolver,
+        private readonly billing?: GenerationBilling,
     ) {}
 
     async sendMessage(userId: string, projectId: string, input: MessageRequestInput): Promise<MessageResult> {
@@ -117,7 +125,7 @@ export class GenerationService {
         const audio = this.audio
             ? await this.audio.resolveGenerationAudio(userId, projectId, input.audio)
             : [];
-        return this.result(await this.invokeGraph({
+        const graphInput: MotionGraphInput = {
             userId,
             workspaceId: access.workspaceId,
             projectId,
@@ -126,7 +134,21 @@ export class GenerationService {
             ...(audio.length > 0 ? { audio } : {}),
             ...(input.runtimeError ? { runtimeError: input.runtimeError } : {}),
             ...(input.revision !== undefined ? { revision: input.revision } : {}),
-        }));
+        };
+        if (!this.billing) return this.result(await this.invokeGraph(graphInput));
+
+        // Credits are held before any model is called, so an account that cannot
+        // pay never costs a token, and given back if the user gets nothing.
+        const hold = await this.billing.begin(userId);
+        let result: MessageResult;
+        try {
+            result = this.result(await runWithUsageMeter(hold.meter, () => this.invokeGraph(graphInput)));
+        } catch (error) {
+            await this.billing.abandon(hold);
+            throw error;
+        }
+        const credits = await this.billing.complete(hold);
+        return credits ? { ...result, credits } : result;
     }
 
     private result(

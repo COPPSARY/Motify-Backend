@@ -82,4 +82,15 @@ describe('CreditService', () => {
     const methods = Object.getOwnPropertyNames(CreditService.prototype).filter((name) => name !== 'constructor');
     expect(methods.sort()).toEqual(['getBalance', 'listHistory']);
   });
+
+  it('includes the pre-send cost estimate when configured, unchanged by the balance', async () => {
+    const reader = { getBalance: vi.fn().mockResolvedValue(5000), listEntries: vi.fn() };
+    const estimate = { typical: 10, min: 0.5, max: 30 };
+    await expect(new CreditService(reader, estimate).getBalance(userId)).resolves.toEqual({ balance: 50, estimate });
+  });
+
+  it('omits the estimate when credits are not being charged for', async () => {
+    const reader = { getBalance: vi.fn().mockResolvedValue(5000), listEntries: vi.fn() };
+    await expect(new CreditService(reader).getBalance(userId)).resolves.toEqual({ balance: 50 });
+  });
 });

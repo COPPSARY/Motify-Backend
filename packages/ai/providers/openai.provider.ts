@@ -22,6 +22,7 @@ import {
     type MotionModelRequest,
     type StructuredModelRequest,
 } from './model.provider.js';
+import { recordModelUsage } from '../usage/usage-meter.js';
 
 interface OpenAICompatibleClient {
     chat: {
@@ -71,6 +72,7 @@ export class OpenAICompatibleMotionModelProvider implements MotionModelProvider 
                     },
                 },
             }, ...requestSignalOptions(request.signal));
+            recordOpenAiUsage(response);
             return {
                 generation: parseMotifyGeneration(extractText(response)),
                 usage: tokenUsage(response.usage?.prompt_tokens, response.usage?.completion_tokens),
@@ -97,6 +99,7 @@ export class OpenAICompatibleMotionModelProvider implements MotionModelProvider 
                     },
                 },
             }, ...requestSignalOptions(request.signal));
+            recordOpenAiUsage(response);
             return parseStructured(extractText(response), request.schema);
         } catch (error) { throw normalizeProviderError(this.name, error, request.signal); }
     }
@@ -109,6 +112,7 @@ export class OpenAICompatibleMotionModelProvider implements MotionModelProvider 
                 max_completion_tokens: request.limits.maxOutputTokens,
 
             }, ...requestSignalOptions(request.signal));
+            recordOpenAiUsage(response);
             return extractText(response);
         } catch (error) {
             throw normalizeProviderError(this.name, error, request.signal);
@@ -134,6 +138,10 @@ function promptMessages(
             ],
         },
     ];
+}
+
+function recordOpenAiUsage(response: ChatCompletion): void {
+    recordModelUsage(response.usage?.prompt_tokens, response.usage?.completion_tokens);
 }
 
 function extractText(response: ChatCompletion): string {
