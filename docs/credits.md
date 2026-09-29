@@ -137,104 +137,103 @@ The 50-credit start drops LTV:CAC below the sheet's target. It stays affordable 
 
 # Phase 2: Generations spend credits
 
+**Status:** Built, off by default (`CREDITS_ENFORCED=false`). Backend on `feat/credits-phase-2`, stacked on Phase 1.
+
 **Outcome:** Each generation costs credits in proportion to the tokens it used. The user is charged nothing when they got nothing.
 
 ## 2.1 Pricing rule
 
 ```text
 raw_cost_usd = (input_tokens * price_in + output_tokens * price_out) / 1,000,000
-credits      = raw_cost_usd / 0.0416
+credits      = raw_cost_usd / 0.0416      (rounded up to a hundredth, then floor and ceiling)
 ```
 
-With the sheet's model prices ($2 in, $10 out per million tokens) this equals `(input + 5 * output) / 20,800`, which is the sheet's "token to credit converter".
+With the sheet's prices ($2 in, $10 out per million tokens) this is `(input + 5 * output) / 20,800`, the sheet's "token to credit converter". The worked examples are test cases: a 5k/1k chat is 0.5 (the floor), a 30k/8k edit 3.37, the average 80,648/25,470 generation exactly 10.00, a 150k/50k film 19.24.
 
-- Prices live in a **per-model price table**, not a single constant, because `AI_PROVIDER` and `AI_MODEL` can change (Gemini, OpenAI-compatible, Anthropic, OpenRouter). A model change should re-price credits automatically, and a model missing from the table should fail loudly at startup rather than charge zero.
+- **Prices come from the environment**, not a table keyed by model. `AI_PROVIDER` can point at OpenRouter, which routes to thousands of models, so a table would be wrong or empty most of the time. Set `AI_INPUT_PRICE_PER_MTOK` and `AI_OUTPUT_PRICE_PER_MTOK` to the real prices of `AI_MODEL`. `AI_PLANNING_MODEL` is priced the same, so keep the two in the same price class, or set the prices to the blend.
 - Charge the **raw** AI cost only. Retries, the refund buffer, render and storage are covered by the gap between $0.0416 and the $0.0667 price of a credit.
-- Images the user attaches are part of the provider's reported input tokens, so they are priced with no extra rule.
-- Amounts are rounded **up** to the next hundredth of a credit.
-
-Knobs, all in `src/config/env.ts`:
+- Images the user attaches are part of the input tokens the provider reports, so they are priced with no extra rule.
+- If a provider answers but reports no token counts, the request is priced as one average generation (and a warning is logged), never as free.
 
 | Env var | Default | Purpose |
 | --- | --- | --- |
-| `CREDIT_USD_VALUE` | `0.0416` | raw AI cost of one credit |
-| `CREDIT_MIN_CHARGE` | `0.5` | floor per charged message, so tiny chats are not free |
-| `CREDIT_MAX_CHARGE` | `30` | ceiling per message (one full video), so a repair loop never surprises a user |
-| `CREDIT_RESERVE` | `10` | held at the start of a message (an average generation) |
 | `CREDITS_ENFORCED` | `false` | see 2.7 |
+| `AI_INPUT_PRICE_PER_MTOK` | `2` | USD per million input tokens |
+| `AI_OUTPUT_PRICE_PER_MTOK` | `10` | USD per million output tokens |
+| `CREDIT_USD_VALUE` | `0.0416` | raw AI cost of one credit |
+| `CREDIT_MIN_CHARGE` | `0.5` | floor per message, so a tiny chat is not free; also the least balance that can start a request |
+| `CREDIT_MAX_CHARGE` | `30` | ceiling per message (one full video), so a repair loop never surprises a user |
+| `CREDIT_RESERVE` | `10` | held while a request runs (an average generation) |
 
 ## 2.2 Counting tokens for real
 
-Today the count is incomplete, and this is the first thing to fix.
+Before this phase the count was incomplete: only `generate` and `repair` returned usage, `structured()` and chat calls returned just their value, and a provider error lost whatever had been counted. Intent classification, skill selection, reference selection, the brief and chat replies were all missing.
 
-- `state.tokenUsage` only collects usage from `generate` and `repair` (`packages/ai/graph/nodes/generate.node.ts`, `repair.node.ts`).
-- `structured()` and chat calls return only their value, not usage (`MotionModelProvider` in `packages/ai/providers/model.provider.ts`). So intent classification, skill selection, reference selection, the brief and chat replies are all missing from `generation_runs.input_tokens` and `output_tokens`.
-- When a provider throws mid-run, the usage collected so far in graph state is lost with the error.
+- `packages/ai/usage/usage-meter.ts` adds a `UsageMeter` held in `AsyncLocalStorage`. `GenerationService` runs the graph inside `runWithUsageMeter`, so every model call made anywhere in the run reports to it, and it survives a thrown error.
+- Each provider (`gemini`, `openai`, `anthropic`, `openrouter`, and the fake used in tests) calls `recordModelUsage` the moment a response arrives, **before** parsing it. A response the validator rejects still cost tokens, and still counts.
+- Gemini reports reasoning tokens apart from candidate tokens, so they are added to output. Anthropic cached input is counted in full: a slight overcharge, never an undercharge.
+- Outside a metered request (evals, scripts) recording is a no-op.
 
-Fix: a per-request **usage meter** kept outside the graph state.
-
-1. Add `packages/ai/usage/usage-meter.ts` with a `UsageMeter` (`record(model, input, output)`, `total()`), held in `AsyncLocalStorage`.
-2. Each provider (`gemini`, `openai`, `anthropic`, `openrouter`, `fake`) calls the meter after **every** model call, including calls that later fail validation.
-3. `GenerationService.sendMessage` runs `graph.invoke` inside the meter's scope. The meter survives thrown errors, so the total is always known.
-4. `generation_runs` token columns are filled from the meter. This also corrects the existing stored numbers.
-
-Nothing in the graph nodes needs to know about credits.
+The existing `generation_runs.input_tokens` / `output_tokens` are unchanged; the meter is what billing reads. Each charge also stores its own token counts and model on its ledger row (`credit_ledger.input_tokens`, `output_tokens`, `model`, migration `0015`), so any charge can be audited.
 
 ## 2.3 The charge flow
 
-Reserve first, settle at the end. Concurrent requests cannot both spend the same credits.
+Hold first, settle at the end. `GenerationBilling` (`src/services/generation-billing.ts`) does it; `GenerationService.sendMessage` calls it.
 
-1. **Check and reserve.** Before any model call, atomically take `CREDIT_RESERVE` from the balance (`update ... set balance = balance - x where user_id = ? and balance >= x`). If it fails, return **402 `INSUFFICIENT_CREDITS`** with the balance and the reserve needed. Write a `RESERVE` ledger row. This happens after the project access checks in `GenerationService.sendMessage`, so a 403 or 404 never touches credits.
+1. **Hold.** After the project access checks and asset resolution, and before any model call, take `CREDIT_RESERVE` from the balance, or all that is left if that is less. The account row is locked (`select ... for update`), so overlapping requests from one user are handled in turn and cannot spend the same credits. If the balance is under `CREDIT_MIN_CHARGE` the request is refused with **402 `INSUFFICIENT_CREDITS`** (`details.balance`, `details.required`) and no model is called. A 403 or 404 never touches credits.
 2. **Run** the graph with the meter.
-3. **Settle**, based on how it ended:
+3. **Close the hold**, based on how it ended:
 
 | Outcome | What the user pays |
 | --- | --- |
-| `generation` saved | Actual credits (min and max applied). Refund the unused part of the reserve, or take the extra up to the remaining balance. |
-| `chat` or `plan` reply | Actual credits (min applied), usually well under 1. |
-| `GENERATION_INVALID` (never validated) | **Nothing.** Full reserve returned. |
-| `REVISION_CONFLICT` (nothing saved) | **Nothing.** Full reserve returned. |
-| Provider error (timeout, rate limit, 5xx, unusable output) | **Nothing.** Full reserve returned. |
-| Any unexpected exception | **Nothing.** Full reserve returned. |
+| `generation` saved | Actual credits (floor and ceiling applied). The unused part of the hold is returned, or the overrun is taken, up to what the balance has. |
+| `chat` or `plan` reply | Actual credits, usually well under 1. |
+| `GENERATION_INVALID` (never validated) | **Nothing.** The whole hold is returned. |
+| `REVISION_CONFLICT` (nothing saved) | **Nothing.** |
+| Provider error (timeout, rate limit, 5xx, unusable output) | **Nothing.** |
+| Any unexpected exception | **Nothing.** |
 
-4. The settle or refund is a `SETTLE` or `REFUND` ledger row keyed by the generation run id, so a retry cannot post twice.
-5. If a generation costs more than the remaining balance, take what is left. The balance never goes negative, and the difference is a small cost we absorb. The `CREDIT_MAX_CHARGE` ceiling bounds it.
+4. A closed hold cannot be closed again. `settle` and `refund` each check the request's ledger rows under the account lock, so a retry, a double call, or a refund after a charge is a no-op. A generation that costs exactly its hold still writes a zero-amount `SETTLE` row, which is what marks it closed.
+5. If a generation costs more than the balance holds, only what is left is taken. The balance never goes negative, and the difference is a small cost we absorb, bounded by `CREDIT_MAX_CHARGE`.
+6. **Bookkeeping never costs the user their film.** `complete` and `abandon` never throw. If settling fails after a good result, the result is still returned and the hold is released later by the sweeper instead of charged.
+7. **Stale holds.** If the server stops mid-request the hold would stay forever. `releaseStale` runs at startup and every 5 minutes and returns any hold nothing settled for 15 minutes (far longer than a request runs). A late settle for a swept hold does nothing.
 
-**Rule of thumb:** the user pays only when Motify returned something useful. The tokens we spent on failures are the sheet's 5% refund buffer (`C28`).
+**Rule of thumb:** the user pays only when Motify returned something useful. The tokens spent on failures are the sheet's 5% refund buffer (`C28`).
 
-Open decision: whether to bill repair passes. The default here is yes, with the 30-credit ceiling. Alternative: bill only the first-pass generation, since repairs fix the model's own mistakes. This is friendlier to users and costs the sheet's 15% retry overhead (`C14`) rather than the 5% buffer.
+Repair passes are billed (default). Alternative: bill only the first-pass generation, which is friendlier and costs the sheet's 15% retry overhead (`C14`) rather than the 5% buffer. That is a one-line change in `GenerationBilling.complete` if you want it.
 
 ## 2.4 Data and API changes
 
-- `generation_runs`: add `credits_charged integer` (hundredths) and `credit_status` (`CHARGED`, `REFUNDED`, `NOT_ENFORCED`).
-- `POST /v1/projects/:projectId/messages` response adds `creditsCharged` and `creditsRemaining` under `data`.
-- `docs/api.md`: add `402 INSUFFICIENT_CREDITS` to the error table and document the two new fields.
-- Chat and plan replies never write a `generation_runs` row (only saved and failed generations do), so their charge is recorded in the ledger alone, keyed by a per-request id used as `reference_id`.
-- A cheap pre-flight endpoint is optional: `POST /v1/credits/estimate` could return the average cost so the editor can warn "this may cost about 10 credits". It is not needed for launch.
+- Migration `0016_generation_credits.sql`: token and model columns on `credit_ledger`, and the amount check now allows a zero `SETTLE`.
+- `POST /v1/projects/:projectId/messages` adds `credits: { charged, remaining }` to `data` when charging is on, and can return `402 INSUFFICIENT_CREDITS`. Documented in `docs/api.md`.
+- **History shows one line per request.** A generation writes a hold and then a settle or refund; the history endpoint groups them by request and shows the net: a charge as a negative `SETTLE` ("Generation"), a failed request as a `REFUND` of `0` ("Not charged (generation failed)"). The bookkeeping rows stay out of the user's view.
+- Chat and plan replies write no `generation_runs` row, so their charge lives in the ledger alone, keyed by the per-request id.
+- **Pre-send estimate.** `GET /v1/credits` also carries `estimate: { typical, min, max }` (in credits) when `CREDITS_ENFORCED=true`, taken straight from the billing config (`CREDIT_RESERVE`, `CREDIT_MIN_CHARGE`, `CREDIT_MAX_CHARGE`) rather than computed per request — nothing about the message is tokenized ahead of time. The editor scales `typical` by the length of the drafted message (`estimateMessageCredits` in `src/api/credits.ts`, frontend) and shows it once there is a message to size it from, so it reads as a live guide rather than a fixed number; it blocks sending below `min`, matching what the server would actually refuse with `402`. It is not a per-message prediction: the real charge depends on what the model returns and is only known after the request finishes.
 
 ## 2.5 Files touched
 
 | Area | Files |
 | --- | --- |
-| Metering | new `packages/ai/usage/usage-meter.ts`, a price table `packages/ai/usage/pricing.ts`, all files in `packages/ai/providers/` |
-| Charging | `src/services/credit.service.ts` (reserve, settle, refund), `src/repositories/credit.repository.ts` |
-| Wiring | `src/services/generation.service.ts` (wrap `invokeGraph`), `src/server.ts` |
-| Errors | `src/errors.ts` usage of `AppError(402, 'INSUFFICIENT_CREDITS', ...)` |
-| DB | migration `0015_generation_credits.sql`, `schema.ts` |
-| Docs | `docs/api.md`, `docs/architecture.md`, this file |
+| Metering | new `packages/ai/usage/usage-meter.ts`; `gemini`, `openai`, `anthropic`, `openrouter` and `fake` providers |
+| Pricing | new `src/services/credit-pricing.ts` |
+| Charging | new `src/services/generation-billing.ts`; `src/repositories/credit.repository.ts` (`reserve`, `settle`, `refund`, `releaseStaleHolds`, grouped history) |
+| Wiring | `src/services/generation.service.ts`, `src/server.ts` (billing, sweeper), `src/config/env.ts` |
+| DB | migration `0016_generation_credits.sql`, `schema.ts` |
+| Docs | `docs/api.md`, `.env.example`, this file |
 
 ## 2.6 Tests
 
-- Pricing: the table above (chat 0.5, edit 3.4, average 10.0, heavy 19.2) as fixed cases; min and max charge; unknown model fails at startup.
-- Meter: usage from every provider call is counted, including calls that fail validation, and survives a thrown provider error.
-- Flow: reserve then settle; every failure row in 2.3 returns the whole reserve; a repeat settle or refund is a no-op; a 402 leaves the balance untouched; two concurrent messages cannot spend the same credits.
-- Fake provider (`packages/ai/providers/fake.provider.ts`) reports deterministic usage so these tests need no network.
+- Pricing: the worked examples above as fixed cases; floor, ceiling, round-up, unreported usage, price changes.
+- Meter: concurrent requests stay separate, usage survives a throw, and a run through the real graph reports every call.
+- Providers: all four report a generation, a structured call and a chat reply, count a response the validator rejects, and flag a call with no usage.
+- Billing and service: hold before any model call, 402 before a token is spent, charge equals metered usage, and every failure row in 2.3 refunds. Two overlapping requests do not mix usage.
+- Real Postgres (`tests/integration/credit-ledger.test.ts`): overlapping holds on 25 credits give 10, 10, 5 and seven refusals with the balance at 0; settle below, at, and above the hold; overrun capped at the balance; nothing closes twice; another user cannot close your hold; stale holds are swept but running ones are not; grouped history pages without repeats.
 
 ## 2.7 Rollout
 
-1. Ship with `CREDITS_ENFORCED=false`. The meter runs and the ledger records what **would** have been charged, but no balance moves.
-2. After about a week, compare the metered averages to the sheet's guess (80,648 in, 25,470 out, 3 calls per video). Adjust `CREDIT_USD_VALUE` and the sheet before real money is involved.
-3. Turn enforcement on.
+1. Deploy with `CREDITS_ENFORCED=false`. Requests are metered and logged as `Credits (not enforced): would have charged` with tokens, credits and USD cost, but no balance moves.
+2. After about a week, compare those numbers with the sheet's guess (80,648 in, 25,470 out, 3 calls per video). Set the real prices of `AI_MODEL`, adjust `CREDIT_USD_VALUE` if needed, and update the sheet.
+3. Set `CREDITS_ENFORCED=true`.
 
 ---
 

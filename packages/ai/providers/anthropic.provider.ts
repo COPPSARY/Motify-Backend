@@ -18,6 +18,7 @@ import {
     type MotionModelRequest,
     type StructuredModelRequest,
 } from './model.provider.js';
+import { recordModelUsage } from '../usage/usage-meter.js';
 
 /** Anthropic's own API. Override for a gateway that speaks the Messages API. */
 export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
@@ -122,6 +123,7 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
                 },
                 ...thinkingFor(request.limits),
             }, signalOptions(request.signal)).finalMessage(), request.signal);
+            recordAnthropicUsage(message);
             return {
                 generation: parseMotifyGeneration(unfenced(textOf(message))),
                 usage: tokenUsage(message.usage?.input_tokens, message.usage?.output_tokens),
@@ -145,6 +147,7 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
                 },
                 ...thinkingFor(request.limits),
             }, signalOptions(request.signal)).finalMessage(), request.signal);
+            recordAnthropicUsage(message);
             return parseStructured(unfenced(textOf(message)), request.schema);
         } catch (error) {
             throw normalizeProviderError(this.name, error, request.signal);
@@ -161,11 +164,22 @@ export class AnthropicMotionModelProvider implements MotionModelProvider {
                 output_config: effortFor(request.limits),
                 ...thinkingFor(request.limits),
             }, signalOptions(request.signal)).finalMessage(), request.signal);
+            recordAnthropicUsage(message);
             return textOf(message);
         } catch (error) {
             throw normalizeProviderError(this.name, error, request.signal);
         }
     }
+}
+
+/** Cached input is counted in full: a slight overcharge, never an undercharge. */
+function recordAnthropicUsage(message: Message): void {
+    const usage = message.usage;
+    if (!usage) return recordModelUsage(undefined, undefined);
+    recordModelUsage(
+        (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
+        usage.output_tokens,
+    );
 }
 
 function signalOptions(signal: AbortSignal | undefined): { signal?: AbortSignal } {
