@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TransactionLookup } from '../../../packages/bakong/client.js';
+import { parseBillingPlans } from '../../../src/config/env.js';
 import { AppError } from '../../../src/errors.js';
 import {
   createBillNumber,
@@ -64,7 +65,7 @@ class MemoryPaymentRepository implements PaymentRepository {
   async getSubscription(workspace: string) { return this.subscriptions.get(workspace) ?? null; }
 }
 
-function setup(lookup: TransactionLookup | Error = { status: 'NOT_FOUND' }) {
+function setup(lookup: TransactionLookup | Error = { status: 'NOT_FOUND' }, plans = parseBillingPlans({})) {
   let now = new Date('2026-09-29T08:00:00.000Z');
   const repository = new MemoryPaymentRepository();
   const gateway = {
@@ -76,7 +77,7 @@ function setup(lookup: TransactionLookup | Error = { status: 'NOT_FOUND' }) {
   const generateKhqr = vi.fn((payment: { billNumber: string }) => ({ qr: `qr-${payment.billNumber}`, md5: `md5-${payment.billNumber}` }));
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const service = new PaymentService(repository, gateway, {
-    receiverAccountId: 'motify@aclb', generateKhqr, qrTtlMs: 10 * 60_000, now: () => now, logger,
+    plans, receiverAccountId: 'motify@aclb', generateKhqr, qrTtlMs: 10 * 60_000, now: () => now, logger,
   });
   return {
     repository, gateway, generateKhqr, logger, service,
@@ -102,6 +103,42 @@ describe('PaymentService.createCheckout', () => {
     }));
     expect(checkout).toMatchObject({ plan: 'pro', amount: 20, currency: 'USD', status: 'PENDING', qr: expect.stringMatching(/^qr-MTF-/) });
     expect(checkout).not.toHaveProperty('md5');
+  });
+
+  it('charges the configured price and period, not a built-in one', async () => {
+    const plans = parseBillingPlans({ PLAN_PRO_PRICE: '14.99', PLAN_PRO_NAME: 'Creator', BILLING_PERIOD_DAYS: '31' });
+    const { service, generateKhqr, setLookup, repository } = setup(undefined, plans);
+
+    const checkout = await service.createCheckout(owner, workspaceId, 'pro');
+    expect(generateKhqr).toHaveBeenCalledWith(expect.objectContaining({ amount: 14.99, storeLabel: 'Motify Creator' }));
+    expect(checkout.amount).toBe(14.99);
+    expect(service.listPlans()).toContainEqual(expect.objectContaining({ id: 'pro', name: 'Creator', price: 14.99, periodDays: 31 }));
+
+    setLookup(paid(20));
+    await expect(service.getPayment(owner, checkout.id)).resolves.toMatchObject({ status: 'FAILED' });
+    expect(repository.subscriptions.size).toBe(0);
+
+    const second = setup(paid(14.99), plans);
+    const retry = await second.service.createCheckout(owner, workspaceId, 'pro');
+    await expect(second.service.getPayment(owner, retry.id)).resolves.toMatchObject({ status: 'PAID' });
+    expect(second.repository.subscriptions.get(workspaceId)?.currentPeriodEnd).toEqual(new Date(second.now().getTime() + 31 * DAY));
+  });
+
+  it('keeps charging an open checkout the price it was created at after a price change', async () => {
+    const { service, repository } = setup(paid(10));
+    const checkout = await service.createCheckout(owner, workspaceId, 'starter');
+
+    const repriced = new PaymentService(repository, { checkTransactionByMd5: async () => paid(10) }, {
+      plans: parseBillingPlans({ PLAN_STARTER_PRICE: '12' }), receiverAccountId: 'motify@aclb',
+      generateKhqr: () => ({ qr: 'qr', md5: 'md5' }), qrTtlMs: 180_000,
+    });
+    await expect(repriced.getPayment(owner, checkout.id)).resolves.toMatchObject({ status: 'PAID', amount: 10 });
+  });
+
+  it('refuses a plan switched off in settings', async () => {
+    const { service } = setup(undefined, parseBillingPlans({ PLAN_PRO_AVAILABLE: 'false', PLAN_STUDIO_AVAILABLE: 'true' }));
+    await expect(service.createCheckout(owner, workspaceId, 'pro')).rejects.toMatchObject({ code: 'PLAN_UNAVAILABLE' });
+    await expect(service.createCheckout(owner, workspaceId, 'studio')).resolves.toMatchObject({ plan: 'studio', amount: 50 });
   });
 
   it('reuses an open checkout for the same plan instead of minting a new QR', async () => {

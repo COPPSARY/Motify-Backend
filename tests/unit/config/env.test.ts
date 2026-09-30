@@ -177,4 +177,33 @@ describe('parseEnvironment', () => {
       expect(() => parseEnvironment({ ...valid, [name]: '0' })).toThrow(name);
     }
   });
+
+  it('defaults the plan catalog to the published pricing', () => {
+    expect(parseEnvironment(valid).billingPlans).toEqual([
+      { id: 'starter', name: 'Starter', priceCents: 1_000, currency: 'USD', periodDays: 30, credits: 150, available: true },
+      { id: 'pro', name: 'Pro', priceCents: 2_000, currency: 'USD', periodDays: 30, credits: 300, available: true },
+      { id: 'studio', name: 'Studio', priceCents: 5_000, currency: 'USD', periodDays: 30, credits: 750, available: false },
+    ]);
+  });
+
+  it('reads plan prices, credits, names and availability from settings', () => {
+    const plans = parseEnvironment({
+      ...valid,
+      PLAN_STARTER_PRICE: '7.5', PLAN_PRO_CREDITS: '400', PLAN_PRO_NAME: 'Creator', PLAN_STUDIO_AVAILABLE: 'true', BILLING_PERIOD_DAYS: '31',
+    }).billingPlans;
+    expect(plans).toEqual([
+      expect.objectContaining({ id: 'starter', priceCents: 750, periodDays: 31 }),
+      expect.objectContaining({ id: 'pro', name: 'Creator', priceCents: 2_000, credits: 400 }),
+      expect.objectContaining({ id: 'studio', available: true }),
+    ]);
+  });
+
+  it('rejects plan settings a KHQR cannot carry', () => {
+    expect(() => parseEnvironment({ ...valid, PLAN_PRO_PRICE: '0' })).toThrow('PLAN_PRO_PRICE');
+    expect(() => parseEnvironment({ ...valid, PLAN_PRO_PRICE: '9.999' })).toThrow('2 decimal places');
+    expect(() => parseEnvironment({ ...valid, PLAN_PRO_PRICE: 'free' })).toThrow('PLAN_PRO_PRICE');
+    expect(() => parseEnvironment({ ...valid, PLAN_STARTER_NAME: 'A name far too long for KHQR' })).toThrow('PLAN_STARTER_NAME');
+    expect(() => parseEnvironment({ ...valid, PLAN_STUDIO_AVAILABLE: 'yes' })).toThrow('PLAN_STUDIO_AVAILABLE');
+    expect(() => parseEnvironment({ ...valid, BILLING_PERIOD_DAYS: '0' })).toThrow('BILLING_PERIOD_DAYS');
+  });
 });
