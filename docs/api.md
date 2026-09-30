@@ -118,7 +118,7 @@ POST /v1/workspaces/:workspaceId/billing/payments
 GET  /v1/payments/:paymentId
 ```
 
-Plans are bought per workspace by paying a Bakong KHQR, the QR code any Cambodian banking app can scan. The routes are mounted only when `BAKONG_TOKEN` and `BAKONG_ACCOUNT_ID` are set. `plans` needs no session and lists the catalog in `src/services/billing-plans.ts`, which mirrors the public pricing page.
+Plans are bought per workspace by paying a Bakong KHQR, the QR code any Cambodian banking app can scan. The routes are mounted only when `BAKONG_TOKEN` and `BAKONG_ACCOUNT_ID` are set. `plans` needs no session and lists the catalog. Prices, credits, names and which plans are on sale come from the `PLAN_<ID>_*` and `BILLING_PERIOD_DAYS` settings (see `.env.example`), so a price change is a config change and a restart, not a code change. Point the pricing page at this endpoint to keep it in step. A new price applies to new checkouts; an open QR keeps charging the price it showed.
 
 A workspace owner starts a checkout with `{ "plan": "starter" | "pro" }`. The response carries the KHQR string in `qr`; render it as a QR image, or pass it to Bakong's deeplink on mobile. It expires at `expiresAt`, 3 minutes by default. Asking again for the same plan while a checkout is open returns that checkout instead of a new QR. `studio` returns `409 PLAN_UNAVAILABLE` until it goes on sale, and members who are not owners get `403`.
 

@@ -1,5 +1,8 @@
 export type PlanId = 'starter' | 'pro' | 'studio';
 
+// Plan ids are a database enum (billing_plan); adding one needs a migration.
+export const PLAN_IDS = ['starter', 'pro', 'studio'] as const satisfies readonly PlanId[];
+
 export interface BillingPlan {
   id: PlanId;
   name: string;
@@ -12,15 +15,15 @@ export interface BillingPlan {
   available: boolean;
 }
 
-// Mirrors motify.video/pricing. Change prices here and on the pricing page together.
-export const BILLING_PLANS: readonly BillingPlan[] = [
-  { id: 'starter', name: 'Starter', priceCents: 1_000, currency: 'USD', periodDays: 30, credits: 150, available: true },
-  { id: 'pro', name: 'Pro', priceCents: 2_000, currency: 'USD', periodDays: 30, credits: 300, available: true },
-  { id: 'studio', name: 'Studio', priceCents: 5_000, currency: 'USD', periodDays: 30, credits: 750, available: false },
-];
+/**
+ * Used for any PLAN_<ID>_* variable left unset. Prices, credits, names and
+ * availability are configured per deployment in .env (see parseEnvironment);
+ * keep the pricing page in step, or have it read GET /v1/billing/plans.
+ */
+export const DEFAULT_PLANS: Readonly<Record<PlanId, Omit<BillingPlan, 'id' | 'currency' | 'periodDays'>>> = {
+  starter: { name: 'Starter', priceCents: 1_000, credits: 150, available: true },
+  pro: { name: 'Pro', priceCents: 2_000, credits: 300, available: true },
+  studio: { name: 'Studio', priceCents: 5_000, credits: 750, available: false },
+};
 
-export const PLAN_IDS = ['starter', 'pro', 'studio'] as const satisfies readonly PlanId[];
-
-export function findPlan(id: string): BillingPlan | undefined {
-  return BILLING_PLANS.find((plan) => plan.id === id);
-}
+export const DEFAULT_PERIOD_DAYS = 30;

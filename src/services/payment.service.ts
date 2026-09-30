@@ -5,7 +5,7 @@ import type { Logger } from 'pino';
 import type { TransactionLookup } from '../../packages/bakong/client.js';
 import type { Khqr, KhqrPaymentRequest } from '../../packages/bakong/khqr.js';
 import { AppError } from '../errors.js';
-import { BILLING_PLANS, findPlan, type PlanId } from './billing-plans.js';
+import type { BillingPlan, PlanId } from './billing-plans.js';
 import type { WorkspaceRole } from './workspace.service.js';
 
 export type PaymentStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'FAILED';
@@ -74,6 +74,8 @@ export interface PaymentGateway {
 }
 
 export interface PaymentServiceOptions {
+  /** The plan catalog, from PLAN_* settings. A price change applies to new checkouts only. */
+  plans: readonly BillingPlan[];
   receiverAccountId: string;
   generateKhqr: (payment: KhqrPaymentRequest) => Khqr;
   qrTtlMs: number;
@@ -122,7 +124,7 @@ export class PaymentService {
   }
 
   listPlans() {
-    return BILLING_PLANS.map((plan) => ({
+    return this.options.plans.map((plan) => ({
       id: plan.id,
       name: plan.name,
       price: plan.priceCents / 100,
@@ -141,7 +143,7 @@ export class PaymentService {
   async createCheckout(userId: string, workspaceId: string, planId: PlanId) {
     const membership = await this.requireMembership(workspaceId, userId);
     if (membership.role !== 'owner') throw new AppError(403, 'FORBIDDEN', 'Only workspace owners can buy a plan.');
-    const plan = findPlan(planId);
+    const plan = this.findPlan(planId);
     if (!plan?.available) throw new AppError(409, 'PLAN_UNAVAILABLE', 'This plan cannot be bought yet.');
 
     const now = this.now();
@@ -204,7 +206,7 @@ export class PaymentService {
         this.options.logger?.error({ paymentId: payment.id, hash: transaction.hash, mismatch }, 'Bakong transaction does not match payment');
         return await this.repository.close(payment.id, 'FAILED', mismatch) ?? payment;
       }
-      const plan = findPlan(payment.plan);
+      const plan = this.findPlan(payment.plan);
       if (!plan) throw new Error(`Unknown plan ${payment.plan} on payment ${payment.id}`);
       const activated = await this.repository.activate(
         payment.id,
@@ -221,6 +223,10 @@ export class PaymentService {
       return await this.repository.close(payment.id, 'EXPIRED', null) ?? payment;
     }
     return { ...payment, lastCheckedAt: now };
+  }
+
+  private findPlan(id: PlanId) {
+    return this.options.plans.find((plan) => plan.id === id);
   }
 
   private findMismatch(payment: PaymentRecord, transaction: { toAccountId: string; currency: string; amount: number }) {
