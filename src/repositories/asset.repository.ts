@@ -1,7 +1,7 @@
 import { and, count, desc, eq, ilike, inArray, isNull, notLike, or, sql } from 'drizzle-orm';
 
 import type { Database } from '../../packages/database/client.js';
-import { assets, audioTracks, projectAssets, projects, workspaceMembers } from '../../packages/database/schema.js';
+import { assets, audioTracks, brandAssets, projectAssets, projects, workspaceMembers } from '../../packages/database/schema.js';
 
 export type AssetRecord = typeof assets.$inferSelect;
 
@@ -55,7 +55,7 @@ export class DatabaseAssetRepository {
     return asset ?? null;
   }
 
-  async markReady(assetId: string, metadata: { width: number; height: number } | { durationMs: number }) {
+  async markReady(assetId: string, metadata: { width: number; height: number } | { durationMs: number } | Record<string, never>) {
     const [asset] = await this.db.update(assets).set({
       state: 'READY',
       ...metadata,
@@ -71,8 +71,8 @@ export class DatabaseAssetRepository {
       ilike(assets.label, pattern),
       sql`exists (select 1 from unnest(${assets.tags}) as tag where tag ilike ${pattern} escape '\\')`,
     ) : undefined;
-    // Audio lives in the music library, not the image library.
-    const where = and(eq(assets.workspaceId, workspaceId), eq(assets.state, 'READY'), notLike(assets.contentType, 'audio/%'), search);
+    // Audio lives in the music library and fonts in Brand DNA, not the image library.
+    const where = and(eq(assets.workspaceId, workspaceId), eq(assets.state, 'READY'), notLike(assets.contentType, 'audio/%'), notLike(assets.contentType, 'font/%'), search);
     const [data, total] = await Promise.all([
       this.db.select().from(assets).where(where).orderBy(desc(assets.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
       this.db.select({ value: count() }).from(assets).where(where),
@@ -109,6 +109,11 @@ export class DatabaseAssetRepository {
   async isAudioTrack(assetId: string) {
     const [track] = await this.db.select({ id: audioTracks.id }).from(audioTracks).where(eq(audioTracks.assetId, assetId)).limit(1);
     return Boolean(track);
+  }
+
+  async isBrandAsset(assetId: string) {
+    const [link] = await this.db.select({ assetId: brandAssets.assetId }).from(brandAssets).where(eq(brandAssets.assetId, assetId)).limit(1);
+    return Boolean(link);
   }
 
   async listAttached(projectId: string) {

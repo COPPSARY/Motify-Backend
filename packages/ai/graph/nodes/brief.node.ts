@@ -17,7 +17,7 @@ export function createBriefNode(dependencies: ResolvedMotionGraphDependencies) {
             const brief = await dependencies.provider.structured({
                 model: dependencies.planningModel,
                 systemInstructions: BRIEF_SYSTEM_PROMPT,
-                prompt: buildBriefPrompt(state.message),
+                prompt: buildBriefPrompt(state.message, state.brand),
                 schemaName: 'motify_brief',
                 schema: motionBriefSchema,
                 limits: BRIEF_LIMITS,

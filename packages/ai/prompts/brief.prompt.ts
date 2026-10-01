@@ -1,3 +1,5 @@
+import { describeBrandForBrief } from './brand.prompt.js';
+import type { GenerationBrand } from '../graph/dependencies.js';
 import type { MotionBrief } from '../schemas/brief.schema.js';
 import type { ModelRequestLimits } from '../providers/model.provider.js';
 
@@ -26,8 +28,9 @@ export const BRIEF_SYSTEM_PROMPT = [
     'Three to six beats. Total running time should match any duration the user asked for.',
 ].join('\n');
 
-export function buildBriefPrompt(message: string): string {
-    return `Write the shot brief for this request:\n${message}`;
+export function buildBriefPrompt(message: string, brand?: GenerationBrand): string {
+    const request = `Write the shot brief for this request:\n${message}`;
+    return brand ? `${request}\n\n${describeBrandForBrief(brand)}` : request;
 }
 
 /** Rendered into the generation prompt as the structure to execute. */

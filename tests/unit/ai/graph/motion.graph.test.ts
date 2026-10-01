@@ -7,6 +7,7 @@ import type {
     MotifyProject,
     OverwriteGraphProjectInput,
 } from '../../../../packages/ai/graph/dependencies.js';
+import { readBrandDna } from '../../../../packages/brand/brand-dna.js';
 import { createMotionGraph } from '../../../../packages/ai/graph/motion.graph.js';
 import { FakeMotionModelProvider } from '../../../../packages/ai/providers/fake.provider.js';
 import type { MotifyGeneration, MotionModelRequest, StructuredModelRequest } from '../../../../packages/ai/providers/model.provider.js';
@@ -226,6 +227,36 @@ describe('createMotionGraph', () => {
             model: 'fake-model',
             generation: validCandidate,
         }));
+    });
+
+    it('carries the workspace Brand DNA into the brief, the generation prompt and validation', async () => {
+        const logoId = '33333333-3333-4333-8333-333333333333';
+        const brand = {
+            dna: readBrandDna({
+                identity: { name: 'Acme', tagline: 'Invoices that chase themselves.' },
+                visual: { colors: [{ id: 'c1', hex: '#ff5a1f', role: 'primary' }] },
+                voice: { tone: ['Confident'] },
+            }),
+            assets: [{ assetId: logoId, role: 'logo' as const, label: null, fileName: 'logo.svg', contentType: 'image/svg+xml', width: 400, height: 120 }],
+        };
+        const withLogo: MotifyGeneration = {
+            ...validCandidate,
+            compositionHtml: `<template><style>.hero { color: white; }</style><main data-edit="stage"><img data-edit="logo" src="motify-asset://${logoId}" /></main></template>`,
+        };
+        const harness = createHarness({ intent: 'CREATE', candidates: [withLogo] });
+
+        const result = await harness.graph.invoke(input('Make a launch film.', { brand }));
+
+        const briefCall = harness.structured.mock.calls.find(([request]) => request.schemaName === 'motify_brief');
+        expect(briefCall?.[0].prompt).toContain('Brand palette: primary #ff5a1f');
+        const prompt = harness.generateRequests[0]?.prompt ?? '';
+        expect(prompt).toContain('BRAND DNA');
+        expect(prompt).toContain('Brand: Acme "Invoices that chase themselves."');
+        expect(prompt).toContain('Tone: Confident');
+        expect(prompt).toContain(`HTML source: motify-asset://${logoId}`);
+        // The logo is optional to place, and placing it is not an unknown token.
+        expect(harness.generateRequests).toHaveLength(1);
+        expect(result.response).toMatchObject({ type: 'generation' });
     });
 
     it('sends a short user request to the model without a generated production brief', async () => {

@@ -23,6 +23,7 @@ import { ProjectController, type ProjectControllerService } from './controllers/
 import { MotionMessageController, type MotionMessageService } from './controllers/motion-message.controller.js';
 import { AssetController, type AssetControllerService } from './controllers/asset.controller.js';
 import { AudioController, type AudioControllerService } from './controllers/audio.controller.js';
+import { BrandController, type BrandControllerService } from './controllers/brand.controller.js';
 import { CreditController, type CreditControllerService } from './controllers/credit.controller.js';
 import { WorkspaceController, type WorkspaceControllerService } from './controllers/workspace.controller.js';
 import { PaymentController, type PaymentControllerService } from './controllers/payment.controller.js';
@@ -33,6 +34,7 @@ import { DatabaseAccountProvisioner, DatabaseAuthFlowStore, DatabaseSessionStore
 import { DatabaseProjectRepository } from './repositories/project.repository.js';
 import { DatabaseAssetRepository } from './repositories/asset.repository.js';
 import { DatabaseAudioRepository } from './repositories/audio.repository.js';
+import { DatabaseBrandRepository } from './repositories/brand.repository.js';
 import { DatabaseCreditRepository } from './repositories/credit.repository.js';
 import { DatabaseMotionGraphRepository } from './repositories/motion-graph.repository.js';
 import { DatabaseWorkspaceRepository } from './repositories/workspace.repository.js';
@@ -42,6 +44,7 @@ import { createProjectRoutes, createWorkspaceProjectRoutes } from './routes/proj
 import { createMotionMessageRoutes } from './routes/motion-message.routes.js';
 import { createAssetRoutes, createProjectAssetRoutes, createWorkspaceAssetRoutes } from './routes/asset.routes.js';
 import { createAudioRoutes, createProjectAudioRoutes, createWorkspaceAudioRoutes } from './routes/audio.routes.js';
+import { createWorkspaceBrandRoutes } from './routes/brand.routes.js';
 import { createCreditRoutes } from './routes/credit.routes.js';
 import { createWorkspaceRoutes } from './routes/workspace.routes.js';
 import { createBillingRoutes, createPaymentRoutes, createWorkspaceBillingRoutes } from './routes/payment.routes.js';
@@ -51,6 +54,7 @@ import { GenerationService } from './services/generation.service.js';
 import { ProjectService } from './services/project.service.js';
 import { AssetService } from './services/asset.service.js';
 import { AudioService } from './services/audio.service.js';
+import { BrandService } from './services/brand.service.js';
 import { CreditService, toCredits } from './services/credit.service.js';
 import { SupabaseObjectStorage } from '../packages/object-storage/supabase-storage.js';
 import { WorkspaceService } from './services/workspace.service.js';
@@ -66,6 +70,7 @@ interface AppOptions {
     motionMessages?: MotionMessageService;
     assets?: AssetControllerService;
     audio?: AudioControllerService;
+    brand?: BrandControllerService;
     credits?: CreditControllerService;
     payments?: PaymentControllerService;
   };
@@ -109,6 +114,7 @@ export function createApp(options: AppOptions) {
   const motionMessageController = options.services.motionMessages ? new MotionMessageController(options.services.motionMessages) : null;
   const assetController = options.services.assets ? new AssetController(options.services.assets) : null;
   const audioController = options.services.audio ? new AudioController(options.services.audio) : null;
+  const brandController = options.services.brand ? new BrandController(options.services.brand) : null;
   const creditController = options.services.credits ? new CreditController(options.services.credits) : null;
   const paymentController = options.services.payments ? new PaymentController(options.services.payments) : null;
 
@@ -124,6 +130,7 @@ export function createApp(options: AppOptions) {
     app.use('/v1/projects/:projectId/audio', requireAuthentication, createProjectAudioRoutes(audioController));
     app.use('/v1/audio', requireAuthentication, createAudioRoutes(audioController));
   }
+  if (brandController) app.use('/v1/workspaces/:workspaceId/brand', requireAuthentication, createWorkspaceBrandRoutes(brandController));
   if (creditController) app.use('/v1/credits', requireAuthentication, createCreditRoutes(creditController));
   if (paymentController) {
     app.use('/v1/billing', createBillingRoutes(paymentController));
@@ -162,6 +169,7 @@ export async function startServer() {
   const assetRepository = new DatabaseAssetRepository(db);
   const assetService = new AssetService(assetRepository, objectStorage);
   const audioService = new AudioService(new DatabaseAudioRepository(db), assetRepository, objectStorage);
+  const brandService = new BrandService(new DatabaseBrandRepository(db), assetRepository, assetService);
   const creditRepository = new DatabaseCreditRepository(db);
   // Lets the editor show what a request will cost before it is sent. Only
   // meaningful when requests are actually charged for.
@@ -197,11 +205,12 @@ export async function startServer() {
     assetService,
     audioService,
     billing,
+    brandService,
   );
   const payments = createPaymentService(environment, db, logger);
   const app = createApp({
     services: {
-      auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService, audio: audioService, credits,
+      auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService, audio: audioService, brand: brandService, credits,
       ...(payments ? { payments } : {}),
     },
     frontendOrigins: environment.frontendOrigins,

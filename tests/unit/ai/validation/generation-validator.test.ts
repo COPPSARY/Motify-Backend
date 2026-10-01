@@ -41,6 +41,16 @@ describe('validateMotifyGeneration', () => {
             'UNKNOWN_ASSET_TOKEN',
         ]));
     });
+
+    it('allows optional brand tokens without requiring them', () => {
+        const brandLogo = 'motify-asset://33333333-3333-4333-8333-333333333333';
+        const html = `<template><style>.title { color: white; }</style><img src="${brandLogo}" /></template>`;
+        const used = validateMotifyGeneration({ ...validGeneration, compositionHtml: html }, { optionalAssetTokens: [brandLogo] });
+        const unused = validateMotifyGeneration(validGeneration, { optionalAssetTokens: [brandLogo] });
+
+        expect(used.errors.map((error) => error.code)).not.toContain('UNKNOWN_ASSET_TOKEN');
+        expect(unused.errors.map((error) => error.code)).not.toContain('REQUIRED_ASSET_MISSING');
+    });
 });
 
 describe('quality warnings', () => {

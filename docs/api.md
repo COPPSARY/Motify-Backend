@@ -109,6 +109,32 @@ Only `assetId` is required; `title` defaults to the file name. **System tracks**
 
 Listing returns workspace tracks first, then system tracks, searchable across title, artist, genre, and mood tags. Each track carries a `motify-audio://<trackId>` token. `access` returns a five-minute signed URL for previews and for replacing that token in a composition. Deleting a workspace track removes its stored file and is refused with `409 AUDIO_TRACK_IN_USE` while an active project uses it; remove it from the project first.
 
+## Brand DNA
+
+```text
+GET    /v1/workspaces/:workspaceId/brand
+PUT    /v1/workspaces/:workspaceId/brand
+POST   /v1/workspaces/:workspaceId/brand/assets
+PATCH  /v1/workspaces/:workspaceId/brand/assets/:assetId
+DELETE /v1/workspaces/:workspaceId/brand/assets/:assetId
+```
+
+Each workspace has one Brand DNA: the single source of truth for what the brand is, how it looks and sounds, and how its films are cut. Every generation in the workspace loads it on the server and passes it to the brief, generation and repair prompts; the editor never has to send it. The user's request for a film still wins where it contradicts the brand.
+
+`GET` always succeeds for a member. A workspace with no brand yet returns an empty document at `revision: 0`. The document (`dna`) is versioned JSON defined in `packages/brand/brand-dna.ts`, with sections `identity`, `visual` (colours, fonts), `product`, `story` (problem, solution, differentiators, proof) and `voice`. `PUT` replaces the whole document against the revision it was read at:
+
+```json
+{ "revision": 3, "dna": { "identity": { "name": "Acme", "websiteUrl": "acme.com" }, "visual": { "fonts": [{ "id": "f1", "family": "Inter", "role": "heading" }] } } }
+```
+
+Omitted fields take their empty defaults, website URLs gain `https://`, and hex colours are lower-cased. A stale revision returns `409 BRAND_REVISION_CONFLICT` with `details.currentRevision`. Viewers get `403`.
+
+Images (logo, favicon, logo variants, screenshots, product images, icons) are ordinary assets: upload through the three-step asset flow, then link the completed asset with `{ "assetId": "…", "role": "logo" | "favicon" | "logo_variant" | "screenshot" | "image" | "icon", "label": "…" }`. A brand holds one logo and one favicon, so linking a new one replaces the old one. Removing an image from the brand, or replacing it, deletes its file unless a project still uses it. The asset delete endpoint refuses (`409 ASSET_IN_USE`) while an image is part of the brand. Generations may place brand images through their `motify-asset://` tokens but are never required to, and the favicon is never offered to the model.
+
+Fonts are either a `preset` (a typeface Motionly bundles or every system has, named by family) or an `upload`: the brand's own `.ttf`, `.otf`, `.woff` or `.woff2` files, uploaded through the asset flow (10 MB each), linked with role `font`, and listed on the font as `files: [{ "assetId", "weight", "style" }]`. A save that points a font at a file the brand does not hold is refused with `422 BRAND_FONT_NOT_FOUND`, and a file dropped from the document by a save is unlinked and deleted. Generations are told to declare uploaded fonts with `@font-face` over their `motify-asset://` tokens. The editor unpacks `.zip` font packages in the browser, so the API only ever receives font files. Font assets are left out of the workspace image library.
+
+`provenance` records, per field, whether a person (`manual`) or Site Intelligence (`site_intelligence`) set it. Site Intelligence writes through `BrandService.applySuggestion`, which fills empty fields and refreshes fields it set before, but never overwrites a field a person typed unless it is explicitly asked to.
+
 ## Billing (Bakong KHQR)
 
 ```text

@@ -15,15 +15,25 @@ const extensions: Record<string, readonly string[]> = {
   'audio/x-m4a': ['.m4a'],
   'audio/aac': ['.aac'],
   'audio/webm': ['.weba', '.webm'],
+  'font/ttf': ['.ttf'],
+  'font/otf': ['.otf'],
+  'font/woff': ['.woff'],
+  'font/woff2': ['.woff2'],
 };
 
 export const AUDIO_MAX_BYTES = 50_000_000;
+export const FONT_MAX_BYTES = 10_000_000;
 
-export type AssetKind = 'image' | 'audio';
+export type AssetKind = 'image' | 'audio' | 'font';
 
-/** Images are placed or read by the model; audio is only ever described to it. */
+/**
+ * Images are placed or read by the model; audio is only ever described to it;
+ * fonts are declared with @font-face and never shown to the model.
+ */
 export function assetKind(contentType: string): AssetKind {
-  return contentType.startsWith('audio/') ? 'audio' : 'image';
+  if (contentType.startsWith('audio/')) return 'audio';
+  if (contentType.startsWith('font/')) return 'font';
+  return 'image';
 }
 
 export function validateAssetMetadata(fileName: string, contentType: string, byteSize: number) {
@@ -33,6 +43,10 @@ export function validateAssetMetadata(fileName: string, contentType: string, byt
   }
   if (assetKind(contentType) === 'audio') {
     if (byteSize > AUDIO_MAX_BYTES) throw new Error('Audio assets are limited to 50 MB.');
+    return;
+  }
+  if (assetKind(contentType) === 'font') {
+    if (byteSize > FONT_MAX_BYTES) throw new Error('Font files are limited to 10 MB.');
     return;
   }
   if (contentType === 'image/svg+xml' && byteSize > 2_000_000) throw new Error('SVG assets are limited to 2 MB.');

@@ -97,12 +97,13 @@ export class AssetService {
     if (integrity.byteSize !== access.asset.byteSize || integrity.checksum !== access.asset.checksum) {
       throw new AppError(409, 'ASSET_UPLOAD_INCOMPLETE', 'Asset content has not finished uploading or failed integrity verification.');
     }
-    let metadata: { width: number; height: number } | { durationMs: number };
+    let metadata: { width: number; height: number } | { durationMs: number } | Record<string, never>;
     try {
       validateAssetBuffer(content, access.asset.contentType);
-      metadata = assetKind(access.asset.contentType) === 'audio'
+      const kind = assetKind(access.asset.contentType);
+      metadata = kind === 'audio'
         ? { durationMs: (await inspectAudio(content, access.asset.contentType)).durationMs }
-        : await inspectImage(content, access.asset.contentType);
+        : kind === 'font' ? {} : await inspectImage(content, access.asset.contentType);
     } catch {
       await this.storage.delete(access.asset.objectKey).catch(() => undefined);
       await this.repository.updateState(uploadId, 'FAILED');
@@ -152,6 +153,9 @@ export class AssetService {
     }
     if (await this.repository.isAudioTrack(assetId)) {
       throw new AppError(409, 'ASSET_IN_USE', 'Delete this track from the music library instead.');
+    }
+    if (await this.repository.isBrandAsset(assetId)) {
+      throw new AppError(409, 'ASSET_IN_USE', 'Remove this image from Brand DNA before deleting it.');
     }
     await this.repository.updateState(assetId, 'DELETED');
     await this.storage.delete(access.asset.objectKey);
