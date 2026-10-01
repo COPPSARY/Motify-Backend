@@ -77,7 +77,7 @@ describe.skipIf(!databaseUrl)('DatabasePaymentRepository', () => {
         expect(kinds).toHaveLength(3);
 
         // Every paid payment of this user is already credited, so the backfill adds nothing for them.
-        await repository.grantMissingCredits(500);
+        await repository.grantMissingCredits(500, () => null);
         await expect(repository.getCreditBalance(userId)).resolves.toBe(63_000);
 
         const abandoned = await repository.create(newPayment('C'));

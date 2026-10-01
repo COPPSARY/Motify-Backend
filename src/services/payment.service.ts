@@ -81,8 +81,11 @@ export interface PaymentRepository {
     transaction: { hash: string; payerAccountId: string; paidAt: Date },
     nextPeriod: ((current: SubscriptionRecord | null) => Period) | null,
   ): Promise<PaymentRecord>;
-  /** Adds the credits of PAID payments whose ledger grant is missing. Returns how many were granted. */
-  grantMissingCredits(limit: number): Promise<number>;
+  /**
+   * Adds the credits of PAID payments whose ledger grant is missing. Plan credits expire
+   * when `planCreditsExpireAt` says. Returns how many were granted.
+   */
+  grantMissingCredits(limit: number, planCreditsExpireAt: (payment: { plan: string | null; paidAt: Date | null }) => Date | null): Promise<number>;
   getSubscription(workspaceId: string): Promise<SubscriptionRecord | null>;
   getCreditBalance(userId: string): Promise<number>;
 }
@@ -217,7 +220,10 @@ export class PaymentService {
     }
     // Normally a no-op: activation grants credits in its own transaction. This fills in
     // payments that were PAID before credits were granted, without calling Bakong.
-    const credited = await this.repository.grantMissingCredits(limit);
+    const credited = await this.repository.grantMissingCredits(limit, (payment) => {
+      const plan = payment.plan ? this.findPlan(payment.plan as PlanId) : undefined;
+      return payment.paidAt && plan ? new Date(payment.paidAt.getTime() + plan.periodDays * DAY_MS) : null;
+    });
     if (credited) this.options.logger?.info({ credited }, 'Granted missing credits for paid payments');
     return { checked: pending.length, paid, credited };
   }
