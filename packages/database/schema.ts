@@ -32,7 +32,7 @@ export const artifactKind = pgEnum('artifact_kind', [
 ]);
 export const artifactRetention = pgEnum('artifact_retention', ['TEMPORARY', 'PROJECT']);
 export const audioTrackScope = pgEnum('audio_track_scope', ['WORKSPACE', 'SYSTEM']);
-export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RESERVE', 'SETTLE', 'REFUND', 'ADJUSTMENT', 'PLAN_GRANT', 'PACK_PURCHASE']);
+export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RESERVE', 'SETTLE', 'REFUND', 'ADJUSTMENT', 'PLAN_GRANT', 'PACK_PURCHASE', 'EXPIRE']);
 export const billingPlan = pgEnum('billing_plan', ['starter', 'pro', 'studio']);
 export const paymentCurrency = pgEnum('payment_currency', ['USD', 'KHR']);
 export const paymentStatus = pgEnum('payment_status', ['PENDING', 'PAID', 'EXPIRED', 'FAILED']);
@@ -278,6 +278,8 @@ export const creditLedger = pgTable('credit_ledger', {
   inputTokens: integer('input_tokens'),
   outputTokens: integer('output_tokens'),
   model: text('model'),
+  /** Set on PLAN_GRANT rows: when the credits granted expire. Other credits never expire. */
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('credit_ledger_user_created_idx').on(table.userId, table.createdAt.desc(), table.id.desc()),
@@ -285,6 +287,38 @@ export const creditLedger = pgTable('credit_ledger', {
   uniqueIndex('credit_ledger_reference_unique').on(table.referenceId, table.kind).where(sql`${table.referenceId} is not null`),
   // A SETTLE of exactly zero is real: it closes a hold whose cost matched it.
   check('credit_ledger_amount_check', sql`${table.amount} <> 0 or ${table.kind} = 'SETTLE'`),
+]);
+
+/**
+ * A batch of expiring credits: one per PLAN_GRANT. The credit_ledger_grants trigger
+ * (migration 0020) draws spends from the batch that expires soonest and returns refunds
+ * to the batches they came from; the expiry sweep empties a batch past `expires_at` with
+ * an EXPIRE ledger row. A user's permanent credits are their balance minus `remaining`.
+ */
+export const creditGrants = pgTable('credit_grants', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ledgerId: uuid('ledger_id').notNull().unique().references(() => creditLedger.id, { onDelete: 'cascade' }),
+  amount: integer('amount').notNull(),
+  remaining: integer('remaining').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  expiredAt: timestamp('expired_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('credit_grants_user_open_idx').on(table.userId, table.expiresAt).where(sql`${table.remaining} > 0`),
+  check('credit_grants_amount_check', sql`${table.amount} > 0`),
+  check('credit_grants_remaining_check', sql`${table.remaining} >= 0 and ${table.remaining} <= ${table.amount}`),
+]);
+
+/** How much of a batch each spend (by ledger reference) took, so a refund can put it back. */
+export const creditGrantUses = pgTable('credit_grant_uses', {
+  grantId: uuid('grant_id').notNull().references(() => creditGrants.id, { onDelete: 'cascade' }),
+  referenceId: uuid('reference_id').notNull(),
+  units: integer('units').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.grantId, table.referenceId] }),
+  index('credit_grant_uses_reference_idx').on(table.referenceId),
+  check('credit_grant_uses_units_check', sql`${table.units} >= 0`),
 ]);
 
 export const payments = pgTable('payments', {

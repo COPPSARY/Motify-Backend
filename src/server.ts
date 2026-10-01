@@ -241,6 +241,15 @@ export async function startServer() {
   void sweepHolds();
   const holdSweeper = setInterval(() => void sweepHolds(), 5 * 60 * 1000);
   holdSweeper.unref();
+  // Plan credits expire at the end of the period they were granted for.
+  const expireCredits = () => creditRepository.expireCredits(new Date())
+    .then((expired) => { if (expired) logger.info({ expired }, 'Expired plan credits'); })
+    .catch((error: unknown) => {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Credit expiry sweep failed');
+    });
+  void expireCredits();
+  const expirySweeper = setInterval(() => void expireCredits(), 5 * 60 * 1000);
+  expirySweeper.unref();
 
   server.listen(environment.apiPort, environment.apiHost, () => {
     logger.info({ port: environment.apiPort }, 'Motify API started');
@@ -266,6 +275,7 @@ export async function startServer() {
       server.closeIdleConnections();
     });
     clearInterval(holdSweeper);
+    clearInterval(expirySweeper);
     await pool.end();
     logger.info('Motify API stopped');
   })();

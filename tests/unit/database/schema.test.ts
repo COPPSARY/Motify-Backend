@@ -12,6 +12,7 @@ import {
   creditLedger,
   billingPlan,
   creditEntryKind,
+  creditGrants,
   generationRuns,
   messageAssets,
   messages,
@@ -59,6 +60,20 @@ describe('database schema', () => {
     expect(sql).not.toMatch(/INSERT INTO "credit_ledger"/);
   });
 
+  it('expires plan credits through batches kept in step by a ledger trigger', async () => {
+    const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as { entries: Array<{ tag: string }> };
+    expect(journal.entries.at(-1)?.tag).toBe('0020_credit_expiry');
+    expect(creditEntryKind.enumValues).toContain('EXPIRE');
+    expect(getTableName(creditGrants)).toBe('credit_grants');
+    expect(creditLedger.expiresAt.name).toBe('expires_at');
+    const sql = await readFile('drizzle/migrations/0020_credit_expiry.sql', 'utf8');
+    expect(sql).toContain('CREATE TRIGGER "credit_ledger_grants" AFTER INSERT ON "credit_ledger"');
+    expect(sql).toContain('ALTER TABLE "credit_grants" ENABLE ROW LEVEL SECURITY');
+    expect(sql).toMatch(/REVOKE ALL ON TABLE "credit_grants", "credit_grant_uses" FROM "anon"/);
+    // A migration may not use an enum value it added.
+    expect(sql).not.toMatch(/INSERT INTO "credit_ledger"/);
+  });
+
   it('keeps payment tables closed to the public Supabase API', async () => {
     const sql = await readFile('drizzle/migrations/0015_bakong_payments.sql', 'utf8');
     expect(sql).toContain('ALTER TABLE "payments" ENABLE ROW LEVEL SECURITY');
@@ -72,7 +87,7 @@ describe('database schema', () => {
     const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
       entries: Array<{ tag: string }>;
     };
-    expect(journal.entries.map((entry) => entry.tag).slice(-2)).toEqual(['0018_brand_dna', '0019_brand_fonts']);
+    expect(journal.entries.map((entry) => entry.tag)).toEqual(expect.arrayContaining(['0018_brand_dna', '0019_brand_fonts']));
 
     const sql = await readFile('drizzle/migrations/0018_brand_dna.sql', 'utf8');
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS "brand_profiles"');

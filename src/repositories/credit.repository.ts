@@ -1,7 +1,7 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, sql } from 'drizzle-orm';
 
 import type { Database } from '../../packages/database/client.js';
-import { creditAccounts, creditLedger } from '../../packages/database/schema.js';
+import { creditAccounts, creditGrants, creditLedger } from '../../packages/database/schema.js';
 import type { CreditLedgerRow, CreditReader } from '../services/credit.service.js';
 import type { CreditLedger, ReserveResult, SettleInput, SettleResult } from '../services/generation-billing.js';
 
@@ -37,6 +37,7 @@ export class DatabaseCreditRepository implements CreditReader, CreditLedger {
           when bool_or(kind = 'SIGNUP_GRANT') then 'SIGNUP_GRANT'
           when bool_or(kind = 'PLAN_GRANT') then 'PLAN_GRANT'
           when bool_or(kind = 'PACK_PURCHASE') then 'PACK_PURCHASE'
+          when bool_or(kind = 'EXPIRE') then 'EXPIRE'
           when bool_or(kind = 'REFUND') then 'REFUND'
           when bool_or(kind in ('RESERVE', 'SETTLE')) then 'SETTLE'
           else 'ADJUSTMENT'
@@ -59,6 +60,46 @@ export class DatabaseCreditRepository implements CreditReader, CreditLedger {
       createdAt: new Date(row.created_at),
       cursorAt: row.cursor_at,
     }));
+  }
+
+  async listExpiring(userId: string, now = new Date()) {
+    const rows = await this.db.select({
+      units: sql<number>`sum(${creditGrants.remaining})::int`,
+      expiresAt: creditGrants.expiresAt,
+    }).from(creditGrants)
+      .where(and(eq(creditGrants.userId, userId), gt(creditGrants.remaining, 0), gt(creditGrants.expiresAt, now)))
+      .groupBy(creditGrants.expiresAt)
+      .orderBy(asc(creditGrants.expiresAt));
+    return rows;
+  }
+
+  /**
+   * Writes an EXPIRE ledger row for every plan-credit batch past its expiry that still
+   * holds credits, and empties the batch. Locks the account first, like every other
+   * balance change, so a spend in flight is never caught halfway. Returns batches expired.
+   */
+  async expireCredits(now: Date, limit = 100): Promise<number> {
+    const due = await this.db.select({ id: creditGrants.id, userId: creditGrants.userId }).from(creditGrants)
+      .where(and(gt(creditGrants.remaining, 0), sql`${creditGrants.expiresAt} <= ${now.toISOString()}::timestamptz`))
+      .orderBy(asc(creditGrants.expiresAt)).limit(limit);
+    let expired = 0;
+    for (const batch of due) {
+      const done = await this.db.transaction(async (transaction) => {
+        await lockBalance(transaction, batch.userId);
+        const [grant] = await transaction.select({ remaining: creditGrants.remaining, expiresAt: creditGrants.expiresAt })
+          .from(creditGrants).where(eq(creditGrants.id, batch.id)).for('update');
+        if (!grant || grant.remaining <= 0) return false;
+        // The trigger ignores EXPIRE rows; the batch is emptied here, in the same transaction.
+        await transaction.insert(creditLedger).values({
+          userId: batch.userId, kind: 'EXPIRE', amount: -grant.remaining,
+          referenceType: 'credit_grant', note: `Plan credits that expired ${grant.expiresAt.toISOString()}`,
+        });
+        await transaction.update(creditGrants).set({ remaining: 0, expiredAt: now }).where(eq(creditGrants.id, batch.id));
+        return true;
+      });
+      if (done) expired += 1;
+    }
+    return expired;
   }
 
   reserve(userId: string, referenceId: string, hold: { holdUnits: number; minUnits: number }): Promise<ReserveResult> {

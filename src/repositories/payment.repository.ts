@@ -48,6 +48,8 @@ function grantKind(kind: PaymentKind) {
 async function grantPaymentCredits(
   db: Pick<DatabaseClient, 'insert'>,
   payment: { id: string; createdBy: string; kind: PaymentKind; creditUnits: number; plan: string | null; creditPack: string | null },
+  /** When plan credits expire: the end of the period they were bought for. Pack credits never expire. */
+  expiresAt: Date | null,
 ) {
   if (payment.creditUnits <= 0) return false;
   await db.insert(creditAccounts).values({ userId: payment.createdBy }).onConflictDoNothing();
@@ -58,6 +60,7 @@ async function grantPaymentCredits(
     referenceType: 'payment',
     referenceId: payment.id,
     note: payment.kind === 'PLAN' ? `${payment.plan} plan` : `${payment.creditPack}`,
+    expiresAt: payment.kind === 'PLAN' ? expiresAt : null,
   }).onConflictDoNothing().returning({ id: creditLedger.id });
   return inserted.length > 0;
 }
@@ -123,6 +126,7 @@ export class DatabasePaymentRepository implements PaymentRepository {
       }).where(eq(payments.id, paymentId)).returning(paymentColumns);
       if (!paid) throw new Error(`Payment ${paymentId} could not be marked paid`);
 
+      let creditsExpireAt: Date | null = null;
       if (payment.kind === 'PLAN' && payment.plan && nextPeriod) {
         const [current] = await tx.select(subscriptionColumns).from(workspaceSubscriptions)
           .where(eq(workspaceSubscriptions.workspaceId, payment.workspaceId)).for('update');
@@ -132,16 +136,17 @@ export class DatabasePaymentRepository implements PaymentRepository {
         };
         await tx.insert(workspaceSubscriptions).values({ workspaceId: payment.workspaceId, ...values })
           .onConflictDoUpdate({ target: workspaceSubscriptions.workspaceId, set: values });
+        creditsExpireAt = period.end;
       }
-      await grantPaymentCredits(tx, payment);
+      await grantPaymentCredits(tx, payment, creditsExpireAt);
       return paid;
     });
   }
 
-  async grantMissingCredits(limit: number): Promise<number> {
+  async grantMissingCredits(limit: number, planCreditsExpireAt: (payment: { plan: string | null; paidAt: Date | null }) => Date | null): Promise<number> {
     const missing = await this.db.select({
       id: payments.id, createdBy: payments.createdBy, kind: payments.kind, creditUnits: payments.creditUnits,
-      plan: payments.plan, creditPack: payments.creditPack,
+      plan: payments.plan, creditPack: payments.creditPack, paidAt: payments.paidAt,
     }).from(payments).where(and(
       eq(payments.status, 'PAID'),
       gt(payments.creditUnits, 0),
@@ -150,7 +155,8 @@ export class DatabasePaymentRepository implements PaymentRepository {
     )).orderBy(asc(payments.paidAt)).limit(limit);
     let granted = 0;
     for (const payment of missing) {
-      if (await this.db.transaction((tx) => grantPaymentCredits(tx, payment))) granted += 1;
+      const expiresAt = payment.kind === 'PLAN' ? planCreditsExpireAt(payment) : null;
+      if (await this.db.transaction((tx) => grantPaymentCredits(tx, payment, expiresAt))) granted += 1;
     }
     return granted;
   }

@@ -5,7 +5,7 @@ import { AppError } from '../errors.js';
 /** Balances and ledger amounts are stored as whole hundredths of a credit. */
 export const CREDIT_SCALE = 100;
 
-export type CreditEntryKind = 'SIGNUP_GRANT' | 'RESERVE' | 'SETTLE' | 'REFUND' | 'ADJUSTMENT' | 'PLAN_GRANT' | 'PACK_PURCHASE';
+export type CreditEntryKind = 'SIGNUP_GRANT' | 'RESERVE' | 'SETTLE' | 'REFUND' | 'ADJUSTMENT' | 'PLAN_GRANT' | 'PACK_PURCHASE' | 'EXPIRE';
 
 export interface CreditLedgerRow {
   id: string;
@@ -22,8 +22,16 @@ export interface CreditCursor {
   id: string;
 }
 
+/** Credits that will expire, grouped by expiry. Units are hundredths of a credit. */
+export interface ExpiringCredits {
+  units: number;
+  expiresAt: Date;
+}
+
 export interface CreditReader {
   getBalance(userId: string): Promise<number>;
+  /** Unexpired plan credits still unspent, soonest expiry first. */
+  listExpiring(userId: string): Promise<ExpiringCredits[]>;
   listEntries(userId: string, page: { limit: number; before?: CreditCursor | undefined }): Promise<CreditLedgerRow[]>;
 }
 
@@ -58,6 +66,7 @@ const DESCRIPTIONS: Record<CreditEntryKind, string> = {
   ADJUSTMENT: 'Adjustment',
   PLAN_GRANT: 'Plan credits',
   PACK_PURCHASE: 'Credits purchased',
+  EXPIRE: 'Plan credits expired',
 };
 
 const cursorSchema = z.strictObject({
@@ -94,9 +103,25 @@ export class CreditService {
     private readonly estimate?: CreditEstimate,
   ) {}
 
-  async getBalance(userId: string): Promise<{ balance: number; estimate?: CreditEstimate }> {
-    const balance = toCredits(await this.credits.getBalance(userId));
-    return this.estimate ? { balance, estimate: this.estimate } : { balance };
+  /**
+   * `balance` is everything spendable. Of it, `expiring` lists plan credits by the date
+   * they expire (spent first, soonest first) and `permanent` is the rest, from signup and
+   * credit packs, which never expires.
+   */
+  async getBalance(userId: string): Promise<{
+    balance: number;
+    permanent: number;
+    expiring: Array<{ credits: number; expiresAt: string }>;
+    estimate?: CreditEstimate;
+  }> {
+    const [units, expiring] = await Promise.all([this.credits.getBalance(userId), this.credits.listExpiring(userId)]);
+    const expiringUnits = expiring.reduce((sum, batch) => sum + batch.units, 0);
+    const result = {
+      balance: toCredits(units),
+      permanent: toCredits(Math.max(0, units - expiringUnits)),
+      expiring: expiring.map((batch) => ({ credits: toCredits(batch.units), expiresAt: batch.expiresAt.toISOString() })),
+    };
+    return this.estimate ? { ...result, estimate: this.estimate } : result;
   }
 
   async listHistory(

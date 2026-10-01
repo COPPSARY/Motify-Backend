@@ -180,7 +180,7 @@ POST /v1/payments/:paymentId/sandbox      { "outcome": "paid" | "failed" | "wron
 
 To test a real payment without a frontend, run `npm run payments:test -- --email <account email> [--plan starter | --pack credits-30]`; with `BAKONG_MODE=sandbox` add `--simulate paid|failed|wrong_amount|expired` (default `paid`) to settle it without a real payment. It opens a checkout for that account's personal workspace, prints the KHQR in the terminal and saves it as a PNG, then polls until Bakong confirms and the plan activates. It charges real money to `BAKONG_ACCOUNT_ID`.
 
-`status` is `none` for a workspace that never paid, and `expired` once `currentPeriodEnd` has passed. Each plan payment, including a renewal, adds that plan's credits to the payer's balance. Credits are fixed when the checkout is created, so a later change to `PLAN_<ID>_CREDITS` or `CREDIT_PACKS` does not change what an open checkout grants. Credits from plans and packs do not expire.
+`status` is `none` for a workspace that never paid, and `expired` once `currentPeriodEnd` has passed. Each plan payment, including a renewal, adds that plan's credits to the payer's balance. Credits are fixed when the checkout is created, so a later change to `PLAN_<ID>_CREDITS` or `CREDIT_PACKS` does not change what an open checkout grants. **Plan credits expire** at the end of the plan period they were bought for (`currentPeriodEnd` at payment time), each purchase on its own date: after an upgrade from Starter to Pro, the unused Starter credits still expire on Starter's date and Pro's credits on Pro's, and the balance is the sum. Signup credits and credit packs never expire. A generation spends the credits that expire soonest first, then permanent credits; a refund goes back to the credits it came from. Every 5 minutes the API expires what is left of past-due plan credits, which shows in the history as `EXPIRE` ("Plan credits expired").
 
 ```json
 { "data": [{ "id": "credits-30", "price": 2.5, "currency": "USD", "credits": 30 }, { "id": "credits-65", "price": 5, "currency": "USD", "credits": 65 }] }
@@ -258,13 +258,15 @@ GET /v1/credits/history?limit=20&cursor=...
 Every account has a credit balance. New accounts start with `SIGNUP_CREDITS` (default 50); accounts that existed when credits shipped were granted 50 by migration. Both endpoints need an authenticated session and are **read-only**: there is no endpoint to set, add, or spend credits, and the user is always the session's own, so a client cannot read or change anyone else's. Responses are `Cache-Control: no-store` and rate limited to 60 requests per minute per user.
 
 ```json
-{ "data": { "balance": 50 } }
+{ "data": { "balance": 460, "permanent": 50, "expiring": [{ "credits": 110, "expiresAt": "2026-10-31T02:52:15.474Z" }, { "credits": 300, "expiresAt": "2026-11-09T08:00:00.000Z" }] } }
 ```
+
+`balance` is everything spendable. `expiring` lists unspent plan credits by expiry date, soonest first; `permanent` is the rest (signup and credit packs), which never expires.
 
 With `CREDITS_ENFORCED=true`, the response also carries `estimate`, so the editor can show what a request will cost **before** it is sent:
 
 ```json
-{ "data": { "balance": 50, "estimate": { "typical": 10, "min": 0.5, "max": 30 } } }
+{ "data": { "balance": 50, "permanent": 50, "expiring": [], "estimate": { "typical": 10, "min": 0.5, "max": 30 } } }
 ```
 
 `estimate` is fixed for the deployment, not computed per request: `typical` is what an average generation costs, `min` is the fewest credits a request needs to be accepted at all (below it, `POST /v1/projects/:projectId/messages` returns `402 INSUFFICIENT_CREDITS`), and `max` is the most any single request can ever cost. `estimate` is absent when credits are not being charged for.
