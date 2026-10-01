@@ -7,6 +7,7 @@ import { requireCsrf } from '../middleware/authentication.js';
 export function createBillingRoutes(controller: PaymentController) {
   const router = Router();
   router.get('/plans', asyncHandler(controller.listPlans));
+  router.get('/credit-packs', asyncHandler(controller.listCreditPacks));
   return router;
 }
 

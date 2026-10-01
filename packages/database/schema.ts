@@ -32,10 +32,11 @@ export const artifactKind = pgEnum('artifact_kind', [
 ]);
 export const artifactRetention = pgEnum('artifact_retention', ['TEMPORARY', 'PROJECT']);
 export const audioTrackScope = pgEnum('audio_track_scope', ['WORKSPACE', 'SYSTEM']);
-export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RESERVE', 'SETTLE', 'REFUND', 'ADJUSTMENT']);
+export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RESERVE', 'SETTLE', 'REFUND', 'ADJUSTMENT', 'PLAN_GRANT', 'PACK_PURCHASE']);
 export const billingPlan = pgEnum('billing_plan', ['starter', 'pro', 'studio']);
 export const paymentCurrency = pgEnum('payment_currency', ['USD', 'KHR']);
 export const paymentStatus = pgEnum('payment_status', ['PENDING', 'PAID', 'EXPIRED', 'FAILED']);
+export const paymentKind = pgEnum('payment_kind', ['PLAN', 'CREDIT_PACK']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
@@ -288,7 +289,13 @@ export const payments = pgTable('payments', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
-  plan: billingPlan('plan').notNull(),
+  kind: paymentKind('kind').default('PLAN').notNull(),
+  /** Set when `kind` is PLAN. */
+  plan: billingPlan('plan'),
+  /** Set when `kind` is CREDIT_PACK: the pack id bought, kept for the record. */
+  creditPack: text('credit_pack'),
+  /** Credits this payment adds to the buyer once PAID, in hundredths, fixed at checkout. */
+  creditUnits: integer('credit_units').default(0).notNull(),
   amountMinor: integer('amount_minor').notNull(),
   currency: paymentCurrency('currency').notNull(),
   billNumber: text('bill_number').notNull().unique(),
@@ -308,6 +315,9 @@ export const payments = pgTable('payments', {
   index('payments_pending_expiry_idx').on(table.expiresAt).where(sql`${table.status} = 'PENDING'`),
   check('payments_amount_check', sql`${table.amountMinor} > 0`),
   check('payments_paid_check', sql`${table.status} <> 'PAID' or (${table.paidAt} is not null and ${table.bakongHash} is not null)`),
+  check('payments_kind_check', sql`(${table.kind} = 'PLAN' and ${table.plan} is not null and ${table.creditPack} is null)
+    or (${table.kind} = 'CREDIT_PACK' and ${table.plan} is null and ${table.creditPack} is not null and ${table.creditUnits} > 0)`),
+  check('payments_credit_units_check', sql`${table.creditUnits} >= 0`),
 ]);
 
 export const workspaceSubscriptions = pgTable('workspace_subscriptions', {

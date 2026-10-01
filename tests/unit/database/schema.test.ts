@@ -9,9 +9,11 @@ import {
   creditAccounts,
   creditLedger,
   billingPlan,
+  creditEntryKind,
   generationRuns,
   messageAssets,
   messages,
+  paymentKind,
   payments,
   projectAssets,
   projects,
@@ -43,6 +45,18 @@ describe('database schema', () => {
     expect(workspaceSubscriptions.currentPeriodEnd.name).toBe('current_period_end');
   });
 
+  it('records plan and pack credits on payments and in the ledger', async () => {
+    expect(creditEntryKind.enumValues).toEqual(expect.arrayContaining(['PLAN_GRANT', 'PACK_PURCHASE']));
+    expect(paymentKind.enumValues).toEqual(['PLAN', 'CREDIT_PACK']);
+    expect(payments.creditUnits.name).toBe('credit_units');
+    expect(payments.plan.notNull).toBe(false);
+    const sql = await readFile('drizzle/migrations/0017_credit_purchases.sql', 'utf8');
+    expect(sql).toContain("ADD VALUE IF NOT EXISTS 'PLAN_GRANT'");
+    expect(sql).toContain('"payments_kind_check"');
+    // A migration may not use an enum value it added, so grants are left to the payment sweep.
+    expect(sql).not.toMatch(/INSERT INTO "credit_ledger"/);
+  });
+
   it('keeps payment tables closed to the public Supabase API', async () => {
     const sql = await readFile('drizzle/migrations/0015_bakong_payments.sql', 'utf8');
     expect(sql).toContain('ALTER TABLE "payments" ENABLE ROW LEVEL SECURITY');
@@ -58,7 +72,8 @@ describe('database schema', () => {
     };
     const tags = journal.entries.map((entry) => entry.tag);
     expect(tags).toContain('0014_credits');
-    expect(tags.at(-1)).toBe('0016_generation_credits');
+    expect(tags).toContain('0016_generation_credits');
+    expect(tags.at(-1)).toBe('0017_credit_purchases');
 
     const sql = await readFile('drizzle/migrations/0014_credits.sql', 'utf8');
     // Supabase exposes public tables to browsers with the publishable key, so both
