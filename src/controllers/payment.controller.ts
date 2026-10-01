@@ -11,6 +11,7 @@ const checkoutSchema = z.union([
   z.strictObject({ creditPack: z.string().regex(/^credits-\d{1,7}$/) }),
 ]);
 const idSchema = z.uuid();
+const sandboxSchema = z.strictObject({ outcome: z.enum(['paid', 'failed', 'wrong_amount', 'expired']) });
 
 export interface PaymentControllerService {
   listPlans(): unknown;
@@ -18,6 +19,7 @@ export interface PaymentControllerService {
   getSubscription(userId: string, workspaceId: string): Promise<unknown>;
   createCheckout(userId: string, workspaceId: string, purchase: Purchase): Promise<unknown>;
   getPayment(userId: string, paymentId: string): Promise<unknown>;
+  simulatePayment(userId: string, paymentId: string, outcome: 'paid' | 'failed' | 'wrong_amount' | 'expired'): Promise<unknown>;
 }
 
 export class PaymentController {
@@ -35,6 +37,10 @@ export class PaymentController {
   createCheckout = async (request: AuthenticatedRequest, response: Response) => {
     const purchase = checkoutSchema.parse(request.body);
     response.status(201).json({ data: await this.payments.createCheckout(request.principal!.user.id, idSchema.parse(request.params.workspaceId), purchase) });
+  };
+  simulatePayment = async (request: AuthenticatedRequest, response: Response) => {
+    const { outcome } = sandboxSchema.parse(request.body);
+    response.json({ data: await this.payments.simulatePayment(request.principal!.user.id, idSchema.parse(request.params.paymentId), outcome) });
   };
   getPayment = async (request: AuthenticatedRequest, response: Response) => {
     response.set('Cache-Control', 'no-store');

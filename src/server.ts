@@ -11,6 +11,7 @@ import { sql } from 'drizzle-orm';
 
 import { BakongClient, bakongTokenExpiry } from '../packages/bakong/client.js';
 import { generateDynamicKhqr } from '../packages/bakong/khqr.js';
+import { SandboxBakongGateway } from '../packages/bakong/sandbox.js';
 import { SupabaseAuthProvider } from '../packages/auth/supabase-provider.js';
 import { TokenVault } from '../packages/auth/token-vault.js';
 import { createMotionGraph } from '../packages/ai/graph/motion.graph.js';
@@ -279,7 +280,11 @@ export function createPaymentService(environment: ReturnType<typeof parseEnviron
     logger.info('Bakong payments disabled: set BAKONG_TOKEN and BAKONG_ACCOUNT_ID to enable them');
     return null;
   }
-  const expiry = bakongTokenExpiry(bakong.token);
+  const sandbox = bakong.mode === 'sandbox' ? new SandboxBakongGateway() : null;
+  if (sandbox) {
+    logger.warn('Bakong SANDBOX mode: no request reaches Bakong and no money moves; settle checkouts with POST /v1/payments/:id/sandbox');
+  }
+  const expiry = bakong.token ? bakongTokenExpiry(bakong.token) : null;
   if (expiry) {
     const daysLeft = Math.floor((expiry.getTime() - Date.now()) / 86_400_000);
     if (daysLeft < 14) logger.warn({ expiresAt: expiry.toISOString(), daysLeft }, 'BAKONG_TOKEN expires soon; renew it at api-bakong.nbc.gov.kh');
@@ -292,7 +297,7 @@ export function createPaymentService(environment: ReturnType<typeof parseEnviron
   };
   return new PaymentService(
     new DatabasePaymentRepository(db),
-    new BakongClient({ baseUrl: bakong.apiBaseUrl, token: bakong.token }),
+    sandbox ?? new BakongClient({ baseUrl: bakong.apiBaseUrl, token: bakong.token! }),
     {
       plans: environment.billingPlans,
       creditPacks: environment.creditPacks,
@@ -300,6 +305,7 @@ export function createPaymentService(environment: ReturnType<typeof parseEnviron
       generateKhqr: (payment) => generateDynamicKhqr(receiver, payment),
       qrTtlMs: bakong.qrTtlSeconds * 1000,
       logger,
+      ...(sandbox ? { sandbox } : {}),
     },
   );
 }

@@ -133,6 +133,7 @@ describe('parseEnvironment', () => {
   it('parses Bakong settings with KHQR-safe defaults', () => {
     const environment = parseEnvironment({ ...valid, BAKONG_TOKEN: 'token', BAKONG_ACCOUNT_ID: 'motify@aclb', BAKONG_API_BASE_URL: 'https://kh-proxy.motify.example/' });
     expect(environment.bakong).toEqual({
+      mode: 'live',
       apiBaseUrl: 'https://kh-proxy.motify.example',
       token: 'token',
       accountId: 'motify@aclb',
@@ -228,5 +229,15 @@ describe('parseEnvironment', () => {
     expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '2.555:30' })).toThrow('CREDIT_PACKS');
     expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '5:1.5' })).toThrow('CREDIT_PACKS');
     expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '5:65,6:65' })).toThrow('same credit amount');
+  });
+
+  it('runs Bakong in sandbox without a token, but never in production', () => {
+    const development = { ...valid, NODE_ENV: 'development', SESSION_COOKIE_SECURE: 'false' };
+    expect(parseEnvironment({ ...development, BAKONG_MODE: 'sandbox' }).bakong).toMatchObject({
+      mode: 'sandbox', token: null, accountId: 'motify.sandbox@devb',
+    });
+    expect(parseEnvironment({ ...development, BAKONG_TOKEN: 'token', BAKONG_ACCOUNT_ID: 'motify@aclb' }).bakong).toMatchObject({ mode: 'live' });
+    expect(() => parseEnvironment({ ...valid, BAKONG_MODE: 'sandbox' })).toThrow('BAKONG_MODE=sandbox is refused');
+    expect(() => parseEnvironment({ ...development, BAKONG_MODE: 'test' })).toThrow();
   });
 });

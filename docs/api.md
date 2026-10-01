@@ -170,7 +170,15 @@ A subscription lasts 30 days from payment. Paying for the plan that is already a
 { "data": { "status": "active", "plan": "pro", "currentPeriodStart": "…", "currentPeriodEnd": "…" } }
 ```
 
-To test a real payment without a frontend, run `npm run payments:test -- --email <account email> [--plan starter]`. It opens a checkout for that account's personal workspace, prints the KHQR in the terminal and saves it as a PNG, then polls until Bakong confirms and the plan activates. It charges real money to `BAKONG_ACCOUNT_ID`.
+**Sandbox.** The Bakong token allows 100 requests a day, so build and test against `BAKONG_MODE=sandbox` (refused when `NODE_ENV=production`). No token is needed and nothing is sent to Bakong. Checkouts and KHQRs are created as usual, carry `"mode": "sandbox"`, and stay `PENDING` until a member settles one:
+
+```text
+POST /v1/payments/:paymentId/sandbox      { "outcome": "paid" | "failed" | "wrong_amount" | "expired" }
+```
+
+`paid` settles the payment through the same path as a real one: amount check, plan activation and credit grant. `wrong_amount` pays a cent short and ends `FAILED`; `failed` is a transfer the bank rejected; `expired` closes the checkout as if its QR ran out. The response is the same as `GET /v1/payments/:paymentId`; a payment that is no longer `PENDING` returns `409 PAYMENT_NOT_PENDING`. Outside sandbox the route returns `404`. Sandbox payments are stored like real ones, with a `sandbox-` transaction hash, and grant real credits in that database, so use a development database.
+
+To test a real payment without a frontend, run `npm run payments:test -- --email <account email> [--plan starter | --pack credits-30]`; with `BAKONG_MODE=sandbox` add `--simulate paid|failed|wrong_amount|expired` (default `paid`) to settle it without a real payment. It opens a checkout for that account's personal workspace, prints the KHQR in the terminal and saves it as a PNG, then polls until Bakong confirms and the plan activates. It charges real money to `BAKONG_ACCOUNT_ID`.
 
 `status` is `none` for a workspace that never paid, and `expired` once `currentPeriodEnd` has passed. Each plan payment, including a renewal, adds that plan's credits to the payer's balance. Credits are fixed when the checkout is created, so a later change to `PLAN_<ID>_CREDITS` or `CREDIT_PACKS` does not change what an open checkout grants. Credits from plans and packs do not expire.
 

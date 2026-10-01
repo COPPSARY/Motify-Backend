@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TransactionLookup } from '../../../packages/bakong/client.js';
+import { SANDBOX_PAYER_ACCOUNT, SandboxBakongGateway } from '../../../packages/bakong/sandbox.js';
 import { parseBillingPlans, parseCreditPacks } from '../../../src/config/env.js';
 import { AppError } from '../../../src/errors.js';
 import {
@@ -322,6 +323,61 @@ describe('PaymentService credits', () => {
     await expect(service.reconcilePending()).resolves.toMatchObject({ credited: 1 });
     await expect(service.reconcilePending()).resolves.toMatchObject({ credited: 0 });
     expect(repository.grants.get(checkout.id)?.units).toBe(15_000);
+  });
+});
+
+describe('PaymentService sandbox', () => {
+  function sandboxSetup() {
+    const repository = new MemoryPaymentRepository();
+    const gateway = new SandboxBakongGateway();
+    const service = new PaymentService(repository, gateway, {
+      plans: parseBillingPlans({}), creditPacks: parseCreditPacks(undefined), receiverAccountId: 'motify.sandbox@devb',
+      generateKhqr: (payment) => ({ qr: `qr-${payment.billNumber}`, md5: `md5-${payment.billNumber}` }), qrTtlMs: 180_000, sandbox: gateway,
+    });
+    return { repository, gateway, service };
+  }
+
+  it('leaves a sandbox checkout unpaid until a payment is simulated', async () => {
+    const { service } = sandboxSetup();
+    const checkout = await service.createCheckout(owner, workspaceId, { plan: 'pro' });
+    expect(checkout.mode).toBe('sandbox');
+    await expect(service.getPayment(owner, checkout.id)).resolves.toMatchObject({ status: 'PENDING' });
+  });
+
+  it('settles a simulated payment through the real path: plan, credits and payer', async () => {
+    const { service, repository } = sandboxSetup();
+    const checkout = await service.createCheckout(owner, workspaceId, { plan: 'pro' });
+
+    await expect(service.simulatePayment(owner, checkout.id, 'paid')).resolves.toMatchObject({
+      status: 'PAID', mode: 'sandbox', subscription: { status: 'active', plan: 'pro' }, creditBalance: 300,
+    });
+    expect(repository.payments.get(checkout.id)?.bakongHash).toMatch(/^sandbox-/);
+    await expect(service.simulatePayment(owner, checkout.id, 'paid')).rejects.toMatchObject({ status: 409, code: 'PAYMENT_NOT_PENDING' });
+    expect(SANDBOX_PAYER_ACCOUNT).toBe('sandbox.payer@devb');
+  });
+
+  it('simulates a failed bank transfer, a wrong amount and an expired QR', async () => {
+    const { service, repository } = sandboxSetup();
+    const failed = await service.createCheckout(owner, workspaceId, { creditPack: 'credits-30' });
+    await expect(service.simulatePayment(owner, failed.id, 'failed')).resolves.toMatchObject({ status: 'FAILED' });
+
+    const short = await service.createCheckout(owner, workspaceId, { creditPack: 'credits-65' });
+    await expect(service.simulatePayment(owner, short.id, 'wrong_amount')).resolves.toMatchObject({ status: 'FAILED', creditBalance: null });
+
+    const late = await service.createCheckout(owner, workspaceId, { creditPack: 'credits-135' });
+    await expect(service.simulatePayment(owner, late.id, 'expired')).resolves.toMatchObject({ status: 'EXPIRED', qr: null });
+    expect(repository.grants.size).toBe(0);
+  });
+
+  it('only lets members simulate, and only in sandbox mode', async () => {
+    const { service } = sandboxSetup();
+    const checkout = await service.createCheckout(owner, workspaceId, { plan: 'starter' });
+    await expect(service.simulatePayment('00000000-0000-4000-8000-00000000dead', checkout.id, 'paid')).rejects.toMatchObject({ status: 404 });
+
+    const live = setup();
+    const liveCheckout = await live.service.createCheckout(owner, workspaceId, { plan: 'starter' });
+    expect(liveCheckout.mode).toBe('live');
+    await expect(live.service.simulatePayment(owner, liveCheckout.id, 'paid')).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   });
 });
 
