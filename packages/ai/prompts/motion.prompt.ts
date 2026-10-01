@@ -1,9 +1,10 @@
+import { describeBrand } from './brand.prompt.js';
 import { describeBrief } from './brief.prompt.js';
 import { describeReference } from './reference.prompt.js';
 import type { LoadedReference } from '../../motify-references/loader.js';
 import type { MotionBrief } from '../schemas/brief.schema.js';
 import type { RoutedSkill } from '../../motify-skills/router.js';
-import type { GenerationAudioTrack, GenerationIntent, MotifyProject } from '../graph/dependencies.js';
+import type { GenerationAudioTrack, GenerationBrand, GenerationIntent, MotifyProject } from '../graph/dependencies.js';
 import type { ChatMessage, ModelImageInput, ModelRequestLimits } from '../providers/model.provider.js';
 
 export const GENERATION_LIMITS: ModelRequestLimits = { maxOutputTokens: 48_000, thinking: 'auto' };
@@ -40,6 +41,7 @@ export interface MotionPromptInput {
     runtimeError?: { message: string } | undefined;
     assets?: readonly ModelImageInput[] | undefined;
     audio?: readonly GenerationAudioTrack[] | undefined;
+    brand?: GenerationBrand | undefined;
     reference?: LoadedReference | undefined;
     brief?: MotionBrief | undefined;
 }
@@ -59,6 +61,7 @@ export function buildMotionUserPrompt(input: MotionPromptInput): string {
 
     sections.push(...describeImages(input.assets ?? []));
     if (input.audio?.length) sections.push(describeAudio(input.audio));
+    if (input.brand) sections.push(describeBrand(input.brand));
 
     sections.push(input.project ? describeProject(input.project) : NO_PROJECT_YET);
     if (input.reference) sections.push(describeReference(input.reference));

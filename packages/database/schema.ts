@@ -36,6 +36,8 @@ export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RES
 export const billingPlan = pgEnum('billing_plan', ['starter', 'pro', 'studio']);
 export const paymentCurrency = pgEnum('payment_currency', ['USD', 'KHR']);
 export const paymentStatus = pgEnum('payment_status', ['PENDING', 'PAID', 'EXPIRED', 'FAILED']);
+export const brandAssetRole = pgEnum('brand_asset_role', ['LOGO', 'FAVICON', 'LOGO_VARIANT', 'SCREENSHOT', 'IMAGE', 'ICON', 'FONT']);
+export const brandSource = pgEnum('brand_source', ['MANUAL', 'SITE_INTELLIGENCE']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
@@ -320,4 +322,43 @@ export const workspaceSubscriptions = pgTable('workspace_subscriptions', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   check('workspace_subscriptions_period_check', sql`${table.currentPeriodEnd} > ${table.currentPeriodStart}`),
+]);
+
+/**
+ * A workspace's Brand DNA. `dna` is the versioned document in
+ * `packages/brand/brand-dna.ts`; `provenance` records who set each field
+ * (a person or Site Intelligence). One brand per workspace today; the separate
+ * id leaves room for several later without re-keying `brand_assets`.
+ */
+export const brandProfiles = pgTable('brand_profiles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  schemaVersion: integer('schema_version').default(1).notNull(),
+  dna: jsonb('dna').$type<Record<string, unknown>>().default({}).notNull(),
+  provenance: jsonb('provenance').$type<Record<string, unknown>>().default({}).notNull(),
+  revision: integer('revision').default(1).notNull(),
+  updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('brand_profiles_workspace_unique').on(table.workspaceId),
+  check('brand_profiles_revision_check', sql`${table.revision} >= 1`),
+]);
+
+/** Uploaded images that belong to a brand: its logo, favicon, screenshots and icons. */
+export const brandAssets = pgTable('brand_assets', {
+  brandId: uuid('brand_id').notNull().references(() => brandProfiles.id, { onDelete: 'cascade' }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  role: brandAssetRole('role').notNull(),
+  label: text('label'),
+  source: brandSource('source').default('MANUAL').notNull(),
+  /** The page an extractor found the image on; null for uploads. */
+  sourceUrl: text('source_url'),
+  addedBy: uuid('added_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.brandId, table.assetId] }),
+  index('brand_assets_asset_idx').on(table.assetId),
+  uniqueIndex('brand_assets_singular_role_unique').on(table.brandId, table.role).where(sql`${table.role} in ('LOGO', 'FAVICON')`),
 ]);

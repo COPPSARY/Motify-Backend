@@ -6,6 +6,8 @@ import {
   artifacts,
   assets,
   assetUsageRole,
+  brandAssets,
+  brandProfiles,
   creditAccounts,
   creditLedger,
   billingPlan,
@@ -52,13 +54,30 @@ describe('database schema', () => {
     expect(sql).not.toMatch(/CREATE POLICY/i);
   });
 
+  it('registers the Brand DNA migration and keeps its tables closed to the public API', async () => {
+    const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
+      entries: Array<{ tag: string }>;
+    };
+    expect(journal.entries.map((entry) => entry.tag)).toEqual(expect.arrayContaining(['0017_brand_dna', '0018_brand_fonts']));
+
+    const sql = await readFile('drizzle/migrations/0017_brand_dna.sql', 'utf8');
+    expect(sql).toContain('CREATE TABLE "brand_profiles"');
+    expect(sql).toContain('CREATE TABLE "brand_assets"');
+    expect(sql).toContain('ALTER TABLE "brand_profiles" ENABLE ROW LEVEL SECURITY');
+    expect(sql).toContain('ALTER TABLE "brand_assets" ENABLE ROW LEVEL SECURITY');
+    expect(sql).toMatch(/REVOKE ALL ON TABLE "brand_profiles", "brand_assets" FROM "anon"/);
+    expect(sql).toMatch(/REVOKE ALL ON TABLE "brand_profiles", "brand_assets" FROM "authenticated"/);
+    expect(getTableName(brandProfiles)).toBe('brand_profiles');
+    expect(getTableName(brandAssets)).toBe('brand_assets');
+  });
+
   it('registers the credits migration and keeps credits closed to the public API', async () => {
     const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
       entries: Array<{ tag: string }>;
     };
     const tags = journal.entries.map((entry) => entry.tag);
     expect(tags).toContain('0014_credits');
-    expect(tags.at(-1)).toBe('0016_generation_credits');
+    expect(tags).toContain('0016_generation_credits');
 
     const sql = await readFile('drizzle/migrations/0014_credits.sql', 'utf8');
     // Supabase exposes public tables to browsers with the publishable key, so both

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MotionGraphInput, MotionGraphResponse } from '../../../packages/ai/graph/dependencies.js';
+import { readBrandDna } from '../../../packages/brand/brand-dna.js';
 import { ModelProviderError } from '../../../packages/ai/providers/model.provider.js';
 import type { ValidationError } from '../../../packages/ai/validation/generation-validator.js';
 import { AppError } from '../../../src/errors.js';
@@ -113,6 +114,27 @@ describe('GenerationService', () => {
 
         expect(audio.resolveGenerationAudio).toHaveBeenCalledWith(USER_ID, PROJECT_ID, [{ trackId: track.trackId }]);
         expect(graph.invoke).toHaveBeenCalledWith(expect.objectContaining({ audio: [track] }));
+    });
+
+    it('loads the workspace Brand DNA for every message', async () => {
+        const { graph, projects, assets } = createService();
+        const brand = { dna: readBrandDna({ identity: { name: 'Acme' } }), assets: [] };
+        const resolver = { resolveGenerationBrand: vi.fn(async () => brand) };
+        const withBrand = new GenerationService(graph, projects, assets, undefined, undefined, resolver);
+
+        await withBrand.sendMessage(USER_ID, PROJECT_ID, { message: 'Make a launch film.' });
+
+        expect(resolver.resolveGenerationBrand).toHaveBeenCalledWith(WORKSPACE_ID);
+        expect(graph.invoke).toHaveBeenCalledWith(expect.objectContaining({ brand }));
+    });
+
+    it('leaves the brand out while the workspace has none', async () => {
+        const { graph, projects, assets } = createService();
+        const resolver = { resolveGenerationBrand: vi.fn(async () => undefined) };
+        await new GenerationService(graph, projects, assets, undefined, undefined, resolver)
+            .sendMessage(USER_ID, PROJECT_ID, { message: 'Make a launch film.' });
+
+        expect(graph.invoke.mock.calls[0]?.[0]).not.toHaveProperty('brand');
     });
 
     it('maps a stale revision to a conflict that carries the current revision', async () => {

@@ -1,5 +1,6 @@
 import type {
     GenerationAudioTrack,
+    GenerationBrand,
     GraphProjectRepository,
     GraphWorkspaceRole,
     MotionGraphInput,
@@ -37,6 +38,11 @@ export interface GenerationAudioResolver {
         projectId: string,
         audio: readonly AudioAttachmentInput[] | undefined,
     ): Promise<GenerationAudioTrack[]>;
+}
+
+/** The workspace's Brand DNA, loaded for every message rather than sent by the editor. */
+export interface GenerationBrandResolver {
+    resolveGenerationBrand(workspaceId: string): Promise<GenerationBrand | undefined>;
 }
 
 export interface AssetAttachmentInput {
@@ -108,6 +114,7 @@ export class GenerationService {
         private readonly assets?: GenerationAssetResolver,
         private readonly audio?: GenerationAudioResolver,
         private readonly billing?: GenerationBilling,
+        private readonly brand?: GenerationBrandResolver,
     ) {}
 
     async sendMessage(userId: string, projectId: string, input: MessageRequestInput): Promise<MessageResult> {
@@ -125,6 +132,7 @@ export class GenerationService {
         const audio = this.audio
             ? await this.audio.resolveGenerationAudio(userId, projectId, input.audio)
             : [];
+        const brand = await this.brand?.resolveGenerationBrand(access.workspaceId);
         const graphInput: MotionGraphInput = {
             userId,
             workspaceId: access.workspaceId,
@@ -132,6 +140,7 @@ export class GenerationService {
             message: input.message,
             ...(images.length > 0 ? { assets: images } : {}),
             ...(audio.length > 0 ? { audio } : {}),
+            ...(brand ? { brand } : {}),
             ...(input.runtimeError ? { runtimeError: input.runtimeError } : {}),
             ...(input.revision !== undefined ? { revision: input.revision } : {}),
         };

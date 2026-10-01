@@ -23,6 +23,7 @@ export function createRepairNode(dependencies: ResolvedMotionGraphDependencies) 
                 errors: [...state.validationErrors, ...state.validationWarnings],
                 assets: state.assets,
                 audio: state.audio,
+                brand: state.brand,
             }),
             limits: REPAIR_LIMITS,
             images: state.assets,

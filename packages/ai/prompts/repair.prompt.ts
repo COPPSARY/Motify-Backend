@@ -1,5 +1,6 @@
 import type { RoutedSkill } from '../../motify-skills/router.js';
-import type { GenerationAudioTrack, GenerationIntent, MotifyProject } from '../graph/dependencies.js';
+import { describeBrand } from './brand.prompt.js';
+import type { GenerationAudioTrack, GenerationBrand, GenerationIntent, MotifyProject } from '../graph/dependencies.js';
 import type { ModelImageInput, ModelRequestLimits, MotifyGeneration } from '../providers/model.provider.js';
 import type { ValidationError } from '../validation/generation-validator.js';
 import { buildMotionSystemPrompt, describeAudio, describeImages, describeProject, NO_PROJECT_YET } from './motion.prompt.js';
@@ -27,6 +28,7 @@ export interface RepairPromptInput {
     errors: ValidationError[];
     assets?: readonly ModelImageInput[] | undefined;
     audio?: readonly GenerationAudioTrack[] | undefined;
+    brand?: GenerationBrand | undefined;
 }
 
 export function buildRepairUserPrompt(input: RepairPromptInput): string {
@@ -42,6 +44,7 @@ export function buildRepairUserPrompt(input: RepairPromptInput): string {
         ].join('\n'),
         ...describeImages(input.assets ?? []),
         ...(input.audio?.length ? [describeAudio(input.audio)] : []),
+        ...(input.brand ? [describeBrand(input.brand)] : []),
         input.project ? describeProject(input.project) : NO_PROJECT_YET,
     ].join('\n\n');
 }
