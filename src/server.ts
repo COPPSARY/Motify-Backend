@@ -286,6 +286,7 @@ export function createPaymentService(environment: ReturnType<typeof parseEnviron
     new BakongClient({ baseUrl: bakong.apiBaseUrl, token: bakong.token }),
     {
       plans: environment.billingPlans,
+      creditPacks: environment.creditPacks,
       receiverAccountId: bakong.accountId,
       generateKhqr: (payment) => generateDynamicKhqr(receiver, payment),
       qrTtlMs: bakong.qrTtlSeconds * 1000,
