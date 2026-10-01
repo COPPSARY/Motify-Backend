@@ -15,6 +15,7 @@ function dependencies() {
     payments: {
       listPlans: vi.fn().mockReturnValue([{ id: 'pro', price: 20 }]),
       listCreditPacks: vi.fn().mockReturnValue([{ id: 'credits-30', price: 2.5, credits: 30 }]),
+      simulatePayment: vi.fn().mockResolvedValue({ id: paymentId, status: 'PAID', mode: 'sandbox' }),
       getSubscription: vi.fn().mockResolvedValue({ status: 'none', plan: null }),
       createCheckout: vi.fn().mockResolvedValue({ id: paymentId, status: 'PENDING', qr: '000201...' }),
       getPayment: vi.fn().mockResolvedValue({ id: paymentId, status: 'PAID', subscription: { status: 'active', plan: 'pro' } }),
@@ -57,6 +58,16 @@ describe('Billing API', () => {
     await request(server).get('/v1/billing/credit-packs').expect(200, { data: [{ id: 'credits-30', price: 2.5, credits: 30 }] });
     await authenticated(request(server).post(`/v1/workspaces/${workspaceId}/billing/payments`)).send({ creditPack: 'credits-30' }).expect(201);
     expect(deps.payments.createCheckout).toHaveBeenCalledWith(user.id, workspaceId, { creditPack: 'credits-30' });
+  });
+
+  it('settles a sandbox checkout with a simulated outcome', async () => {
+    const deps = dependencies();
+    const server = app(deps);
+    await authenticated(request(server).post(`/v1/payments/${paymentId}/sandbox`)).send({ outcome: 'paid' })
+      .expect(200, { data: { id: paymentId, status: 'PAID', mode: 'sandbox' } });
+    expect(deps.payments.simulatePayment).toHaveBeenCalledWith(user.id, paymentId, 'paid');
+    await authenticated(request(server).post(`/v1/payments/${paymentId}/sandbox`)).send({ outcome: 'refund' }).expect(400);
+    await request(server).post(`/v1/payments/${paymentId}/sandbox`).set('Cookie', ['motify_session=session']).send({ outcome: 'paid' }).expect(403);
   });
 
   it('requires a session, CSRF and a known plan', async () => {

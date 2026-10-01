@@ -7,6 +7,10 @@
 // Scan the QR it prints (or the PNG it writes) with any Cambodian banking app
 // and pay. The script polls until Bakong confirms, then prints the activated
 // subscription and credits. This charges real money to the account in BAKONG_ACCOUNT_ID.
+//
+// With BAKONG_MODE=sandbox nothing is charged and no Bakong request is made: the
+// script settles the checkout itself with --simulate paid|failed|wrong_amount|expired
+// (default paid), through the same code a real payment takes.
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -27,6 +31,7 @@ const { values } = parseArgs({
     workspace: { type: 'string' },
     plan: { type: 'string', default: 'starter' },
     pack: { type: 'string' },
+    simulate: { type: 'string' },
     out: { type: 'string', default: 'khqr-test-payment.png' },
     'poll-seconds': { type: 'string', default: '4' },
   },
@@ -42,6 +47,11 @@ if (!values.pack && !(PLAN_IDS as readonly string[]).includes(values.plan)) {
 }
 const purchase: Purchase = values.pack ? { creditPack: values.pack } : { plan: values.plan as PlanId };
 const pollMs = Math.max(3, Number(values['poll-seconds'])) * 1000;
+const SIMULATIONS = ['paid', 'failed', 'wrong_amount', 'expired'] as const;
+if (values.simulate && !(SIMULATIONS as readonly string[]).includes(values.simulate)) {
+  console.error(`--simulate must be one of ${SIMULATIONS.join(', ')}`);
+  process.exit(1);
+}
 
 const environment = parseEnvironment(process.env);
 const logger = createLogger({ nodeEnv: environment.nodeEnv, logLevel: 'warn' });
@@ -67,7 +77,10 @@ try {
     )).limit(1);
   if (!workspace) throw new Error(`${user.email} owns no ${values.workspace ? `workspace ${values.workspace}` : 'personal workspace'}.`);
 
-  console.log(`\nBakong API: ${environment.bakong.apiBaseUrl}`);
+  const sandbox = environment.bakong.mode === 'sandbox';
+  console.log(`\nMode:       ${sandbox ? 'SANDBOX (simulated, no money moves, no Bakong requests)' : 'LIVE (real money)'}`);
+  if (!sandbox && values.simulate) throw new Error('--simulate needs BAKONG_MODE=sandbox');
+  console.log(`Bakong API: ${sandbox ? 'not called' : environment.bakong.apiBaseUrl}`);
   console.log(`Receiver:   ${environment.bakong.accountId}`);
   console.log(`Buyer:      ${user.email}, workspace "${workspace.name}" (${workspace.id})`);
   console.log(`Before:     ${JSON.stringify(await payments.getSubscription(user.id, workspace.id))}`);
@@ -81,7 +94,13 @@ try {
   console.log(`\nCheckout ${checkout.id}: ${checkout.amount} ${checkout.currency} for ${checkout.plan ?? checkout.creditPack} (+${checkout.credits} credits), bill ${checkout.billNumber}`);
   console.log(`Expires at ${checkout.expiresAt}. QR saved to ${out}\n`);
   console.log(await QRCode.toString(checkout.qr, { type: 'terminal', small: true }));
-  console.log('Scan and pay with your banking app. Waiting for Bakong... (Ctrl+C to stop; the API sweep will still settle it)\n');
+  if (sandbox) {
+    const outcome = (values.simulate ?? 'paid') as (typeof SIMULATIONS)[number];
+    console.log(`Sandbox: simulating "${outcome}" instead of a real payment...\n`);
+    await payments.simulatePayment(user.id, checkout.id, outcome);
+  } else {
+    console.log('Scan and pay with your banking app. Waiting for Bakong... (Ctrl+C to stop; the API sweep will still settle it)\n');
+  }
 
   let last = '';
   while (!stopped) {
@@ -94,7 +113,7 @@ try {
       console.log(`\nPaid at ${payment.paidAt}.`);
       if (payment.subscription) console.log(`Subscription: ${JSON.stringify(payment.subscription, null, 2)}`);
       console.log(`Credits added: ${payment.credits}. Balance now: ${payment.creditBalance}`);
-      console.log(`\nPASS: KHQR generated, Bakong confirmed the payment, and the ${payment.kind === 'PLAN' ? 'plan and its credits were' : 'credits were'} added.`);
+      console.log(`\nPASS: KHQR generated, ${sandbox ? 'the simulated payment was settled' : 'Bakong confirmed the payment'}, and the ${payment.kind === 'PLAN' ? 'plan and its credits were' : 'credits were'} added.`);
       break;
     }
     if (payment.status === 'EXPIRED' || payment.status === 'FAILED') {

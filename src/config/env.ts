@@ -46,6 +46,7 @@ const schema = z.object({
   CREDIT_MAX_CHARGE: z.coerce.number().positive().default(30),
   CREDIT_RESERVE: z.coerce.number().positive().default(10),
   GENERATION_MAX_ACTIVE_PER_USER: z.coerce.number().int().min(1).max(100).default(3),
+  BAKONG_MODE: z.enum(['live', 'sandbox']).default('live'),
   BAKONG_API_BASE_URL: z.url().default('https://api-bakong.nbc.gov.kh'),
   BAKONG_TOKEN: z.string().min(1).optional(),
   BAKONG_ACCOUNT_ID: z.string().regex(/^[^@\s]+@[^@\s]+$/, 'BAKONG_ACCOUNT_ID must look like name@bank').max(32).optional(),
@@ -128,7 +129,12 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
   if (parsed.NODE_ENV === 'production' && !parsed.SESSION_COOKIE_SECURE) {
     throw new Error('SESSION_COOKIE_SECURE must be true in production');
   }
-  if (Boolean(parsed.BAKONG_TOKEN) !== Boolean(parsed.BAKONG_ACCOUNT_ID)) {
+  const bakongSandbox = parsed.BAKONG_MODE === 'sandbox';
+  if (bakongSandbox && parsed.NODE_ENV === 'production') {
+    // Sandbox payments are settled on request, so in production anyone could take a plan for free.
+    throw new Error('BAKONG_MODE=sandbox is refused when NODE_ENV=production');
+  }
+  if (!bakongSandbox && Boolean(parsed.BAKONG_TOKEN) !== Boolean(parsed.BAKONG_ACCOUNT_ID)) {
     throw new Error('BAKONG_TOKEN and BAKONG_ACCOUNT_ID must be set together to enable Bakong payments');
   }
   if (Boolean(parsed.BAKONG_MERCHANT_ID) !== Boolean(parsed.BAKONG_ACQUIRING_BANK)) {
@@ -181,10 +187,12 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     generationMaxActivePerUser: parsed.GENERATION_MAX_ACTIVE_PER_USER,
     billingPlans: parseBillingPlans(source),
     creditPacks: parseCreditPacks(source.CREDIT_PACKS),
-    bakong: parsed.BAKONG_TOKEN && parsed.BAKONG_ACCOUNT_ID ? {
+    bakong: bakongSandbox || (parsed.BAKONG_TOKEN && parsed.BAKONG_ACCOUNT_ID) ? {
+      mode: parsed.BAKONG_MODE,
       apiBaseUrl: parsed.BAKONG_API_BASE_URL.replace(/\/$/, ''),
-      token: parsed.BAKONG_TOKEN,
-      accountId: parsed.BAKONG_ACCOUNT_ID,
+      // Sandbox makes no Bakong calls, so it needs no token.
+      token: parsed.BAKONG_TOKEN ?? null,
+      accountId: parsed.BAKONG_ACCOUNT_ID ?? 'motify.sandbox@devb',
       merchantName: parsed.BAKONG_MERCHANT_NAME,
       merchantCity: parsed.BAKONG_MERCHANT_CITY,
       merchantId: parsed.BAKONG_MERCHANT_ID,

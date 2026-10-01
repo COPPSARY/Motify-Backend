@@ -4,6 +4,7 @@ import type { Logger } from 'pino';
 
 import type { TransactionLookup } from '../../packages/bakong/client.js';
 import type { Khqr, KhqrPaymentRequest } from '../../packages/bakong/khqr.js';
+import type { SandboxOutcome } from '../../packages/bakong/sandbox.js';
 import { AppError } from '../errors.js';
 import type { BillingPlan, CreditPack, PlanId } from './billing-plans.js';
 import { CREDIT_SCALE } from './credit.service.js';
@@ -105,6 +106,10 @@ export interface PaymentServiceOptions {
   expiryGraceMs?: number;
   now?: () => Date;
   logger?: Pick<Logger, 'info' | 'warn' | 'error'>;
+  /** Set in BAKONG_MODE=sandbox: the gateway whose results `simulatePayment` decides. */
+  sandbox?: {
+    simulate(md5: string, outcome: SandboxOutcome, expected: { amount: number; currency: string; toAccountId: string }): void;
+  };
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -208,6 +213,28 @@ export class PaymentService {
     return { ...this.paymentView(payment), subscription: subscription ? this.subscriptionView(subscription) : null, creditBalance };
   }
 
+  /**
+   * Sandbox only: plays the payer's bank for an open checkout, then settles it through the
+   * same path a real payment takes (matching, plan activation, credit grant).
+   */
+  async simulatePayment(userId: string, paymentId: string, outcome: SandboxOutcome | 'expired') {
+    if (!this.options.sandbox) throw new AppError(404, 'NOT_FOUND', 'Route not found.');
+    const stored = await this.repository.get(paymentId);
+    if (!stored || !(await this.repository.getMembership(stored.workspaceId, userId))) {
+      throw new AppError(404, 'PAYMENT_NOT_FOUND', 'Payment not found.');
+    }
+    if (stored.status !== 'PENDING') throw new AppError(409, 'PAYMENT_NOT_PENDING', `This payment is already ${stored.status}.`);
+    if (outcome === 'expired') {
+      await this.repository.close(stored.id, 'EXPIRED', 'Expired in the sandbox.');
+    } else {
+      this.options.sandbox.simulate(stored.md5, outcome, {
+        amount: stored.amountMinor / 100, currency: stored.currency, toAccountId: this.options.receiverAccountId,
+      });
+      await this.refresh(stored, true);
+    }
+    return this.getPayment(userId, paymentId);
+  }
+
   /** Checks every PENDING payment once; run on an interval so a closed checkout tab still activates the plan. */
   async reconcilePending(limit = 50) {
     const pending = await this.repository.listPending(limit);
@@ -222,10 +249,10 @@ export class PaymentService {
     return { checked: pending.length, paid, credited };
   }
 
-  private async refresh(payment: PaymentRecord): Promise<PaymentRecord> {
+  private async refresh(payment: PaymentRecord, force = false): Promise<PaymentRecord> {
     if (payment.status !== 'PENDING') return payment;
     const now = this.now();
-    if (payment.lastCheckedAt && now.getTime() - payment.lastCheckedAt.getTime() < this.minCheckIntervalMs) return payment;
+    if (!force && payment.lastCheckedAt && now.getTime() - payment.lastCheckedAt.getTime() < this.minCheckIntervalMs) return payment;
 
     let lookup: TransactionLookup;
     try {
@@ -305,6 +332,8 @@ export class PaymentService {
     return {
       id: payment.id,
       workspaceId: payment.workspaceId,
+      // 'sandbox' payments were settled by POST /v1/payments/:id/sandbox; no money moved.
+      mode: this.options.sandbox ? 'sandbox' as const : 'live' as const,
       kind: payment.kind,
       plan: payment.plan,
       creditPack: payment.creditPack,
