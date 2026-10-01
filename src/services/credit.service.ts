@@ -5,7 +5,7 @@ import { AppError } from '../errors.js';
 /** Balances and ledger amounts are stored as whole hundredths of a credit. */
 export const CREDIT_SCALE = 100;
 
-export type CreditEntryKind = 'SIGNUP_GRANT' | 'RESERVE' | 'SETTLE' | 'REFUND' | 'ADJUSTMENT';
+export type CreditEntryKind = 'SIGNUP_GRANT' | 'RESERVE' | 'SETTLE' | 'REFUND' | 'ADJUSTMENT' | 'PLAN_GRANT' | 'PACK_PURCHASE';
 
 export interface CreditLedgerRow {
   id: string;
@@ -56,6 +56,8 @@ const DESCRIPTIONS: Record<CreditEntryKind, string> = {
   SETTLE: 'Generation',
   REFUND: 'Not charged (generation failed)',
   ADJUSTMENT: 'Adjustment',
+  PLAN_GRANT: 'Plan credits',
+  PACK_PURCHASE: 'Credits purchased',
 };
 
 const cursorSchema = z.strictObject({

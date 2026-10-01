@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
 import { normalizeDatabaseUrl } from '../../packages/database/connection-url.js';
+import {
+  DEFAULT_CREDIT_PACKS, DEFAULT_PERIOD_DAYS, DEFAULT_PLANS, PLAN_IDS, type BillingPlan, type CreditPack,
+} from '../services/billing-plans.js';
 
 const booleanString = z.enum(['true', 'false']).optional().transform((value) => (value ?? 'false') === 'true');
 const logLevel = z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional();
@@ -53,6 +56,72 @@ const schema = z.object({
   BAKONG_QR_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(180),
   BAKONG_RECONCILE_INTERVAL_SECONDS: z.coerce.number().int().min(10).max(3_600).default(30),
 });
+
+const planPrice = z.coerce.number().min(0.01).max(10_000).refine(
+  (value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6,
+  { message: 'must be in USD with at most 2 decimal places' },
+);
+
+// PLAN_<ID>_NAME / _PRICE / _CREDITS / _AVAILABLE per plan; unset values keep DEFAULT_PLANS.
+const planSchema = z.object({
+  BILLING_PERIOD_DAYS: z.coerce.number().int().min(1).max(366).default(DEFAULT_PERIOD_DAYS),
+  ...Object.fromEntries(PLAN_IDS.flatMap((id) => {
+    const prefix = `PLAN_${id.toUpperCase()}`;
+    const defaults = DEFAULT_PLANS[id];
+    return [
+      // "Motify <name>" is the KHQR store label, which allows 25 characters.
+      [`${prefix}_NAME`, z.string().trim().min(1).max(18).default(defaults.name)],
+      [`${prefix}_PRICE`, planPrice.default(defaults.priceCents / 100)],
+      [`${prefix}_CREDITS`, z.coerce.number().int().min(0).max(1_000_000).default(defaults.credits)],
+      [`${prefix}_AVAILABLE`, z.enum(['true', 'false']).default(defaults.available ? 'true' : 'false')],
+    ];
+  })),
+});
+
+export function parseBillingPlans(source: NodeJS.ProcessEnv | Record<string, string | undefined>): BillingPlan[] {
+  const parsed = planSchema.parse(source) as Record<string, string | number>;
+  return PLAN_IDS.map((id) => {
+    const prefix = `PLAN_${id.toUpperCase()}`;
+    return {
+      id,
+      name: parsed[`${prefix}_NAME`] as string,
+      priceCents: Math.round((parsed[`${prefix}_PRICE`] as number) * 100),
+      currency: 'USD' as const,
+      periodDays: parsed.BILLING_PERIOD_DAYS as number,
+      credits: parsed[`${prefix}_CREDITS`] as number,
+      available: parsed[`${prefix}_AVAILABLE`] === 'true',
+    };
+  });
+}
+
+/**
+ * CREDIT_PACKS is a comma-separated list of `price:credits` pairs in USD, for
+ * example `2.50:30,5:65`. Unset uses DEFAULT_CREDIT_PACKS; an empty value
+ * offers no packs.
+ */
+export function parseCreditPacks(value: string | undefined): CreditPack[] {
+  const raw = (value ?? DEFAULT_CREDIT_PACKS).trim();
+  if (!raw) return [];
+  const packs = raw.split(',').map((entry) => {
+    const [price, credits, ...rest] = entry.trim().split(':');
+    const parsedPrice = planPrice.safeParse(price);
+    const parsedCredits = z.coerce.number().int().min(1).max(1_000_000).safeParse(credits);
+    if (rest.length || !price || !credits || !parsedPrice.success || !parsedCredits.success) {
+      throw new Error(`CREDIT_PACKS entry "${entry.trim()}" must be price:credits, like 5:65 (USD, at most 2 decimals; whole credits)`);
+    }
+    return {
+      id: `credits-${parsedCredits.data}`,
+      priceCents: Math.round(parsedPrice.data * 100),
+      currency: 'USD' as const,
+      credits: parsedCredits.data,
+    };
+  });
+  if (packs.length > 20) throw new Error('CREDIT_PACKS allows at most 20 packs');
+  if (new Set(packs.map((pack) => pack.credits)).size !== packs.length) {
+    throw new Error('CREDIT_PACKS lists the same credit amount twice');
+  }
+  return packs;
+}
 
 export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, string | undefined>) {
   const parsed = schema.parse(source);
@@ -110,6 +179,8 @@ export function parseEnvironment(source: NodeJS.ProcessEnv | Record<string, stri
     creditHoldUnits: Math.round(parsed.CREDIT_RESERVE * 100),
     creditMinUnits: Math.round(parsed.CREDIT_MIN_CHARGE * 100),
     generationMaxActivePerUser: parsed.GENERATION_MAX_ACTIVE_PER_USER,
+    billingPlans: parseBillingPlans(source),
+    creditPacks: parseCreditPacks(source.CREDIT_PACKS),
     bakong: parsed.BAKONG_TOKEN && parsed.BAKONG_ACCOUNT_ID ? {
       apiBaseUrl: parsed.BAKONG_API_BASE_URL.replace(/\/$/, ''),
       token: parsed.BAKONG_TOKEN,

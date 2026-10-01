@@ -124,15 +124,22 @@
     {
       "idx": 17,
       "version": "7",
-      "when": 1790800000000,
-      "tag": "0017_brand_dna",
+      "when": 1790900000000,
+      "tag": "0017_credit_purchases",
       "breakpoints": true
     },
     {
       "idx": 18,
       "version": "7",
-      "when": 1790900000000,
-      "tag": "0018_brand_fonts",
+      "when": 1791000000000,
+      "tag": "0018_brand_dna",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0019_brand_fonts",
       "breakpoints": true
     }
   ]

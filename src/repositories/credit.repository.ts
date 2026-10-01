@@ -35,6 +35,8 @@ export class DatabaseCreditRepository implements CreditReader, CreditLedger {
       select coalesce(reference_id, id) as id,
         case
           when bool_or(kind = 'SIGNUP_GRANT') then 'SIGNUP_GRANT'
+          when bool_or(kind = 'PLAN_GRANT') then 'PLAN_GRANT'
+          when bool_or(kind = 'PACK_PURCHASE') then 'PACK_PURCHASE'
           when bool_or(kind = 'REFUND') then 'REFUND'
           when bool_or(kind in ('RESERVE', 'SETTLE')) then 'SETTLE'
           else 'ADJUSTMENT'

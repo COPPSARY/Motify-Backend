@@ -139,20 +139,21 @@ Fonts are either a `preset` (a typeface Motionly bundles or every system has, na
 
 ```text
 GET  /v1/billing/plans
+GET  /v1/billing/credit-packs
 GET  /v1/workspaces/:workspaceId/billing/subscription
 POST /v1/workspaces/:workspaceId/billing/payments
 GET  /v1/payments/:paymentId
 ```
 
-Plans are bought per workspace by paying a Bakong KHQR, the QR code any Cambodian banking app can scan. The routes are mounted only when `BAKONG_TOKEN` and `BAKONG_ACCOUNT_ID` are set. `plans` needs no session and lists the catalog in `src/services/billing-plans.ts`, which mirrors the public pricing page.
+Plans are bought per workspace by paying a Bakong KHQR, the QR code any Cambodian banking app can scan. The routes are mounted only when `BAKONG_TOKEN` and `BAKONG_ACCOUNT_ID` are set. `plans` needs no session and lists the catalog. Prices, credits, names and which plans are on sale come from the `PLAN_<ID>_*` and `BILLING_PERIOD_DAYS` settings (see `.env.example`), so a price change is a config change and a restart, not a code change. Point the pricing page at this endpoint to keep it in step. A new price applies to new checkouts; an open QR keeps charging the price it showed.
 
-A workspace owner starts a checkout with `{ "plan": "starter" | "pro" }`. The response carries the KHQR string in `qr`; render it as a QR image, or pass it to Bakong's deeplink on mobile. It expires at `expiresAt`, 3 minutes by default. Asking again for the same plan while a checkout is open returns that checkout instead of a new QR. `studio` returns `409 PLAN_UNAVAILABLE` until it goes on sale, and members who are not owners get `403`.
+A checkout buys either a plan or a credit pack. A workspace owner buys a plan with `{ "plan": "starter" | "pro" }`; any member buys credits with `{ "creditPack": "credits-135" }`, an id from `credit-packs`. Send exactly one of the two. The response carries the KHQR string in `qr`; render it as a QR image, or pass it to Bakong's deeplink on mobile. It expires at `expiresAt`, 3 minutes by default. Asking again for the same plan (or, for packs, the same pack by the same member) while a checkout is open returns that checkout instead of a new QR. A plan not on sale returns `409 PLAN_UNAVAILABLE`, a pack not on sale `409 CREDIT_PACK_UNAVAILABLE`, and a member who is not an owner gets `403` for a plan.
 
 ```json
-{ "data": { "id": "…", "plan": "pro", "amount": 20, "currency": "USD", "billNumber": "MTF-7KQ2M9XH4P", "status": "PENDING", "qr": "000201…", "expiresAt": "…", "paidAt": null, "createdAt": "…" } }
+{ "data": { "id": "…", "kind": "PLAN", "plan": "pro", "creditPack": null, "credits": 300, "amount": 20, "currency": "USD", "billNumber": "MTF-7KQ2M9XH4P", "status": "PENDING", "qr": "000201…", "expiresAt": "…", "paidAt": null, "createdAt": "…" } }
 ```
 
-Bakong sends no webhooks, so the client polls `GET /v1/payments/:paymentId` every 3–5 seconds while the QR is on screen. Each poll of a `PENDING` payment asks Bakong's `check_transaction_by_md5`, at most once every 3 seconds per payment. When Bakong reports a transaction to our account for the exact amount and currency, the payment becomes `PAID` and the workspace plan is activated in the same database transaction; the response then includes `subscription`. The API also sweeps every `PENDING` payment every `BAKONG_RECONCILE_INTERVAL_SECONDS`, so a plan still activates when the payer closes the tab.
+Bakong sends no webhooks, so the client polls `GET /v1/payments/:paymentId` every 3–5 seconds while the QR is on screen. Each poll of a `PENDING` payment asks Bakong's `check_transaction_by_md5`, at most once every 3 seconds per payment. When Bakong reports a transaction to our account for the exact amount and currency, the payment becomes `PAID` and, in the same database transaction, the workspace plan is activated (plan checkouts) and the payment's `credits` are added to the member who paid. The response then includes `subscription` (plan checkouts) and, for the member who paid, `creditBalance`. The API also sweeps every `PENDING` payment every `BAKONG_RECONCILE_INTERVAL_SECONDS`, so a plan still activates when the payer closes the tab.
 
 | Status | Meaning |
 | --- | --- |
@@ -171,7 +172,13 @@ A subscription lasts 30 days from payment. Paying for the plan that is already a
 
 To test a real payment without a frontend, run `npm run payments:test -- --email <account email> [--plan starter]`. It opens a checkout for that account's personal workspace, prints the KHQR in the terminal and saves it as a PNG, then polls until Bakong confirms and the plan activates. It charges real money to `BAKONG_ACCOUNT_ID`.
 
-`status` is `none` for a workspace that never paid, and `expired` once `currentPeriodEnd` has passed. Credits listed on each plan are informational until credit metering ships.
+`status` is `none` for a workspace that never paid, and `expired` once `currentPeriodEnd` has passed. Each plan payment, including a renewal, adds that plan's credits to the payer's balance. Credits are fixed when the checkout is created, so a later change to `PLAN_<ID>_CREDITS` or `CREDIT_PACKS` does not change what an open checkout grants. Credits from plans and packs do not expire.
+
+```json
+{ "data": [{ "id": "credits-30", "price": 2.5, "currency": "USD", "credits": 30 }, { "id": "credits-65", "price": 5, "currency": "USD", "credits": 65 }] }
+```
+
+`credit-packs` needs no session and lists the packs from `CREDIT_PACKS` (default `2.50:30,5:65,10:135,25:350,50:720,100:1450`).
 
 ## Cloud AI generation
 

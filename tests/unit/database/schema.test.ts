@@ -11,9 +11,11 @@ import {
   creditAccounts,
   creditLedger,
   billingPlan,
+  creditEntryKind,
   generationRuns,
   messageAssets,
   messages,
+  paymentKind,
   payments,
   projectAssets,
   projects,
@@ -45,6 +47,18 @@ describe('database schema', () => {
     expect(workspaceSubscriptions.currentPeriodEnd.name).toBe('current_period_end');
   });
 
+  it('records plan and pack credits on payments and in the ledger', async () => {
+    expect(creditEntryKind.enumValues).toEqual(expect.arrayContaining(['PLAN_GRANT', 'PACK_PURCHASE']));
+    expect(paymentKind.enumValues).toEqual(['PLAN', 'CREDIT_PACK']);
+    expect(payments.creditUnits.name).toBe('credit_units');
+    expect(payments.plan.notNull).toBe(false);
+    const sql = await readFile('drizzle/migrations/0017_credit_purchases.sql', 'utf8');
+    expect(sql).toContain("ADD VALUE IF NOT EXISTS 'PLAN_GRANT'");
+    expect(sql).toContain('"payments_kind_check"');
+    // A migration may not use an enum value it added, so grants are left to the payment sweep.
+    expect(sql).not.toMatch(/INSERT INTO "credit_ledger"/);
+  });
+
   it('keeps payment tables closed to the public Supabase API', async () => {
     const sql = await readFile('drizzle/migrations/0015_bakong_payments.sql', 'utf8');
     expect(sql).toContain('ALTER TABLE "payments" ENABLE ROW LEVEL SECURITY');
@@ -58,11 +72,11 @@ describe('database schema', () => {
     const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
       entries: Array<{ tag: string }>;
     };
-    expect(journal.entries.map((entry) => entry.tag)).toEqual(expect.arrayContaining(['0017_brand_dna', '0018_brand_fonts']));
+    expect(journal.entries.map((entry) => entry.tag).slice(-2)).toEqual(['0018_brand_dna', '0019_brand_fonts']);
 
-    const sql = await readFile('drizzle/migrations/0017_brand_dna.sql', 'utf8');
-    expect(sql).toContain('CREATE TABLE "brand_profiles"');
-    expect(sql).toContain('CREATE TABLE "brand_assets"');
+    const sql = await readFile('drizzle/migrations/0018_brand_dna.sql', 'utf8');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS "brand_profiles"');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS "brand_assets"');
     expect(sql).toContain('ALTER TABLE "brand_profiles" ENABLE ROW LEVEL SECURITY');
     expect(sql).toContain('ALTER TABLE "brand_assets" ENABLE ROW LEVEL SECURITY');
     expect(sql).toMatch(/REVOKE ALL ON TABLE "brand_profiles", "brand_assets" FROM "anon"/);
@@ -78,6 +92,7 @@ describe('database schema', () => {
     const tags = journal.entries.map((entry) => entry.tag);
     expect(tags).toContain('0014_credits');
     expect(tags).toContain('0016_generation_credits');
+    expect(tags).toContain('0017_credit_purchases');
 
     const sql = await readFile('drizzle/migrations/0014_credits.sql', 'utf8');
     // Supabase exposes public tables to browsers with the publishable key, so both

@@ -177,4 +177,56 @@ describe('parseEnvironment', () => {
       expect(() => parseEnvironment({ ...valid, [name]: '0' })).toThrow(name);
     }
   });
+
+  it('defaults the plan catalog to the published pricing', () => {
+    expect(parseEnvironment(valid).billingPlans).toEqual([
+      { id: 'starter', name: 'Starter', priceCents: 1_000, currency: 'USD', periodDays: 30, credits: 150, available: true },
+      { id: 'pro', name: 'Pro', priceCents: 2_000, currency: 'USD', periodDays: 30, credits: 300, available: true },
+      { id: 'studio', name: 'Studio', priceCents: 5_000, currency: 'USD', periodDays: 30, credits: 750, available: false },
+    ]);
+  });
+
+  it('reads plan prices, credits, names and availability from settings', () => {
+    const plans = parseEnvironment({
+      ...valid,
+      PLAN_STARTER_PRICE: '7.5', PLAN_PRO_CREDITS: '400', PLAN_PRO_NAME: 'Creator', PLAN_STUDIO_AVAILABLE: 'true', BILLING_PERIOD_DAYS: '31',
+    }).billingPlans;
+    expect(plans).toEqual([
+      expect.objectContaining({ id: 'starter', priceCents: 750, periodDays: 31 }),
+      expect.objectContaining({ id: 'pro', name: 'Creator', priceCents: 2_000, credits: 400 }),
+      expect.objectContaining({ id: 'studio', available: true }),
+    ]);
+  });
+
+  it('rejects plan settings a KHQR cannot carry', () => {
+    expect(() => parseEnvironment({ ...valid, PLAN_PRO_PRICE: '0' })).toThrow('PLAN_PRO_PRICE');
+    expect(() => parseEnvironment({ ...valid, PLAN_PRO_PRICE: '9.999' })).toThrow('2 decimal places');
+    expect(() => parseEnvironment({ ...valid, PLAN_PRO_PRICE: 'free' })).toThrow('PLAN_PRO_PRICE');
+    expect(() => parseEnvironment({ ...valid, PLAN_STARTER_NAME: 'A name far too long for KHQR' })).toThrow('PLAN_STARTER_NAME');
+    expect(() => parseEnvironment({ ...valid, PLAN_STUDIO_AVAILABLE: 'yes' })).toThrow('PLAN_STUDIO_AVAILABLE');
+    expect(() => parseEnvironment({ ...valid, BILLING_PERIOD_DAYS: '0' })).toThrow('BILLING_PERIOD_DAYS');
+  });
+
+  it('defaults credit packs to the published credit pricing', () => {
+    expect(parseEnvironment(valid).creditPacks.map((pack) => [pack.id, pack.priceCents, pack.credits])).toEqual([
+      ['credits-30', 250, 30], ['credits-65', 500, 65], ['credits-135', 1_000, 135],
+      ['credits-350', 2_500, 350], ['credits-720', 5_000, 720], ['credits-1450', 10_000, 1_450],
+    ]);
+  });
+
+  it('reads credit packs from CREDIT_PACKS and allows none', () => {
+    expect(parseEnvironment({ ...valid, CREDIT_PACKS: ' 1.99:20 , 9:100 ' }).creditPacks).toEqual([
+      { id: 'credits-20', priceCents: 199, currency: 'USD', credits: 20 },
+      { id: 'credits-100', priceCents: 900, currency: 'USD', credits: 100 },
+    ]);
+    expect(parseEnvironment({ ...valid, CREDIT_PACKS: '' }).creditPacks).toEqual([]);
+  });
+
+  it('rejects credit packs a KHQR cannot carry', () => {
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '5' })).toThrow('CREDIT_PACKS');
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '0:30' })).toThrow('CREDIT_PACKS');
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '2.555:30' })).toThrow('CREDIT_PACKS');
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '5:1.5' })).toThrow('CREDIT_PACKS');
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '5:65,6:65' })).toThrow('same credit amount');
+  });
 });

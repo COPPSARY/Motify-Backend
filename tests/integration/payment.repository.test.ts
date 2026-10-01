@@ -3,8 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { TransactionRollbackError } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 
+import { eq } from 'drizzle-orm';
+
 import { createDatabase, type Database } from '../../packages/database/client.js';
-import { users, workspaceMembers, workspaces } from '../../packages/database/schema.js';
+import { creditLedger, users, workspaceMembers, workspaces } from '../../packages/database/schema.js';
 import { DatabasePaymentRepository } from '../../src/repositories/payment.repository.js';
 import { nextSubscriptionPeriod } from '../../src/services/payment.service.js';
 
@@ -27,30 +29,56 @@ describe.skipIf(!databaseUrl)('DatabasePaymentRepository', () => {
 
         const expiresAt = new Date(Date.now() + 10 * 60_000);
         const newPayment = (bill: string) => ({
-          workspaceId, createdBy: userId, plan: 'pro' as const, amountMinor: 2_000, currency: 'USD' as const,
+          workspaceId, createdBy: userId, kind: 'PLAN' as const, plan: 'pro' as const, creditPack: null, creditUnits: 30_000,
+          amountMinor: 2_000, currency: 'USD' as const,
           billNumber: `MTF-${bill}-${suffix.slice(0, 6)}`, qr: `qr-${bill}-${suffix}`, md5: `md5-${bill}-${suffix}`, expiresAt,
         });
         const created = await repository.create(newPayment('A'));
         expect(created).toMatchObject({ status: 'PENDING', amountMinor: 2_000, lastCheckedAt: null });
-        await expect(repository.findReusablePending(workspaceId, 'pro', new Date())).resolves.toMatchObject({ id: created.id });
-        await expect(repository.findReusablePending(workspaceId, 'pro', new Date(expiresAt.getTime() + 1))).resolves.toBeNull();
+        await expect(repository.findReusablePending(workspaceId, userId, { plan: 'pro' }, new Date())).resolves.toMatchObject({ id: created.id });
+        await expect(repository.findReusablePending(workspaceId, userId, { plan: 'pro' }, new Date(expiresAt.getTime() + 1))).resolves.toBeNull();
+        await expect(repository.findReusablePending(workspaceId, userId, { creditPack: 'credits-30' }, new Date())).resolves.toBeNull();
         await expect(repository.getMembership(workspaceId, userId)).resolves.toEqual({ role: 'owner' });
 
         const paidAt = new Date();
         const period = (current: Parameters<typeof nextSubscriptionPeriod>[0]) => nextSubscriptionPeriod(current, 'pro', paidAt, 30);
         const paid = await repository.activate(created.id, { hash: `hash-A-${suffix}`, payerAccountId: 'payer@abaa', paidAt }, period);
-        expect(paid).toMatchObject({ status: 'PAID' });
+        expect(paid).toMatchObject({ status: 'PAID', kind: 'PLAN', creditUnits: 30_000 });
         const firstEnd = (await repository.getSubscription(workspaceId))!.currentPeriodEnd;
+        await expect(repository.getCreditBalance(userId)).resolves.toBe(30_000);
 
         // A second settle of the same payment must not extend the period again.
         await repository.activate(created.id, { hash: `hash-A-${suffix}`, payerAccountId: 'payer@abaa', paidAt }, period);
         expect((await repository.getSubscription(workspaceId))!.currentPeriodEnd).toEqual(firstEnd);
+        await expect(repository.getCreditBalance(userId)).resolves.toBe(30_000);
         await expect(repository.close(created.id, 'EXPIRED', null)).resolves.toBeNull();
 
         const renewal = await repository.create(newPayment('B'));
         await repository.activate(renewal.id, { hash: `hash-B-${suffix}`, payerAccountId: 'payer@abaa', paidAt }, period);
         const renewed = await repository.getSubscription(workspaceId);
         expect(renewed!.currentPeriodEnd.getTime() - firstEnd.getTime()).toBe(30 * 24 * 60 * 60 * 1000);
+        await expect(repository.getCreditBalance(userId)).resolves.toBe(60_000);
+
+        // A credit pack adds credits and leaves the subscription alone.
+        const pack = await repository.create({
+          ...newPayment('P'), kind: 'CREDIT_PACK', plan: null, creditPack: 'credits-30', creditUnits: 3_000, amountMinor: 250,
+        });
+        await expect(repository.findReusablePending(workspaceId, userId, { creditPack: 'credits-30' }, new Date())).resolves.toMatchObject({ id: pack.id });
+        await repository.activate(pack.id, { hash: `hash-P-${suffix}`, payerAccountId: 'payer@abaa', paidAt }, null);
+        await expect(repository.getCreditBalance(userId)).resolves.toBe(63_000);
+        expect((await repository.getSubscription(workspaceId))!.currentPeriodEnd).toEqual(renewed!.currentPeriodEnd);
+        const kinds = await transaction.select({ kind: creditLedger.kind, referenceId: creditLedger.referenceId })
+          .from(creditLedger).where(eq(creditLedger.userId, userId));
+        expect(kinds).toEqual(expect.arrayContaining([
+          { kind: 'PLAN_GRANT', referenceId: created.id },
+          { kind: 'PLAN_GRANT', referenceId: renewal.id },
+          { kind: 'PACK_PURCHASE', referenceId: pack.id },
+        ]));
+        expect(kinds).toHaveLength(3);
+
+        // Every paid payment of this user is already credited, so the backfill adds nothing for them.
+        await repository.grantMissingCredits(500);
+        await expect(repository.getCreditBalance(userId)).resolves.toBe(63_000);
 
         const abandoned = await repository.create(newPayment('C'));
         await repository.markChecked(abandoned.id, paidAt);
