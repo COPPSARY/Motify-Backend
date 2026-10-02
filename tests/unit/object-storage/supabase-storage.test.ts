@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SupabaseObjectStorage } from '../../../packages/object-storage/supabase-storage.js';
+import { ObjectNotFoundError } from '../../../packages/object-storage/types.js';
 
 describe('SupabaseObjectStorage', () => {
     it('creates signed uploads and reads private object metadata', async () => {
@@ -48,5 +49,21 @@ describe('SupabaseObjectStorage', () => {
         await expect(storage.delete('workspaces/ws/assets/a/object')).resolves.toBeUndefined();
         expect(bucket.createSignedUrl).toHaveBeenCalledWith('workspaces/ws/assets/a/object', 300);
         expect(bucket.remove).toHaveBeenCalledWith(['workspaces/ws/assets/a/object']);
+    });
+
+    it('reports a key storage does not hold as a missing object', async () => {
+        const missing = { data: null, error: { message: 'Object not found' } };
+        const bucket = {
+            createSignedUploadUrl: vi.fn(),
+            info: vi.fn().mockResolvedValue(missing),
+            download: vi.fn().mockResolvedValue(missing),
+            createSignedUrl: vi.fn().mockResolvedValue(missing),
+            remove: vi.fn(),
+        };
+        const storage = new SupabaseObjectStorage({ storage: { from: () => bucket } }, 'motify-assets');
+
+        await expect(storage.createSignedReadUrl('gone', 300)).rejects.toBeInstanceOf(ObjectNotFoundError);
+        await expect(storage.openRead('gone')).rejects.toMatchObject({ key: 'gone' });
+        await expect(storage.inspect('gone')).rejects.toBeInstanceOf(ObjectNotFoundError);
     });
 });

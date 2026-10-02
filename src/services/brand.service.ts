@@ -25,7 +25,7 @@ import type {
 import type { WorkspaceRole } from './workspace.service.js';
 
 export type BrandRepository = Pick<DatabaseBrandRepository,
-  'getWorkspaceAccess' | 'getProfile' | 'ensureProfile' | 'saveProfile' | 'listAssets' | 'getAsset' | 'putAsset' | 'updateAsset' | 'removeAsset'>;
+  'getWorkspaceAccess' | 'getPersonalWorkspaceId' | 'getProfile' | 'ensureProfile' | 'saveProfile' | 'listAssets' | 'getAsset' | 'putAsset' | 'updateAsset' | 'removeAsset'>;
 
 /** Reads the uploaded asset a brand link points at. */
 export interface BrandAssetReader {
@@ -51,9 +51,11 @@ export interface AddBrandAssetInput {
 const MAX_BRAND_ASSETS = 40;
 
 /**
- * Brand DNA for a workspace. Members read it, editors and owners change it,
- * and every generation in the workspace is given it. The document is written
- * against a revision so two tabs cannot silently overwrite each other.
+ * Brand DNA. Each person has one brand, kept in their personal workspace, and
+ * every generation they run is given it whichever workspace the project lives
+ * in. The workspace-scoped methods remain for workspaces that saved a brand
+ * before it followed the person. The document is written against a revision
+ * so two tabs cannot silently overwrite each other.
  */
 export class BrandService {
   constructor(
@@ -62,6 +64,13 @@ export class BrandService {
     private readonly remover?: BrandAssetRemover,
     private readonly now: () => Date = () => new Date(),
   ) {}
+
+  /** The workspace that holds this person's brand. */
+  async brandWorkspaceId(userId: string) {
+    const workspaceId = await this.repository.getPersonalWorkspaceId(userId);
+    if (!workspaceId) throw new AppError(404, 'WORKSPACE_NOT_FOUND', 'Workspace not found.');
+    return workspaceId;
+  }
 
   async get(userId: string, workspaceId: string) {
     await this.requireMember(workspaceId, userId);
@@ -195,6 +204,17 @@ export class BrandService {
         height: asset.height,
       })),
     };
+  }
+
+  /**
+   * The brand a generation run by this person is given: their own, or, while
+   * they have not set one up, the brand the project's workspace saved.
+   */
+  async resolveUserGenerationBrand(userId: string, projectWorkspaceId: string): Promise<GenerationBrand | undefined> {
+    const personal = await this.repository.getPersonalWorkspaceId(userId);
+    const own = personal ? await this.resolveGenerationBrand(personal) : undefined;
+    if (own || personal === projectWorkspaceId) return own;
+    return this.resolveGenerationBrand(projectWorkspaceId);
   }
 
   private async requireMember(workspaceId: string, userId: string) {

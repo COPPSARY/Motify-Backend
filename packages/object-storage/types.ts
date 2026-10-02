@@ -31,3 +31,11 @@ export interface PrivateObjectStorage {
   resolvePath(key: string): Promise<string>;
   delete(key: string): Promise<void>;
 }
+
+/** Storage holds nothing under this key, e.g. a file removed outside the app. */
+export class ObjectNotFoundError extends Error {
+  constructor(readonly key: string) {
+    super(`Stored object not found: ${key}`);
+    this.name = 'ObjectNotFoundError';
+  }
+}

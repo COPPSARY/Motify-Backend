@@ -22,8 +22,9 @@ function asset(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setup(options: { role?: string | null; profile?: unknown; asset?: Record<string, unknown> | null; saved?: unknown; linked?: boolean } = {}) {
+function setup(options: { role?: string | null; profile?: unknown; asset?: Record<string, unknown> | null; saved?: unknown; linked?: boolean; personal?: string | null } = {}) {
   const repository = {
+    getPersonalWorkspaceId: vi.fn().mockResolvedValue(options.personal === undefined ? workspaceId : options.personal),
     getWorkspaceAccess: vi.fn().mockResolvedValue(options.role === null ? null : { role: options.role ?? 'editor' }),
     getProfile: vi.fn().mockResolvedValue(options.profile === undefined ? profile() : options.profile),
     ensureProfile: vi.fn().mockResolvedValue(profile()),
@@ -151,6 +152,33 @@ describe('BrandService', () => {
     expect(await service.resolveGenerationBrand(workspaceId)).toMatchObject({
       dna: { identity: { name: 'Acme' } },
       assets: [{ assetId, role: 'logo', fileName: 'logo.svg', width: 400 }],
+    });
+  });
+
+  describe('brand that follows the person', () => {
+    const brandRow = { link: { role: 'LOGO', label: null }, asset: asset() };
+
+    it('keeps the brand in the personal workspace', async () => {
+      expect(await setup().service.brandWorkspaceId(userId)).toBe(workspaceId);
+      await expect(setup({ personal: null }).service.brandWorkspaceId(userId))
+        .rejects.toMatchObject({ status: 404, code: 'WORKSPACE_NOT_FOUND' });
+    });
+
+    it("gives a generation the sender's brand wherever the project lives", async () => {
+      const { service, repository } = setup();
+      repository.listAssets.mockResolvedValue([brandRow]);
+      const brand = await service.resolveUserGenerationBrand(userId, otherWorkspaceId);
+      expect(repository.getProfile).toHaveBeenCalledWith(workspaceId);
+      expect(repository.getProfile).not.toHaveBeenCalledWith(otherWorkspaceId);
+      expect(brand?.assets[0]).toMatchObject({ assetId, role: 'logo' });
+    });
+
+    it('falls back to the project workspace brand until the person sets one up', async () => {
+      const { service, repository } = setup();
+      repository.getProfile.mockImplementation(async (id: string) => (id === workspaceId ? null : profile({ workspaceId: id })));
+      repository.listAssets.mockResolvedValue([brandRow]);
+      expect(await service.resolveUserGenerationBrand(userId, otherWorkspaceId)).toBeDefined();
+      expect(repository.getProfile).toHaveBeenCalledWith(otherWorkspaceId);
     });
   });
 });

@@ -13,6 +13,7 @@ function dependencies() {
     auth: {} as never, workspaces: {} as never, projects: {} as never,
     sessions: { resolve: vi.fn().mockResolvedValue({ user, csrfToken: 'csrf-token' }) },
     brand: {
+      brandWorkspaceId: vi.fn().mockResolvedValue(workspaceId),
       get: vi.fn().mockResolvedValue({ workspaceId, revision: 0 }),
       update: vi.fn().mockResolvedValue({ workspaceId, revision: 1 }),
       addAsset: vi.fn().mockResolvedValue({ workspaceId, revision: 1 }),
@@ -54,6 +55,20 @@ describe('Brand DNA API', () => {
     }));
     expect(deps.brand.addAsset).toHaveBeenCalledWith(user.id, workspaceId, { assetId, role: 'logo' });
     expect(deps.brand.updateAsset).toHaveBeenCalledWith(user.id, workspaceId, assetId, { label: null });
+    expect(deps.brand.removeAsset).toHaveBeenCalledWith(user.id, workspaceId, assetId);
+  });
+
+  it("serves the signed-in person's brand at /v1/brand", async () => {
+    const deps = dependencies();
+    const server = app(deps);
+
+    await authenticated(request(server).get('/v1/brand')).expect(200, { data: { workspaceId, revision: 0 } });
+    await authenticated(request(server).post('/v1/brand/assets')).send({ assetId, role: 'logo' }).expect(201);
+    await authenticated(request(server).delete(`/v1/brand/assets/${assetId}`)).expect(204);
+
+    expect(deps.brand.brandWorkspaceId).toHaveBeenCalledWith(user.id);
+    expect(deps.brand.get).toHaveBeenCalledWith(user.id, workspaceId);
+    expect(deps.brand.addAsset).toHaveBeenCalledWith(user.id, workspaceId, { assetId, role: 'logo' });
     expect(deps.brand.removeAsset).toHaveBeenCalledWith(user.id, workspaceId, assetId);
   });
 

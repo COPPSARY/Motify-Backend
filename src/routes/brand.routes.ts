@@ -4,7 +4,7 @@ import type { BrandController } from '../controllers/brand.controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { requireCsrf } from '../middleware/authentication.js';
 
-export function createWorkspaceBrandRoutes(controller: BrandController) {
+export function createBrandRoutes(controller: BrandController) {
   const router = Router({ mergeParams: true });
   router.get('/', asyncHandler(controller.get));
   router.put('/', requireCsrf, asyncHandler(controller.update));

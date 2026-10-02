@@ -5,6 +5,7 @@ import type { PrivateObjectStorage } from '../../packages/object-storage/types.j
 import { assetKind, validateAssetBuffer, validateAssetMetadata, validateStoredAsset } from '../../packages/object-storage/asset-validation.js';
 import { inspectAudio } from '../../packages/object-storage/audio-metadata.js';
 import { inspectImage, toVisionImage } from '../../packages/object-storage/image-metadata.js';
+import { orMissingFile } from './missing-file.js';
 import { AppError } from '../errors.js';
 import type { AssetRecord, DatabaseAssetRepository } from '../repositories/asset.repository.js';
 import type { WorkspaceRole } from './workspace.service.js';
@@ -132,7 +133,7 @@ export class AssetService {
     if (this.storage.bucket === 'local') {
       return { ...base, kind: 'file' as const, path: await this.storage.resolvePath(access.asset.objectKey) };
     }
-    return { ...base, kind: 'redirect' as const, url: await this.storage.createSignedReadUrl(access.asset.objectKey, 300) };
+    return { ...base, kind: 'redirect' as const, url: await orMissingFile(this.storage.createSignedReadUrl(access.asset.objectKey, 300)) };
   }
 
   async updateMetadata(userId: string, assetId: string, input: { label?: string | null; tags?: string[] }) {
@@ -194,7 +195,7 @@ export class AssetService {
     const expiresIn = 300;
     const url = this.storage.bucket === 'local'
       ? `/v1/assets/${assetId}/download`
-      : await this.storage.createSignedReadUrl(access.asset.objectKey, expiresIn);
+      : await orMissingFile(this.storage.createSignedReadUrl(access.asset.objectKey, expiresIn));
     return { url, expiresIn };
   }
 

@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 
 import type { Database } from '../../packages/database/client.js';
-import { assets, brandAssets, brandProfiles, workspaceMembers } from '../../packages/database/schema.js';
+import { assets, brandAssets, brandProfiles, workspaceMembers, workspaces } from '../../packages/database/schema.js';
 
 export type BrandProfileRecord = typeof brandProfiles.$inferSelect;
 export type BrandAssetRoleValue = (typeof brandAssets.$inferSelect)['role'];
@@ -40,6 +40,14 @@ export class DatabaseBrandRepository {
       eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId),
     )).limit(1);
     return membership ?? null;
+  }
+
+  /** The person's own workspace, which is where their Brand DNA is kept. */
+  async getPersonalWorkspaceId(userId: string) {
+    const [workspace] = await this.db.select({ id: workspaces.id }).from(workspaces).where(and(
+      eq(workspaces.ownerId, userId), eq(workspaces.kind, 'personal'),
+    )).limit(1);
+    return workspace?.id ?? null;
   }
 
   async getProfile(workspaceId: string) {

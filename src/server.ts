@@ -45,7 +45,7 @@ import { createProjectRoutes, createWorkspaceProjectRoutes } from './routes/proj
 import { createMotionMessageRoutes } from './routes/motion-message.routes.js';
 import { createAssetRoutes, createProjectAssetRoutes, createWorkspaceAssetRoutes } from './routes/asset.routes.js';
 import { createAudioRoutes, createProjectAudioRoutes, createWorkspaceAudioRoutes } from './routes/audio.routes.js';
-import { createWorkspaceBrandRoutes } from './routes/brand.routes.js';
+import { createBrandRoutes } from './routes/brand.routes.js';
 import { createCreditRoutes } from './routes/credit.routes.js';
 import { createWorkspaceRoutes } from './routes/workspace.routes.js';
 import { createBillingRoutes, createPaymentRoutes, createWorkspaceBillingRoutes } from './routes/payment.routes.js';
@@ -131,7 +131,10 @@ export function createApp(options: AppOptions) {
     app.use('/v1/projects/:projectId/audio', requireAuthentication, createProjectAudioRoutes(audioController));
     app.use('/v1/audio', requireAuthentication, createAudioRoutes(audioController));
   }
-  if (brandController) app.use('/v1/workspaces/:workspaceId/brand', requireAuthentication, createWorkspaceBrandRoutes(brandController));
+  if (brandController) {
+    app.use('/v1/brand', requireAuthentication, createBrandRoutes(brandController));
+    app.use('/v1/workspaces/:workspaceId/brand', requireAuthentication, createBrandRoutes(brandController));
+  }
   if (creditController) app.use('/v1/credits', requireAuthentication, createCreditRoutes(creditController));
   if (paymentController) {
     app.use('/v1/billing', createBillingRoutes(paymentController));
