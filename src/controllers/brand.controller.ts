@@ -14,6 +14,7 @@ const updateAssetSchema = z.strictObject({ role: z.enum(BRAND_ASSET_ROLES).optio
 );
 
 export interface BrandControllerService {
+  brandWorkspaceId(userId: string): Promise<string>;
   get(userId: string, workspaceId: string): Promise<unknown>;
   update(userId: string, workspaceId: string, input: { revision: number; dna: BrandDna }): Promise<unknown>;
   addAsset(userId: string, workspaceId: string, input: { assetId: string; role: BrandAssetRole; label?: string | null }): Promise<unknown>;
@@ -21,32 +22,43 @@ export interface BrandControllerService {
   removeAsset(userId: string, workspaceId: string, assetId: string): Promise<void>;
 }
 
+/**
+ * Serves both `/v1/brand` (the signed-in person's brand) and the older
+ * `/v1/workspaces/:workspaceId/brand`. Without a workspace in the path the
+ * person's own brand workspace is used.
+ */
 export class BrandController {
   constructor(private readonly brand: BrandControllerService) {}
 
   get = async (request: AuthenticatedRequest, response: Response) => {
-    response.json({ data: await this.brand.get(request.principal!.user.id, idSchema.parse(request.params.workspaceId)) });
+    response.json({ data: await this.brand.get(request.principal!.user.id, await this.workspaceIdOf(request)) });
   };
   update = async (request: AuthenticatedRequest, response: Response) => {
-    const workspaceId = idSchema.parse(request.params.workspaceId);
+    const workspaceId = await this.workspaceIdOf(request);
     response.json({ data: await this.brand.update(request.principal!.user.id, workspaceId, updateSchema.parse(request.body)) });
   };
   addAsset = async (request: AuthenticatedRequest, response: Response) => {
-    const workspaceId = idSchema.parse(request.params.workspaceId);
+    const workspaceId = await this.workspaceIdOf(request);
     response.status(201).json({ data: await this.brand.addAsset(request.principal!.user.id, workspaceId, withoutUndefined(addAssetSchema.parse(request.body))) });
   };
   updateAsset = async (request: AuthenticatedRequest, response: Response) => {
     response.json({ data: await this.brand.updateAsset(
       request.principal!.user.id,
-      idSchema.parse(request.params.workspaceId),
+      await this.workspaceIdOf(request),
       idSchema.parse(request.params.assetId),
       withoutUndefined(updateAssetSchema.parse(request.body)),
     ) });
   };
   removeAsset = async (request: AuthenticatedRequest, response: Response) => {
-    await this.brand.removeAsset(request.principal!.user.id, idSchema.parse(request.params.workspaceId), idSchema.parse(request.params.assetId));
+    await this.brand.removeAsset(request.principal!.user.id, await this.workspaceIdOf(request), idSchema.parse(request.params.assetId));
     response.status(204).end();
   };
+
+  private async workspaceIdOf(request: AuthenticatedRequest) {
+    return request.params.workspaceId === undefined
+      ? this.brand.brandWorkspaceId(request.principal!.user.id)
+      : idSchema.parse(request.params.workspaceId);
+  }
 }
 
 /** `exactOptionalPropertyTypes` rejects explicit `undefined`, so absent fields are dropped. */

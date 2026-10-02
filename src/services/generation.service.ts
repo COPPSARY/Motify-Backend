@@ -40,9 +40,9 @@ export interface GenerationAudioResolver {
     ): Promise<GenerationAudioTrack[]>;
 }
 
-/** The workspace's Brand DNA, loaded for every message rather than sent by the editor. */
+/** The sender's Brand DNA, loaded for every message rather than sent by the editor. */
 export interface GenerationBrandResolver {
-    resolveGenerationBrand(workspaceId: string): Promise<GenerationBrand | undefined>;
+    resolveUserGenerationBrand(userId: string, projectWorkspaceId: string): Promise<GenerationBrand | undefined>;
 }
 
 export interface AssetAttachmentInput {
@@ -132,7 +132,7 @@ export class GenerationService {
         const audio = this.audio
             ? await this.audio.resolveGenerationAudio(userId, projectId, input.audio)
             : [];
-        const brand = await this.brand?.resolveGenerationBrand(access.workspaceId);
+        const brand = await this.brand?.resolveUserGenerationBrand(userId, access.workspaceId);
         const graphInput: MotionGraphInput = {
             userId,
             workspaceId: access.workspaceId,

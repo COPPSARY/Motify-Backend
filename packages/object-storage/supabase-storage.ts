@@ -1,10 +1,11 @@
 import { Readable } from 'node:stream';
 
-import type {
-    PrivateObjectStorage,
-    SignedUpload,
-    StoredObject,
-    StoredObjectMetadata,
+import {
+    ObjectNotFoundError,
+    type PrivateObjectStorage,
+    type SignedUpload,
+    type StoredObject,
+    type StoredObjectMetadata,
 } from './types.js';
 
 interface StorageResult<T> {
@@ -37,17 +38,17 @@ export class SupabaseObjectStorage implements PrivateObjectStorage {
     }
 
     async inspect(key: string): Promise<StoredObjectMetadata> {
-        const data = requireData(await this.storage.info(key), 'inspect object');
+        const data = requireData(await this.storage.info(key), 'inspect object', key);
         return { key, byteSize: data.size ?? 0, contentType: data.contentType ?? 'application/octet-stream' };
     }
 
     async openRead(key: string): Promise<Readable> {
-        const data = requireData(await this.storage.download(key), 'download object');
+        const data = requireData(await this.storage.download(key), 'download object', key);
         return Readable.from(Buffer.from(await data.arrayBuffer()));
     }
 
     async createSignedReadUrl(key: string, expiresInSeconds: number): Promise<string> {
-        const data = requireData(await this.storage.createSignedUrl(key, expiresInSeconds), 'create signed read URL');
+        const data = requireData(await this.storage.createSignedUrl(key, expiresInSeconds), 'create signed read URL', key);
         return data.signedUrl;
     }
 
@@ -72,7 +73,8 @@ export class SupabaseObjectStorage implements PrivateObjectStorage {
     }
 }
 
-function requireData<T>(result: StorageResult<T>, action: string): T {
+function requireData<T>(result: StorageResult<T>, action: string, key?: string): T {
+    if (key !== undefined && /not found/i.test(result.error?.message ?? '')) throw new ObjectNotFoundError(key);
     if (result.error || result.data === null) {
         throw new Error(`Unable to ${action}: ${result.error?.message ?? 'Supabase Storage returned no data.'}`);
     }
