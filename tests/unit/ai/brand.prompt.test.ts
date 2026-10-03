@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { readBrandDna } from '../../../packages/brand/brand-dna.js';
-import type { GenerationBrand } from '../../../packages/ai/graph/dependencies.js';
-import { brandAssetTokens, describeBrand, describeBrandForBrief } from '../../../packages/ai/prompts/brand.prompt.js';
-import { buildBriefPrompt } from '../../../packages/ai/prompts/brief.prompt.js';
-import { buildMotionUserPrompt } from '../../../packages/ai/prompts/motion.prompt.js';
+import type { GenerationBrand } from '../../../packages/ai/agent/dependencies.js';
+import { brandAssetTokens, describeBrand } from '../../../packages/ai/prompts/brand.prompt.js';
 
 const logoId = '00000000-0000-4000-8000-0000000000a1';
 const faviconId = '00000000-0000-4000-8000-0000000000a2';
@@ -51,13 +49,5 @@ describe('brand prompt', () => {
     expect(text).not.toContain('AcmeSans-Bold.woff2');
     expect(brandAssetTokens(brand)).toEqual([`motify-asset://${logoId}`, `motify-asset://${fontId}`]);
     expect(brandAssetTokens(undefined)).toEqual([]);
-  });
-
-  it('reaches the brief and the generation prompt', () => {
-    expect(buildBriefPrompt('Launch film', brand)).toContain('Brand palette: background #101820, accent #ff5a1f');
-    expect(buildBriefPrompt('Launch film')).not.toContain('Brand');
-    expect(describeBrandForBrief(brand)).not.toContain('motify-asset://');
-    const prompt = buildMotionUserPrompt({ intent: 'CREATE', message: 'Launch film', recentMessages: [], brand });
-    expect(prompt).toContain('BRAND DNA');
   });
 });

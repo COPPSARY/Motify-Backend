@@ -1,6 +1,6 @@
 ---
 name: scene-components
-description: Use when composing Motify scenes from the mounted scene kit, themes, icons, surfaces, layouts, and beat templates.
+description: Read before writing composition.html when you need a kit class, theme, icon or beat template beyond the runtime-contract example. The mounted scene kit's classes, themes, icons, surfaces, layouts, and beat templates, with a worked timeline example.
 ---
 
 # The scene kit
@@ -39,9 +39,8 @@ Handing off between beats — the outgoing beat is the seam's carrier:
 
 ```js
 export function buildTimeline({ root, timeline, register }) {
-  // Plain string concatenation, never a template literal: this code travels
-  // inside a JSON string, and a mangled `${id}` produces an invalid selector
-  // that stops the whole film.
+  // Plain string concatenation keeps the selector easy to check: a wrong
+  // `${id}` produces an invalid selector that stops the whole film.
   const beat = (id) => root.querySelector('[data-edit="' + id + '"]');
   const s1 = beat("scene-01"), s2 = beat("scene-02"), s3 = beat("scene-03");
   timeline.set([s2, s3], { autoAlpha: 0 }, 0);
@@ -76,7 +75,7 @@ Rules that keep this working:
 
 ## 2. Themes
 
-Pick one for the whole film from what the product is.
+Pick one theme for the whole film, or skip the themes and author your own ground (see Custom grounds below). The last column is a starting point, not a rule: choose from the product's own colour and mood, and set the accent to the brand. Not every productivity or consumer product belongs on `mk-theme-sky`.
 
 | class | looks like | for |
 | --- | --- | --- |
@@ -93,16 +92,44 @@ The ground is already alive: the runtime drifts and breathes its light, sweeps a
 band of light across it and raises the horizon over the film. Do not animate it,
 and never decorate it with circles, dots or blobs.
 
-Optional layers: `mk-horizon` for the glowing planet rim along the bottom (never
-resize or reposition it), `mk-horizon mk-horizon-top` for an arc hanging from the
-top, `mk-grid-lines` for a faint technical floor, and at most one `mk-glow`
-directly behind the subject.
+### Custom grounds
+
+The five themes are starting points, and a film for each brand should not sit on the same one. Art-direct the ground on the `mk-stage` element itself: leave out `mk-theme-*`, and set `style` with your own `background`, the accent trio `--mk-accent`, `--mk-accent-2`, `--mk-glow` (the drifting light and the glow read them), and for a **light** ground also the ink, line, fill and surface variables so type and cards stay readable. A dark ground keeps the kit's light ink and needs only the background and accent trio.
+
+Warm paper (light):
+
+```html
+<main class="mk-stage" style="--mk-accent:#c2410c;--mk-accent-2:#f59e0b;--mk-glow:rgba(245,158,11,.28);--mk-ink:#2b1d12;--mk-ink-2:rgba(43,29,18,.66);--mk-ink-3:rgba(43,29,18,.42);--mk-line:rgba(43,29,18,.12);--mk-line-strong:rgba(43,29,18,.2);--mk-fill:rgba(194,65,12,.06);--mk-fill-2:rgba(194,65,12,.1);--mk-surface:linear-gradient(180deg,#fffaf2,#fff3e0);--mk-surface-flat:#fffaf2;color:var(--mk-ink);background:radial-gradient(900px 700px at 20% 10%,rgba(255,255,255,.7),transparent 60%),linear-gradient(160deg,#fbf1e1 0%,#f6dfbd 100%)">
+```
+
+Saturated brand colour (dark ink off, white type):
+
+```html
+<main class="mk-stage" style="--mk-accent:#ffffff;--mk-accent-2:#ffd6e7;--mk-glow:rgba(255,255,255,.28);background:radial-gradient(1100px 800px at 80% 0%,rgba(255,255,255,.22),transparent 60%),linear-gradient(150deg,#e11d74 0%,#9d174d 100%)">
+```
+
+Deep forest with amber light (dark):
+
+```html
+<main class="mk-stage" style="--mk-accent:#f59e0b;--mk-accent-2:#fbbf24;--mk-glow:rgba(251,191,36,.3);background:radial-gradient(1000px 700px at 78% 8%,rgba(251,191,36,.16),transparent 62%),linear-gradient(165deg,#0b1a14 0%,#102a20 100%)">
+```
+
+Vary the recipe, do not copy it: take the colours from the brand, change the angle and where the light sits, and keep the ground lit and never flat or empty. A ground made this way needs no `mk-horizon`.
+
+Optional layers, none of them required: `mk-horizon` for the glowing planet rim
+along the bottom (never resize or reposition it), `mk-horizon mk-horizon-top` for an
+arc hanging from the top, `mk-grid-lines` for a faint technical floor, and at most
+one `mk-glow` directly behind the subject. Most films use at most one of these, and
+many use none. Do not add `mk-horizon` just because the templates below show it.
 
 ## 3. Framing
 
-- Every beat's subject sits in the **centre** of the frame (`mk-center`) and fills
-  **45–75% of the frame width**. Nothing parks in a corner, nothing is cut off by
-  the frame edge.
+- Choose a layout for each beat: **centred** (`mk-center`), **left-aligned** (a
+  `mk-vstack` you position with `mk-abs`-style `left`/`top` in your own CSS), or
+  **split** (`mk-grid` with two tracks, a claim beside its proof). The subject fills
+  **45–75% of the frame width**. Do not use the same layout on two beats in a row,
+  and do not centre every beat of a film. Nothing parks in a corner, nothing is cut
+  off by the frame edge.
 - Type is never smaller than `mk-body` for anything the viewer must read.
 - One idea per beat: a statement, *or* a product surface, *or* a proof.
 - **Fill every surface you show.** A list holds 4–6 rows, a board column holds
@@ -145,6 +172,32 @@ this film's content.
 
 Motion: `editorialTextReveal` or `macroSettle` on the headline, the kicker and
 subline rising in behind it.
+
+### Statement, left-aligned
+
+```html
+<section data-scene="scene-01" data-edit="scene-01">
+  <div class="mk-vstack" style="--gap:28px;position:absolute;left:160px;top:300px;width:1100px;align-items:flex-start;text-align:left">
+    <span class="mk-kicker" data-edit="kicker">Requests, unsorted</span>
+    <h1 class="mk-display" data-edit="headline">Feedback arrives <span class="mk-gradient-text">everywhere</span></h1>
+  </div>
+</section>
+```
+
+Use it when the claim should lead and the right of the frame can carry a surface,
+a number or negative space.
+
+### Split: claim beside proof
+
+```html
+<div class="mk-center mk-grid" style="--cols:1fr 1fr;--gap:56px;width:1560px">
+  <h2 class="mk-headline" data-edit="result">Sorted before standup</h2>
+  <div class="mk-card mk-metric" data-edit="metric-card">
+    <span class="mk-label">Requests organized</span>
+    <span class="mk-metric-value" data-edit="metric-value">3,420</span>
+  </div>
+</div>
+```
 
 ### Prompt
 
@@ -261,6 +314,10 @@ widget, `mk-toggle` (add `is-on`), `mk-seg`. Tile colours: `mk-tile-blue`,
 `-green`, `-red`, `-orange`, `-purple`, `-pink`, `-teal`, `-dark`, `-white`.
 
 ### Brand close
+
+One of several endings, not the default. Prefer ending on the product's result, one
+real number, or the tagline alone; use a lockup only when the request asks for the
+brand to sign off.
 
 ```html
 <div class="mk-center mk-vstack mk-middle" style="--gap:36px">

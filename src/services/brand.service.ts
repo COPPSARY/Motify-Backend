@@ -12,7 +12,7 @@ import {
   type BrandSuggestion,
   type BrandSuggestionOptions,
 } from '../../packages/brand/brand-dna.js';
-import type { GenerationBrand } from '../../packages/ai/graph/dependencies.js';
+import type { GenerationBrand } from '../../packages/ai/agent/dependencies.js';
 import { assetKind } from '../../packages/object-storage/asset-validation.js';
 import { AppError } from '../errors.js';
 import type {

@@ -1,10 +1,10 @@
-import type { MotifyGeneration } from '../../packages/ai/providers/model.provider.js';
+import type { MotifyGeneration } from '../../packages/ai/agent/generation-schema.js';
 
 /**
  * A measurable stand-in for craft, not a judgement of it.
  *
  * Nothing here can tell whether a film is good. What it can tell is whether a
- * film has the properties every good one in packages/motify-references has and
+ * film has the properties every good one in packages/motify-skills/motify-styles/films has and
  * every weak sampled generation lacked: a real stylesheet its markup actually
  * uses, the runtime motion vocabulary, editable identifiers, and enough
  * material to fill its running time. Those correlate with quality closely

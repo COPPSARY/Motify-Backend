@@ -1,6 +1,6 @@
 ---
 name: scene-design
-description: How a Motify frame is designed and how beats hand off — built from the runtime scene kit so a generated film looks art-directed instead of default HTML on grey.
+description: Optional, read only for a hard layout or handoff question. How a Motify frame is designed and how beats hand off — built from the runtime scene kit so a generated film looks art-directed instead of default HTML on grey.
 ---
 
 # Designing the frame
@@ -22,7 +22,7 @@ The reference films share five qualities. Every beat should have all five.
 1. **A lit ground.** Deep indigo with a glowing horizon, violet into teal, pale
    sky light, saturated brand blue, or a bright wallpaper under glass — never a
    flat page colour. The ground is one continuous surface for the whole film.
-2. **One big subject, centred.** A headline, a product window, a proof card or a
+2. **One big subject, placed on purpose.** A headline, a product window, a proof card or a
    cluster of glass — filling roughly half to three quarters of the frame width.
    Big enough to read from across a room.
 3. **Real product texture.** Icons, avatars, badges, status colour, numbers,
@@ -34,12 +34,12 @@ The reference films share five qualities. Every beat should have all five.
 
 ## Choosing a theme
 
-Match the product, not a default. AI, developer and data products sit on
+Match the product and the brief, not a default, and do not give every similar product the same theme. AI, developer and data products sit on
 `mk-theme-midnight` or `mk-theme-dusk`. Education, productivity and friendly
 consumer tools sit on `mk-theme-sky` or `mk-theme-ocean`. Mobile and iOS-style
 apps sit on `mk-theme-aurora` with glass.
 
-Then re-colour to the real brand with `--mk-accent` and `--mk-accent-2` on the
+You can also leave the themes behind and author the ground on the stage's own `style`, from the brand's colours (`scene-components` has recipes). Two films for different brands should not share a ground. Then re-colour to the real brand with `--mk-accent` and `--mk-accent-2` on the
 stage. The accent is rationed: it belongs to the one thing each beat is about —
 the active row, the live number, the call to action.
 
@@ -58,7 +58,9 @@ no substitute shape is needed to cover the cut.
 
 ## Framing
 
-- Centre the subject with `mk-center`. Asymmetry comes from what is inside the
+- Place the subject deliberately: `mk-center` when the beat is a single statement,
+  left-aligned or split when a claim sits beside a surface or number, and vary it
+  between beats. Asymmetry also comes from what is inside the
   subject — a floating callout, an offset metric — not from pushing the subject
   into a corner.
 - Never let the frame edge crop the subject. A window sliding in from off-frame

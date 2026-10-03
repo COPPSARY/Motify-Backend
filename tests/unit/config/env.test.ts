@@ -208,6 +208,30 @@ describe('parseEnvironment', () => {
     expect(() => parseEnvironment({ ...valid, BILLING_PERIOD_DAYS: '0' })).toThrow('BILLING_PERIOD_DAYS');
   });
 
+  it('parses Kiri TTS and agent step-budget configuration', () => {
+    const environment = parseEnvironment({ ...valid, MOTIFY_AGENT_MAX_STEPS: '25', KIRITTS_MCP_URL: 'https://mcp.kiritts.com/mcp', KIRITTS_ACCESS_TOKEN: 'token' });
+    expect(environment.motifyAgentMaxSteps).toBe(25);
+    expect(environment.kiriTtsUrl).toBe('https://mcp.kiritts.com/mcp');
+  });
+
+  it('defaults the agent memory budget to 32000 tokens and rejects a budget that is too small', () => {
+    expect(parseEnvironment(valid).motifyAgentContextTokens).toBe(32_000);
+    expect(parseEnvironment({ ...valid, MOTIFY_AGENT_CONTEXT_TOKENS: '20000' }).motifyAgentContextTokens).toBe(20_000);
+    expect(() => parseEnvironment({ ...valid, MOTIFY_AGENT_CONTEXT_TOKENS: '7999' })).toThrow('MOTIFY_AGENT_CONTEXT_TOKENS');
+  });
+
+  it('defaults the agent step budget to 50 when unset', () => {
+    const environment = parseEnvironment(valid);
+    expect(environment.motifyAgentMaxSteps).toBe(50);
+  });
+
+  it('defaults to two retries when a film fails validation, and rejects a negative or huge number', () => {
+    expect(parseEnvironment(valid).motifyAgentMaxValidationRetries).toBe(2);
+    expect(parseEnvironment({ ...valid, MOTIFY_AGENT_MAX_VALIDATION_RETRIES: '0' }).motifyAgentMaxValidationRetries).toBe(0);
+    expect(() => parseEnvironment({ ...valid, MOTIFY_AGENT_MAX_VALIDATION_RETRIES: '-1' })).toThrow('MOTIFY_AGENT_MAX_VALIDATION_RETRIES');
+    expect(() => parseEnvironment({ ...valid, MOTIFY_AGENT_MAX_VALIDATION_RETRIES: '11' })).toThrow('MOTIFY_AGENT_MAX_VALIDATION_RETRIES');
+  });
+
   it('defaults credit packs to the published credit pricing', () => {
     expect(parseEnvironment(valid).creditPacks.map((pack) => [pack.id, pack.priceCents, pack.credits])).toEqual([
       ['credits-30', 250, 30], ['credits-65', 500, 65], ['credits-135', 1_000, 135],

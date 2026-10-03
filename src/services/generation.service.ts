@@ -3,14 +3,15 @@ import type {
     GenerationBrand,
     GraphProjectRepository,
     GraphWorkspaceRole,
+    ModelImageInput,
     MotionGraphInput,
     MotionGraphResponse,
-} from '../../packages/ai/graph/dependencies.js';
-import { ModelProviderError, type ProviderErrorCode } from '../../packages/ai/providers/model.provider.js';
+} from '../../packages/ai/agent/dependencies.js';
+import { ModelProviderError, type ProviderErrorCode } from '../../packages/ai/agent/errors.js';
 import { runWithUsageMeter } from '../../packages/ai/usage/usage-meter.js';
-import type { ModelImageInput } from '../../packages/ai/providers/model.provider.js';
 import { AppError } from '../errors.js';
 import type { GenerationBilling, GenerationCharge } from './generation-billing.js';
+import type { RunLock } from './project-run-lock.js';
 
 /** The compiled Motify graph, narrowed to what this service needs. */
 export interface MotionGraphRunner {
@@ -114,6 +115,7 @@ export class GenerationService {
         private readonly assets?: GenerationAssetResolver,
         private readonly audio?: GenerationAudioResolver,
         private readonly billing?: GenerationBilling,
+        private readonly runLock?: RunLock,
         private readonly brand?: GenerationBrandResolver,
     ) {}
 
@@ -122,6 +124,16 @@ export class GenerationService {
         if (!access) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
         requireWriteAccess(access.role);
 
+        const run = () => this.runMessage(userId, projectId, access, input);
+        return this.runLock ? this.runLock(projectId, run) : run();
+    }
+
+    private async runMessage(
+        userId: string,
+        projectId: string,
+        access: { workspaceId: string },
+        input: MessageRequestInput,
+    ): Promise<MessageResult> {
         const supplied = this.assets
             ? await this.assets.resolveGenerationAssets(userId, projectId, input.assets)
             : [];

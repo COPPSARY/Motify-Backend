@@ -14,8 +14,10 @@ import { generateDynamicKhqr } from '../packages/bakong/khqr.js';
 import { SandboxBakongGateway } from '../packages/bakong/sandbox.js';
 import { SupabaseAuthProvider } from '../packages/auth/supabase-provider.js';
 import { TokenVault } from '../packages/auth/token-vault.js';
-import { createMotionGraph } from '../packages/ai/graph/motion.graph.js';
-import { createModelProvider } from '../packages/ai/providers/factory.js';
+import { createMotifyAgentRunner } from '../packages/ai/agent/motify-agent.js';
+import { createAgentModel } from '../packages/ai/agent/model-factory.js';
+import { createKiriTtsTools } from '../packages/ai/agent/mcp/kiritts-client.js';
+import { skillsRoot } from '../packages/motify-skills/loader.js';
 import { createDatabase } from '../packages/database/client.js';
 import { parseEnvironment } from './config/env.js';
 import { createLogger } from './config/logger.js';
@@ -52,6 +54,7 @@ import { createBillingRoutes, createPaymentRoutes, createWorkspaceBillingRoutes 
 import { AuthService } from './services/auth.service.js';
 import { GenerationBilling } from './services/generation-billing.js';
 import { GenerationService } from './services/generation.service.js';
+import { createProjectRunLock, InMemoryRunLeaseStore } from './services/project-run-lock.js';
 import { ProjectService } from './services/project.service.js';
 import { AssetService } from './services/asset.service.js';
 import { AudioService } from './services/audio.service.js';
@@ -193,22 +196,37 @@ export async function startServer() {
     ? 'Credits are being charged for generations'
     : 'Credits are metered but not charged (CREDITS_ENFORCED is off)');
   const graphRepository = new DatabaseMotionGraphRepository(db);
+  let kiriTools: Awaited<ReturnType<typeof createKiriTtsTools>> = [];
+  if (environment.kiriTtsUrl && environment.kiriTtsAccessToken) {
+    try {
+      kiriTools = await createKiriTtsTools({ url: environment.kiriTtsUrl, accessToken: environment.kiriTtsAccessToken });
+    } catch (error) {
+      // Kiri TTS being unreachable at boot must not crash the whole API —
+      // continue without its tools rather than letting the error propagate.
+      logger.warn({ err: error }, 'Kiri TTS MCP server unreachable at boot; continuing without TTS tools');
+    }
+  }
   const generations = new GenerationService(
-    createMotionGraph({
-      provider: createModelProvider(environment),
+    createMotifyAgentRunner({
+      model: createAgentModel({ ...environment, agentContextTokens: environment.motifyAgentContextTokens }),
       repository: graphRepository,
-      model: environment.aiModel,
-      planningModel: environment.aiPlanningModel,
-      ...(environment.nodeEnv === 'development' ? {
-        onSkillsSelected: (selection) => {
-          logger.info(selection, 'Motify skills selected');
-        },
-      } : {}),
+      skillsRoot,
+      mcpTools: kiriTools,
+      maxSteps: environment.motifyAgentMaxSteps,
+      maxValidationRetries: environment.motifyAgentMaxValidationRetries,
+      providerName: environment.aiProvider,
+      audioSearch: (userId, workspaceId, query) => audioService.list(userId, workspaceId, 'all', 1, 10, query)
+        .then((page) => page.data.map((track) => ({
+          trackId: track.id, title: track.title, artist: track.artist, genre: track.genre,
+          moodTags: track.moodTags, bpm: track.bpm, durationMs: track.durationMs,
+        }))),
     }),
     graphRepository,
     assetService,
     audioService,
     billing,
+    // Runs for one project are serialized because they share its agent thread.
+    createProjectRunLock(new InMemoryRunLeaseStore()),
     brandService,
   );
   const payments = createPaymentService(environment, db, logger);

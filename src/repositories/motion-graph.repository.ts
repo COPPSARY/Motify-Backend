@@ -10,8 +10,8 @@ import type {
     MotifyScene,
     OverwriteGraphProjectInput,
     StoredMessageInput,
-} from '../../packages/ai/graph/dependencies.js';
-import type { MotifyGeneration } from '../../packages/ai/providers/model.provider.js';
+} from '../../packages/ai/agent/dependencies.js';
+import type { MotifyGeneration } from '../../packages/ai/agent/generation-schema.js';
 import type { Database } from '../../packages/database/client.js';
 import { generationRuns, messageAssets, messages, projects, workspaceMembers } from '../../packages/database/schema.js';
 
@@ -123,21 +123,18 @@ export class DatabaseMotionGraphRepository implements GraphProjectRepository {
             }).returning();
             if (!created) throw new Error('Unable to create the generated project.');
 
-            await insertMessage(transaction, { projectId: created.id, userId, role: 'user', content: input.message, intent: 'CREATE' }, askedAt);
-            await insertMessage(transaction, { projectId: created.id, userId, role: 'assistant', content: input.generation.reply, intent: 'CREATE' }, new Date(askedAt.getTime() + 1));
+            await insertMessage(transaction, { projectId: created.id, userId, role: 'user', content: input.message }, askedAt);
+            await insertMessage(transaction, { projectId: created.id, userId, role: 'assistant', content: input.generation.reply }, new Date(askedAt.getTime() + 1));
             await insertRun(transaction, {
                 projectId: created.id,
                 baseRevision: 0,
                 savedRevision: created.revision,
-                intent: 'CREATE',
                 model: input.model,
-                selectedSkills: input.selectedSkills,
-                repairAttempts: input.repairAttempts,
                 status: 'COMPLETED',
                 latencyMs: input.latencyMs,
                 inputTokens: input.inputTokens,
                 outputTokens: input.outputTokens,
-            });
+            }, 'CREATE');
 
             return toGraphProject(created);
         });
@@ -157,28 +154,42 @@ export class DatabaseMotionGraphRepository implements GraphProjectRepository {
             if (!overwritten) return null;
 
             await insertMessage(transaction, {
-                projectId, userId: input.userId, role: 'assistant', content: input.generation.reply, intent: input.intent,
+                projectId, userId: input.userId, role: 'assistant', content: input.generation.reply,
             });
             await insertRun(transaction, {
                 projectId,
                 baseRevision: input.expectedRevision,
                 savedRevision: overwritten.revision,
-                intent: input.intent,
                 model: input.model,
-                selectedSkills: input.selectedSkills,
-                repairAttempts: input.repairAttempts,
                 status: 'COMPLETED',
                 latencyMs: input.latencyMs,
                 inputTokens: input.inputTokens,
                 outputTokens: input.outputTokens,
-            });
+            }, input.isFix ? 'FIX' : 'EDIT');
 
             return toGraphProject(overwritten);
         });
     }
 
+    /**
+     * Only ever called for an in-flight edit that ran out of step budget (see
+     * `createMotifyAgentRunner`'s `GraphRecursionError` handler, which guards
+     * this on `projectId !== undefined`), so the run is logged as `FIX` or
+     * `EDIT` depending on whether that turn was repairing a runtime error
+     * (`input.isFix`, threaded from `MotionGraphInput.runtimeError`).
+     */
     async recordRun(input: GenerationRunInput) {
-        await insertRun(this.db, input);
+        await insertRun(this.db, input, input.isFix ? 'FIX' : 'EDIT');
+    }
+
+    async recordRunUsage(input: { projectId: string; savedRevision: number; inputTokens: number | null; outputTokens: number | null }) {
+        await this.db.update(generationRuns)
+            .set({ inputTokens: input.inputTokens, outputTokens: input.outputTokens })
+            .where(and(
+                eq(generationRuns.projectId, input.projectId),
+                eq(generationRuns.savedRevision, input.savedRevision),
+                eq(generationRuns.status, 'COMPLETED'),
+            ));
     }
 }
 
@@ -188,20 +199,30 @@ function insertMessage(executor: Executor, input: StoredMessageInput, createdAt?
         userId: input.userId,
         role: input.role,
         content: input.content,
-        intent: input.intent,
         ...(createdAt ? { createdAt } : {}),
     }).returning({ id: messages.id });
 }
 
-function insertRun(executor: Executor, input: GenerationRunInput) {
+/**
+ * `intent`, `selectedSkills`, and `repairAttempts` are columns the old
+ * LangGraph pipeline populated from its own intent classifier and skill
+ * router. The deep agent has neither, so `GenerationRunInput` no longer
+ * carries `selectedSkills`/`repairAttempts` (they fall back to their schema
+ * defaults, `[]` / `0`). `intent` is still supplied by each call site
+ * (CREATE for a new project; EDIT or FIX for an existing one, the latter
+ * exactly when `input.isFix`/`OverwriteGraphProjectInput.isFix` is true) —
+ * unlike the rest of the old classifier's output, FIX was never a model
+ * judgment: it was always set directly from whether the request carried a
+ * runtime error report, a fact still available today via
+ * `MotionGraphInput.runtimeError` and threaded straight through.
+ */
+function insertRun(executor: Executor, input: GenerationRunInput, intent: 'CREATE' | 'EDIT' | 'FIX') {
     return executor.insert(generationRuns).values({
         projectId: input.projectId,
         baseRevision: input.baseRevision,
         savedRevision: input.savedRevision,
-        intent: input.intent,
+        intent,
         model: input.model,
-        selectedSkills: input.selectedSkills,
-        repairAttempts: input.repairAttempts,
         status: input.status,
         latencyMs: Math.max(0, Math.round(input.latencyMs)),
         inputTokens: input.inputTokens,

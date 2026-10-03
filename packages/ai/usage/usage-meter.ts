@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 export interface MeteredUsage {
     inputTokens: number;
     outputTokens: number;
+    cachedInputTokens: number;
     /** Model calls that answered, whether or not their output was then accepted. */
     calls: number;
     /** Answered calls whose provider reported no token counts at all. */
@@ -21,10 +22,11 @@ export interface MeteredUsage {
 export class UsageMeter {
     private inputTokens = 0;
     private outputTokens = 0;
+    private cachedInputTokens = 0;
     private calls = 0;
     private unreportedCalls = 0;
 
-    record(inputTokens: number | null, outputTokens: number | null): void {
+    record(inputTokens: number | null, outputTokens: number | null, cachedInputTokens: number | null = null): void {
         this.calls += 1;
         if (inputTokens === null && outputTokens === null) {
             this.unreportedCalls += 1;
@@ -32,12 +34,14 @@ export class UsageMeter {
         }
         this.inputTokens += inputTokens ?? 0;
         this.outputTokens += outputTokens ?? 0;
+        this.cachedInputTokens += cachedInputTokens ?? 0;
     }
 
     snapshot(): MeteredUsage {
         return {
             inputTokens: this.inputTokens,
             outputTokens: this.outputTokens,
+            cachedInputTokens: this.cachedInputTokens,
             calls: this.calls,
             unreportedCalls: this.unreportedCalls,
         };
@@ -52,12 +56,22 @@ export function runWithUsageMeter<T>(meter: UsageMeter, work: () => Promise<T>):
 }
 
 /**
+ * Tokens spent so far by the metered request this code is running inside, or
+ * `null` counts when nothing reported usage (or there is no metered request).
+ */
+export function currentUsageTokens(): { inputTokens: number | null; outputTokens: number | null } {
+    const usage = scope.getStore()?.snapshot();
+    if (!usage || usage.calls === usage.unreportedCalls) return { inputTokens: null, outputTokens: null };
+    return { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
+}
+
+/**
  * Called by a provider with the token counts of a response. A no-op outside a
  * metered request (evals, scripts), so providers never need to know whether
  * anyone is counting.
  */
-export function recordModelUsage(inputTokens: unknown, outputTokens: unknown): void {
-    scope.getStore()?.record(tokenCount(inputTokens), tokenCount(outputTokens));
+export function recordModelUsage(inputTokens: unknown, outputTokens: unknown, cachedInputTokens?: unknown): void {
+    scope.getStore()?.record(tokenCount(inputTokens), tokenCount(outputTokens), tokenCount(cachedInputTokens));
 }
 
 function tokenCount(value: unknown): number | null {

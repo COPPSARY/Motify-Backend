@@ -62,7 +62,7 @@ describe('database schema', () => {
 
   it('expires plan credits through batches kept in step by a ledger trigger', async () => {
     const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as { entries: Array<{ tag: string }> };
-    expect(journal.entries.at(-1)?.tag).toBe('0020_credit_expiry');
+    expect(journal.entries.map((entry) => entry.tag)).toContain('0020_credit_expiry');
     expect(creditEntryKind.enumValues).toContain('EXPIRE');
     expect(getTableName(creditGrants)).toBe('credit_grants');
     expect(creditLedger.expiresAt.name).toBe('expires_at');
@@ -119,6 +119,35 @@ describe('database schema', () => {
     expect(sql).not.toMatch(/CREATE POLICY/i);
     expect(sql).toContain('CHECK ("credit_accounts"."balance" >= 0)');
     expect(sql).toContain('credit_ledger rows are append-only');
+  });
+
+  it('registers the agent-memory cleanup migration last, newer than anything already applied, and drops only those tables', async () => {
+    const journal = JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')) as {
+      entries: Array<{ tag: string; when: number }>;
+    };
+    const last = journal.entries.at(-1)!;
+    expect(last.tag).toBe('0021_remove_agent_memory_tables');
+    // Drizzle skips a migration that is not newer than the newest one already applied (1791300000000 in the shared database).
+    expect(last.when).toBeGreaterThan(1791300000000);
+
+    const sql = await readFile('drizzle/migrations/0021_remove_agent_memory_tables.sql', 'utf8');
+    const dropped = [...sql.matchAll(/DROP TABLE IF EXISTS ([^;]+);/g)]
+      .flatMap((match) => match[1]!.split(',').map((name) => name.trim().replaceAll('"', '')))
+      .sort();
+    expect(dropped).toEqual([
+      'public.agent_turns',
+      'public.checkpoint_blobs',
+      'public.checkpoint_migrations',
+      'public.checkpoint_writes',
+      'public.checkpoints',
+      'public.project_run_leases',
+    ]);
+    expect(sql).toContain('DROP SCHEMA IF EXISTS "agent_checkpoints" CASCADE');
+    // Nothing else is destroyed: CASCADE only on that one schema, and no row deletes or truncates.
+    expect(sql.match(/CASCADE/g)).toHaveLength(1);
+    expect(sql).not.toMatch(/\bDELETE\b|\bTRUNCATE\b|\bDROP DATABASE\b/i);
+    // It refuses to drop same-named tables that are not LangGraph's.
+    expect(sql).toContain('RAISE EXCEPTION');
   });
 
   it('stores credits as an account balance plus an append-only ledger', () => {

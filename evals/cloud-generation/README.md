@@ -16,14 +16,6 @@ An alternate frontend path may be passed after `--`. Production workers never ex
 
 Credentialed provider evaluations are opt-in and must record provider, model, skill bundle, runtime, prompt-set version, cost, latency, repair count, and the fixed baseline manifest. Never place provider keys or customer source in a report.
 
-Before a full generation run, verify the configured Gemini model supports both function calling and visual input with the synthetic, metadata-only probe:
-
-```powershell
-$env:GEMINI_API_KEY = 'server-only-test-key'
-npm.cmd run eval:gemini-smoke
-```
-
-`AI_MODEL` selects the model. The probe never prints the key, model response text, source, or user assets. It does contact Gemini and may incur a small provider charge, so it is never part of the default test suite.
 
 Human reviewers score each anonymous output from 1–5 on prompt adherence, story clarity, hierarchy/readability, motion/transition quality, product authenticity, edit locality, and overall finish. The V1 release target is a median no more than 0.5 below the reference preset and no category median below 3.5.
 

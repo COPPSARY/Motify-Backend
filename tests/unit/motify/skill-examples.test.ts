@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadSkillBundle } from '../../../packages/motify-skills/loader.js';
+import { loadSkillDoc } from '../../../packages/motify-skills/loader.js';
 import { validateMotifyGeneration } from '../../../packages/ai/validation/generation-validator.js';
 
 function extractCodeBlocks(markdown: string): { html: string | undefined; js: string | undefined } {
@@ -13,11 +13,9 @@ function extractCodeBlocks(markdown: string): { html: string | undefined; js: st
 
 describe('Motify Skill Code Examples', () => {
     it('validates the canonical HTML and JS scene-kit example', async () => {
-        const bundle = await loadSkillBundle();
-        const skill = bundle.skills.find((candidate) => candidate.id === 'scene-components');
-        expect(skill).toBeDefined();
+        const content = await loadSkillDoc('scene-components/SKILL.md');
 
-        const { html, js } = extractCodeBlocks(skill!.content);
+        const { html, js } = extractCodeBlocks(content);
         expect(html).toBeDefined();
         expect(js).toBeDefined();
 
@@ -45,16 +43,5 @@ describe('Motify Skill Code Examples', () => {
             result.errors,
             `Scene-kit code example failed validation: ${result.errors.map((error) => error.message).join(', ')}`,
         ).toEqual([]);
-    });
-
-    it('provides the callable preset surface needed by the runtime contract', async () => {
-        const bundle = await loadSkillBundle();
-        const presetSkill = bundle.skills.find((candidate) => candidate.id === 'preset-reference');
-        expect(presetSkill).toBeDefined();
-
-        expect(presetSkill!.content).toContain('`EASE.cameraRamp`');
-        expect(presetSkill!.content).toContain('`zoomThrough(timeline, options)`');
-        expect(presetSkill!.content).toContain('`cutTheCurve(timeline, options)`');
-        expect(presetSkill!.content).toContain('`macroSettle(timeline, element, options?) -> HTMLElement[]`');
     });
 });

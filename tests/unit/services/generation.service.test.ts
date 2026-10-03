@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { MotionGraphInput, MotionGraphResponse } from '../../../packages/ai/graph/dependencies.js';
+import type { MotionGraphInput, MotionGraphResponse } from '../../../packages/ai/agent/dependencies.js';
+import { ModelProviderError } from '../../../packages/ai/agent/errors.js';
 import { readBrandDna } from '../../../packages/brand/brand-dna.js';
-import { ModelProviderError } from '../../../packages/ai/providers/model.provider.js';
 import type { ValidationError } from '../../../packages/ai/validation/generation-validator.js';
 import { AppError } from '../../../src/errors.js';
 import { GenerationService } from '../../../src/services/generation.service.js';
+import type { RunLock } from '../../../src/services/project-run-lock.js';
 
 const WORKSPACE_ID = '26ce88b5-1a51-4265-913e-203eb3cadbd7';
 const PROJECT_ID = '9a4f2e10-7b53-4a1c-9f0d-2c8b6d5e1a33';
@@ -15,6 +16,8 @@ interface HarnessOptions {
     role?: 'owner' | 'editor' | 'viewer' | null;
     response?: MotionGraphResponse;
     error?: unknown;
+    runLock?: RunLock;
+    billing?: ConstructorParameters<typeof GenerationService>[4];
 }
 
 function createService(options: HarnessOptions = {}) {
@@ -34,7 +37,7 @@ function createService(options: HarnessOptions = {}) {
             dataBase64: 'aGVsbG8=', role: 'asset' as const,
         }]),
     };
-    return { service: new GenerationService(graph, projects, assets), graph, projects, assets };
+    return { service: new GenerationService(graph, projects, assets, undefined, options.billing, options.runLock), graph, projects, assets };
 }
 
 describe('GenerationService', () => {
@@ -120,7 +123,7 @@ describe('GenerationService', () => {
         const { graph, projects, assets } = createService();
         const brand = { dna: readBrandDna({ identity: { name: 'Acme' } }), assets: [] };
         const resolver = { resolveUserGenerationBrand: vi.fn(async () => brand) };
-        const withBrand = new GenerationService(graph, projects, assets, undefined, undefined, resolver);
+        const withBrand = new GenerationService(graph, projects, assets, undefined, undefined, undefined, resolver);
 
         await withBrand.sendMessage(USER_ID, PROJECT_ID, { message: 'Make a launch film.' });
 
@@ -131,7 +134,7 @@ describe('GenerationService', () => {
     it('leaves the brand out while the workspace has none', async () => {
         const { graph, projects, assets } = createService();
         const resolver = { resolveUserGenerationBrand: vi.fn(async () => undefined) };
-        await new GenerationService(graph, projects, assets, undefined, undefined, resolver)
+        await new GenerationService(graph, projects, assets, undefined, undefined, undefined, resolver)
             .sendMessage(USER_ID, PROJECT_ID, { message: 'Make a launch film.' });
 
         expect(graph.invoke.mock.calls[0]?.[0]).not.toHaveProperty('brand');
@@ -281,5 +284,38 @@ describe('GenerationService frame attachments', () => {
         await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Repair the film.' });
 
         expect(graph.invoke.mock.calls[0]![0].assets?.every((image) => image.role !== 'frame')).toBe(true);
+    });
+});
+
+describe('GenerationService run lock', () => {
+    it('rejects with 409 before taking a credit hold when the project is already running', async () => {
+        const begin = vi.fn();
+        const runLock: RunLock = async () => { throw new AppError(409, 'GENERATION_IN_PROGRESS', 'A generation is already running for this project.'); };
+        const { service, graph } = createService({ runLock, billing: { begin } as never });
+
+        await expect(service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make a logo reveal.' }))
+            .rejects.toMatchObject({ status: 409, code: 'GENERATION_IN_PROGRESS' });
+
+        expect(begin).not.toHaveBeenCalled();
+        expect(graph.invoke).not.toHaveBeenCalled();
+    });
+
+    it('runs the message inside the lock for that project when a lock is provided', async () => {
+        const seen: string[] = [];
+        const runLock: RunLock = async (projectId, work) => { seen.push(projectId); return work(); };
+        const { service } = createService({ runLock });
+
+        await service.sendMessage(USER_ID, PROJECT_ID, { message: 'Make a logo reveal.' });
+
+        expect(seen).toEqual([PROJECT_ID]);
+    });
+
+    it('does not take the lock for a project the user cannot reach', async () => {
+        const runLock = vi.fn() as unknown as RunLock;
+        const { service } = createService({ role: null, runLock });
+
+        await expect(service.sendMessage(USER_ID, PROJECT_ID, { message: 'x' })).rejects.toMatchObject({ status: 404 });
+
+        expect(runLock).not.toHaveBeenCalled();
     });
 });

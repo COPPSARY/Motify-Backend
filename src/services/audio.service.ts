@@ -1,4 +1,4 @@
-import type { GenerationAudioTrack } from '../../packages/ai/graph/dependencies.js';
+import type { GenerationAudioTrack } from '../../packages/ai/agent/dependencies.js';
 import { assetKind } from '../../packages/object-storage/asset-validation.js';
 import type { PrivateObjectStorage } from '../../packages/object-storage/types.js';
 import { orMissingFile } from './missing-file.js';

@@ -1,5 +1,5 @@
 import type { BrandDna, BrandFont } from '../../brand/brand-dna.js';
-import type { GenerationBrand, GenerationBrandAsset } from '../graph/dependencies.js';
+import type { GenerationBrand, GenerationBrandAsset } from '../agent/dependencies.js';
 
 /**
  * Turns Brand DNA into prompt text. Only fields someone filled in are
@@ -58,25 +58,6 @@ export function describeBrand(brand: GenerationBrand): string {
             ...placeable.map(describeAsset),
             'Never stretch, recolour or crop a logo; keep its aspect ratio. Do not use any other motify-asset:// token.',
         );
-    }
-    return lines.join('\n');
-}
-
-/**
- * The compact version the brief sees. The brief decides structure and picks
- * ground and accent colours, so it needs the story and palette, not asset tokens.
- */
-export function describeBrandForBrief(brand: GenerationBrand): string {
-    const { dna } = brand;
-    const lines = [
-        'Brand this film is for (derive beats from it where the request is silent; the request wins on conflict):',
-        ...identityLines(dna),
-        ...productLines(dna),
-        ...storyLines(dna),
-        ...voiceLines(dna),
-    ];
-    if (dna.visual.colors.length > 0) {
-        lines.push(`Brand palette: ${dna.visual.colors.map((color) => `${color.role} ${color.hex}`).join(', ')}. Choose ground and accent from it.`);
     }
     return lines.join('\n');
 }

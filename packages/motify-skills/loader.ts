@@ -28,6 +28,18 @@ export interface LoadedSkill {
 
 const packageRoot = path.dirname(fileURLToPath(import.meta.url));
 
+export const skillsRoot = packageRoot;
+
+/** Reads one supporting file by its path inside the skills folder, e.g. `write-motify/SKILL.md`. */
+export async function loadSkillDoc(file: string, root = skillsRoot): Promise<string> {
+    const base = path.resolve(root);
+    const resolved = path.resolve(base, file);
+    if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+        throw new Error('Skill file path is outside the skills folder.');
+    }
+    return readFile(resolved, 'utf8');
+}
+
 export function normalizeSkillContent(content: string): string {
     return content.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
 }
