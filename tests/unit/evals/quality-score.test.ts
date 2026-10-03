@@ -4,7 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { scoreGeneration } from '../../../evals/quality/score.js';
-import type { MotifyGeneration } from '../../../packages/ai/providers/model.provider.js';
+import type { MotifyGeneration } from '../../../packages/ai/agent/generation-schema.js';
 
 const referenceRoot = path.resolve(import.meta.dirname, '../../../packages/motify-references');
 

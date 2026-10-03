@@ -2,7 +2,8 @@ import { transformSync } from 'esbuild';
 import { parse } from 'acorn';
 import { parseFragment, type DefaultTreeAdapterMap } from 'parse5';
 
-import type { MotifyGeneration } from '../providers/model.provider.js';
+import type { MotifyGeneration } from '../agent/generation-schema.js';
+import { MOTION_PRESET_NAMES, SCENE_KIT_CLASSES } from './scene-kit.js';
 
 export interface ValidationError {
     code: string;
@@ -63,7 +64,8 @@ function validateStyleSystem(html: string, warnings: ValidationError[]): void {
             .flatMap((match) => (match[1] ?? '').split(/\s+/))
             .filter(Boolean),
     );
-    const undeclared = [...used].filter((name) => !defined.has(name));
+    // The renderer mounts the scene kit and supplies the rules for its `mk-` classes; only a name the kit lacks is a typo.
+    const undeclared = [...used].filter((name) => !defined.has(name) && !SCENE_KIT_CLASSES.has(name));
     if (undeclared.length === 0) return;
     add(
         warnings,
@@ -74,12 +76,12 @@ function validateStyleSystem(html: string, warnings: ValidationError[]): void {
 }
 
 /**
- * The runtime supplies a tuned ease vocabulary and a preset library, and the
- * skill says the quality pass scores a film on whether it used them. Sampled
+ * The runtime supplies a tuned ease vocabulary and a preset library (every export of the
+ * renderer's presets, listed in `scene-kit.ts`), and the quality pass scores a film on whether it used them. Sampled
  * films called no preset at all and reached for gsap's stock curves, whose
  * dynamic range reads as constant velocity over a multi-second travel.
  */
-const MOTION_PRESET_CALL = /\b(?:reveal|slide|scalePop|blurReveal|maskWipe|staggerEntrance|staggerExit|cameraPush|cameraPull|sceneHandoff|morph|splitText|textReveal|editorialTextReveal|wordSlideRotate|charSpringBounce|continuousTextGradient|gradientSweep|ambientWaves)\s*\(/;
+const MOTION_PRESET_CALL = new RegExp(String.raw`\b(?:${MOTION_PRESET_NAMES.join('|')})\s*\(`);
 const STOCK_EASE = /ease\s*:\s*["'](power[0-4]|sine|expo|circ|back|elastic|bounce|none|linear)[^"']*["']/g;
 
 function validateMotionVocabulary(source: string, warnings: ValidationError[]): void {

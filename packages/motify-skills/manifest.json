@@ -8,97 +8,55 @@
     {
       "id": "runtime-contract",
       "file": "runtime-contract/SKILL.md",
-      "sha256": "526e6f96b6b7fbe557d42aa05d38df952774b9d9ac424be6340278e01b40b682"
+      "sha256": "7fed9714ea4ca90bc37a00ab065f3f72c434b26ae072369b03a5d873f4762a5e"
     },
     {
       "id": "write-motify",
       "file": "write-motify/SKILL.md",
-      "sha256": "3a856c0df47a2e67ca9867f7f68b048fb7d693000da09be147238dafb4f9502a"
+      "sha256": "3350e0d84775b169683a43c919b2c92bc80550d3b400bd3b27d0f851c96890c0"
     },
     {
       "id": "scene-design",
       "file": "scene-design/SKILL.md",
-      "sha256": "41e1ab77be5c8c22956e532ac32c4c74b6f5dbd8976ea2fc87a4d1596d1df57e"
+      "sha256": "2eb582e2949881690ee03d519746d190f96a23bfca8488cbe80810b32ff1e7fc"
     },
     {
       "id": "scene-components",
       "file": "scene-components/SKILL.md",
-      "sha256": "200621f27d42b3cc37ae70b02fa44b5ce8ef5bf2855a4970d3cefdb74f899bf4"
+      "sha256": "7bdca61b92a08c4ae940e2c193f27b7cd73a40db00f58fb243db752e73e7dc1b"
     },
     {
-      "id": "preset-reference",
-      "file": "preset-reference/SKILL.md",
-      "sha256": "241c10ceb3e09dbc9870f04f022d69d90f9a4a50312b84586297c993398eb232"
+      "id": "gsap-core",
+      "file": "gsap-core/SKILL.md",
+      "sha256": "7b4e479eba60c455325b0b5b66391ccbf202b3ce42611761c7fecada4fd32d4e"
     },
     {
-      "id": "house-style",
-      "file": "house-style/SKILL.md",
-      "sha256": "c957b48bc141dc0b4e2e7f967dafaa1ce107b77bb6372c9a51c60833726b98b7"
+      "id": "gsap-timeline",
+      "file": "gsap-timeline/SKILL.md",
+      "sha256": "9485ba226e746900062ca5901639fa51bd6b398500ef730ff7d7d01ed3036e27"
     },
     {
-      "id": "editorial-brutalist",
-      "file": "styles/editorial-brutalist/SKILL.md",
-      "sha256": "5d86ae4b56293dd9ca32db01612449c8a6c8e1a6d85e6dec372ab6737ef1340c"
+      "id": "gsap-performance",
+      "file": "gsap-performance/SKILL.md",
+      "sha256": "357e27ae8ee02f7c40e7d4e72fc771515b4dddf0eb45779b13a8f1b8a2fa7e80"
+    }
+  ],
+  "files": [
+    {
+      "file": "write-motify/laws.md",
+      "sha256": "c5f912be93a28426350fd342244b79b894a31d15eae886b3706897cd4018e10c"
     },
     {
-      "id": "playful-learning",
-      "file": "styles/playful-learning/SKILL.md",
-      "sha256": "5e31cb7dd4bd15eebddba6c924543f0f159559e0896e2c34c439a830c551f62b"
+      "file": "write-motify/mechanics.md",
+      "sha256": "b2ed811fdb8444650a68fabb312607d0fdbabae7ce7c01da95cc29c2c621f374"
     },
     {
-      "id": "apple-glass",
-      "file": "styles/apple-glass/SKILL.md",
-      "sha256": "e4f67ceec9616931152b3048e92b5740525d1e50a74ad67b517762a492763735"
+      "file": "write-motify/moves.md",
+      "sha256": "f2269a6899449d8bba3751bfc408fae0e937dd999a8513955db5b494d047f9eb"
     },
     {
-      "id": "technical-data",
-      "file": "styles/technical-data/SKILL.md",
-      "sha256": "2469b372faf089ca752c2a885b9101bcbb06e7aa2e36c0fa76f0b4f0e04edba8"
-    },
-    {
-      "id": "cinematic-brand",
-      "file": "styles/cinematic-brand/SKILL.md",
-      "sha256": "709e710aa041648023a3b2843decb4a71ebf93157f24ff67ebf8337691257b6a"
-    },
-    {
-      "id": "apple-notes-workflow",
-      "file": "styles/apple-notes-workflow/SKILL.md",
-      "sha256": "427879eb7361e35b43bf9f38155b91fab09c40d5f31c2b30cd05e594ccdb1ada"
-    },
-    {
-      "id": "claude-product-journey",
-      "file": "styles/claude-product-journey/SKILL.md",
-      "sha256": "752d403134b8a5f04e5a730fd857b4ccd2f793870bd02d316265ad19340851a8"
-    },
-    {
-      "id": "kiri-voice-workflow",
-      "file": "styles/kiri-voice-workflow/SKILL.md",
-      "sha256": "3ef05fe0a985590f8c8a561c6beedbeec9dc8381050c5b9c0bdc179fa8ee93a0"
-    },
-    {
-      "id": "motify-launch-film",
-      "file": "styles/motify-launch-film/SKILL.md",
-      "sha256": "9eb35e16b1d81509ac1eada2dd4c91648fc27b767d7a510f5a517c842302bdf4"
-    },
-    {
-      "id": "motionly-promo-film",
-      "file": "styles/motionly-promo-film/SKILL.md",
-      "sha256": "381456caf3351ec311913037ba8a16621b1e98575560f18cdad6d6291800c81c"
-    },
-    {
-      "id": "recoup-recovery-story",
-      "file": "styles/recoup-recovery-story/SKILL.md",
-      "sha256": "d4a69b638feb2ac9d92c1213e37a46856a0d68aa466c72ef57f4d8a9fbc44f08"
-    },
-    {
-      "id": "relay-handoff-story",
-      "file": "styles/relay-handoff-story/SKILL.md",
-      "sha256": "a033bc8424518f857cf1fbe69a9151d4dbc6da5a8c13b21a3f5f47cf9c2760c2"
-    },
-    {
-      "id": "tessera-data-story",
-      "file": "styles/tessera-data-story/SKILL.md",
-      "sha256": "8af55f258c774d13735d54bfcb856efe379618c15bcdb0569876891b03b06120"
+      "file": "write-motify/reference-standard.md",
+      "sha256": "1fd6fa14b0749ca131f05286af9fca969d1eb9d2aa2f58221df67f95aaa60b53"
     }
   ]
 }

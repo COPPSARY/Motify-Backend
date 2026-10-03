@@ -50,14 +50,16 @@ describe('quality warnings', () => {
             ...validGeneration,
             compositionHtml:
                 '<template><style>.word { display: inline-block; }</style>' +
-                '<main class="mk-stage mk-theme-midnight" style="color: white"><h1 class="mk-hero">Go</h1></main></template>',
+                '<main class="mk-stage mk-theme-midnight" style="color: white"><h1 class="mk-herro">Go</h1></main></template>',
         });
 
         expect(report.valid).toBe(true);
         expect(report.errors).toEqual([]);
         const undefinedClass = report.warnings.find((warning) => warning.code === 'UNDEFINED_CLASS');
-        expect(undefinedClass?.message).toContain('mk-stage');
-        expect(undefinedClass?.message).toContain('mk-hero');
+        expect(undefinedClass?.message).toContain('mk-herro');
+        // The scene kit's own classes are styled by the renderer, so only the misspelled one is reported.
+        expect(undefinedClass?.message).not.toContain('mk-stage');
+        expect(undefinedClass?.message).not.toContain('mk-theme-midnight');
     });
 
     it('accepts a composition whose classes all resolve', () => {
@@ -87,6 +89,19 @@ describe('quality warnings', () => {
         const stock = report.warnings.find((warning) => warning.code === 'STOCK_EASE');
         expect(stock?.message).toContain('power3');
         expect(stock?.message).toContain('expo');
+    });
+
+    it('counts a handoff or camera helper as a motion preset', () => {
+        const report = validateMotifyGeneration({
+            ...validGeneration,
+            timelineJs:
+                'export function buildTimeline({ timeline, root }) {' +
+                ' zoomThrough(timeline, { outgoing: a, incoming: b, at: 3 });' +
+                ' giantKineticCrop(timeline, root, { at: 0 });' +
+                ' timeline.to(root, { x: 10, ease: EASE.travel }); }',
+        });
+
+        expect(report.warnings.map((warning) => warning.code)).not.toContain('MOTION_PRESETS_UNUSED');
     });
 
     it('stays quiet when the timeline uses EASE and a preset', () => {

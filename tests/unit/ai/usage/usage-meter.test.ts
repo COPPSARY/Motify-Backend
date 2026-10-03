@@ -8,7 +8,7 @@ describe('UsageMeter', () => {
         meter.record(100, 20);
         meter.record(50, null);
         meter.record(null, null);
-        expect(meter.snapshot()).toEqual({ inputTokens: 150, outputTokens: 20, calls: 3, unreportedCalls: 1 });
+        expect(meter.snapshot()).toEqual({ inputTokens: 150, outputTokens: 20, cachedInputTokens: 0, calls: 3, unreportedCalls: 1 });
     });
 
     it('collects usage from concurrent requests separately', async () => {

@@ -30,7 +30,7 @@ export interface PricedUsage {
  * `(input + 5 * output) / 20,800` credits. It rounds up, so a charge is never
  * a fraction under the cost, then applies the floor and ceiling.
  */
-export function priceUsage(usage: MeteredUsage, pricing: CreditPricing): PricedUsage {
+export function priceUsage(usage: Omit<MeteredUsage, 'cachedInputTokens'>, pricing: CreditPricing): PricedUsage {
   const usd = (usage.inputTokens * pricing.inputUsdPerMillionTokens
     + usage.outputTokens * pricing.outputUsdPerMillionTokens) / 1_000_000;
   // Rounded to a millionth of a credit first, so float noise cannot tip a whole

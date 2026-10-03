@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { MotionGraphInput, MotionGraphResponse } from '../../../packages/ai/graph/dependencies.js';
-import { ModelProviderError } from '../../../packages/ai/providers/model.provider.js';
+import type { MotionGraphInput, MotionGraphResponse } from '../../../packages/ai/agent/dependencies.js';
+import { ModelProviderError } from '../../../packages/ai/agent/errors.js';
 import { recordModelUsage } from '../../../packages/ai/usage/usage-meter.js';
 import { AppError } from '../../../src/errors.js';
 import { GenerationBilling } from '../../../src/services/generation-billing.js';
