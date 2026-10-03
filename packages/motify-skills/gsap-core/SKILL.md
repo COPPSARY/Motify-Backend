@@ -5,7 +5,7 @@ description: Read when writing timeline.js tweens (set, to, fromTo, transform pr
 
 # GSAP Core
 
-> **Motify:** `runtime-contract` wins any conflict with this skill. You never call `gsap.to()`, `gsap.from()` or `gsap.timeline()` on their own: add every tween to the supplied `timeline` (`timeline.to`, `timeline.fromTo`, `timeline.set`) at explicit seconds. There is no ScrollTrigger, plugin, `matchMedia`, `ticker`, `onComplete` mutation or `repeat: -1`. Use `fromTo` with `immediateRender: false` so scrubbing stays deterministic.
+> **Motify:** `runtime-contract` wins any conflict with this skill. You never call `gsap.to()`, `gsap.from()` or `gsap.timeline()` on their own: add every tween to the supplied `timeline` (`timeline.to`, `timeline.fromTo`, `timeline.set`) at explicit seconds. There is no ScrollTrigger, plugin, `matchMedia`, `ticker`, `onComplete` mutation or `repeat: -1`. Use `fromTo` with `immediateRender: false` so scrubbing stays deterministic, and set each such element's from state at 0 with `timeline.set(el, fromVars, 0)` so it does not show before its entrance.
 
 ## When to Use This Skill
 

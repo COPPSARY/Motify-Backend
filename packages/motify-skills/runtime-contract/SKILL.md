@@ -19,7 +19,7 @@ You work in a virtual workspace with `read_file`, `write_file`, and `edit_file`.
 ## Runtime contract
 
 - compositionHtml is the authored visual source: semantic HTML/SVG and scoped CSS inside one <template>. Default canvas is 1920x1080 unless the request specifies another size.
-- The runtime mounts the scene kit into every composition. The root element is `<main class="mk-stage mk-theme-…">` — one continuous, lit ground for the whole film — and every ground, surface, window, table, row, control, chart and piece of type is built from kit classes. Never hand-write CSS for those, and never restyle a kit class: your own CSS positions a beat's pieces and adds one-off touches. The one thing you do art-direct is the ground: `mk-theme-*` is optional, and you may set the stage's own `style` (a `background` of your own plus `--mk-accent`, `--mk-accent-2` and `--mk-glow`, which the drifting light reads) so each film gets its own ground instead of a stock theme. `scene-components` has recipes for dark, light and brand-colour grounds. Icons are `<svg class="mk-icon"><use href="#mk-i-NAME"/></svg>` using only the names the kit lists.
+- The runtime mounts the scene kit into every composition. The root element is `<main class="mk-stage mk-theme-…">` — one continuous, lit ground for the whole film — and every ground, surface, window, table, row, control, chart and piece of type is built from kit classes. Never hand-write CSS for those, and never restyle a kit class: your own CSS positions a beat's pieces and adds one-off touches. The one thing you do art-direct is the ground: `mk-theme-*` is optional, and you may set the stage's own `style` (a `background` of your own plus `--mk-accent`, `--mk-accent-2` and `--mk-glow`, which the drifting light reads) so each film gets its own ground instead of a stock theme. A solid colour from the brand is a complete ground — the runtime already drifts light across it — so reach for a multi-colour gradient only when the brand or the request calls for one, and do not put gradient text in headlines by habit. `scene-components` has recipes for dark, light and brand-colour grounds. Icons are `<svg class="mk-icon"><use href="#mk-i-NAME"/></svg>` using only the names the kit lists.
 - timelineJs defines `export function buildTimeline(context)`. Query elements through context.root, register them with context.register(id, element), and write motion into context.timeline. Never create a second rendering representation.
 - The compiler supplies GSAP and every exported helper from src/composition/presets.ts, already in scope. The helpers are listed below with their signatures. Prefer a helper over hand-rolling the same motion out of raw tweens. For the GSAP API itself (tweens, easing, stagger, position parameter, labels), read `gsap-core` and `gsap-timeline` when you need them. Do not emit imports, React, canvas renderers, a JSON animation DSL, generated DOM in TypeScript, nested HyperFrames runtimes, external scripts, setTimeout, requestAnimationFrame, CSS @keyframes, or CSS animation loops.
 - A scene boundary is a promise about timelineJs, not a label. Whatever mechanism you choose (morph, match-cut, particle-reassemble) must appear in the executable timeline as a real move on a real element, across real seconds. Switching scene layers on and off is not a transition.
@@ -28,7 +28,7 @@ You work in a virtual workspace with `read_file`, `write_file`, and `edit_file`.
 - Never end one scene and begin the next by toggling opacity. Setting the incoming scene to full opacity while the outgoing one is still fading paints both layouts on top of each other, motionless, which is the single most common way a generated film looks broken. The outgoing beat leaves along its own vector — it travels, scales, or its carrier changes shape — and the incoming beat arrives on a move of its own. If opacity changes at all, it cleans up behind material that is already leaving; it is never the transition itself.
 - Never use `repeat: -1`, an infinite `yoyo`, or any unbounded repeat. They make the parent timeline infinite, which breaks scrubbing and export and fails the duration ceiling. Ambient motion must be authored as finite tweens across the film's own duration.
 - Use a caller-owned timeline. A child GSAP timeline is allowed only when attached to context.timeline for deliberate retiming; never start independent clocks. Metadata and child timeScale must agree.
-- Set hidden/transformed/layered initial states at timeline time 0. Schedule cleanup with timeline.set at explicit seconds, never irreversible onComplete style mutations. Preview, scrubbing, and export seek the same DOM and timeline.
+- Set hidden/transformed/layered initial states at timeline time 0. A `fromTo` with `immediateRender: false` does not apply its from state until its own start time, so until then the element sits fully visible at its CSS state and then snaps away to animate in — a flash on the first frames. Every element that enters later than 0s gets its from state with `timeline.set(el, { autoAlpha: 0, y: 24 }, 0)` at time 0, matching the `fromTo`'s from values. Schedule cleanup with timeline.set at explicit seconds, never irreversible onComplete style mutations. Preview, scrubbing, and export seek the same DOM and timeline.
 - Use stable, descriptive data-edit IDs, data-edit-label, and appropriate data-field, data-field-label, data-field-type, data-field-binding, and data-field-property metadata. Register meaningful editable elements. Preserve existing IDs and editor overrides on edits.
 - Use supplied motify-asset:// tokens exactly in visible image sources. Do not invent asset URLs. Keep accepted media on follow-ups. Do not embed base64 image payloads in the files.
 - For generated projects retain data-motify-generation-profile="claude-foundation-v1" on the root for compatibility. That marker does not prescribe the film's story or layout. A data-camera-world is optional; if you use one, move it gently rather than panning content toward the frame edge. Every scene ID you pass to `validate_generation` / `finalize_generation` must have a matching data-scene container with recognizable content that is visible during that scene; never list a scene for an empty or missing beat.
@@ -47,11 +47,11 @@ This is the shape of a correct pair of files, and it validates. It shows the str
   <style>
     [data-edit="scene-01"] .copy { position: absolute; left: 160px; top: 300px; width: 1100px; align-items: flex-start; text-align: left; }
   </style>
-  <main class="mk-stage" style="--mk-accent:#f59e0b;--mk-accent-2:#fbbf24;--mk-glow:rgba(251,191,36,.3);background:radial-gradient(1000px 700px at 78% 8%,rgba(251,191,36,.16),transparent 62%),linear-gradient(165deg,#0b1a14 0%,#102a20 100%)" data-motify-generation-profile="claude-foundation-v1" data-edit="stage" data-edit-label="Stage">
+  <main class="mk-stage" style="--mk-accent:#f59e0b;--mk-accent-2:#fbbf24;--mk-glow:rgba(251,191,36,.3);background:#0e1f17" data-motify-generation-profile="claude-foundation-v1" data-edit="stage" data-edit-label="Stage">
     <section data-scene="scene-01" data-edit="scene-01" data-edit-label="Before">
       <div class="copy mk-vstack" style="--gap:28px">
         <span class="mk-kicker" data-edit="kicker" data-edit-label="Kicker">Requests, unsorted</span>
-        <h1 class="mk-display" data-edit="headline" data-edit-label="Headline">Feedback arrives <span class="mk-gradient-text">everywhere</span></h1>
+        <h1 class="mk-display" data-edit="headline" data-edit-label="Headline">Feedback arrives everywhere</h1>
       </div>
     </section>
     <section data-scene="scene-02" data-edit="scene-02" data-edit-label="After">
@@ -75,8 +75,11 @@ export function buildTimeline({ root, timeline, register }) {
   const s1 = el('scene-01'), s2 = el('scene-02');
   ['scene-01', 'scene-02', 'headline', 'kicker', 'result', 'metric-card'].forEach((id) => register(id, el(id)));
 
-  // Initial states are set at time 0.
+  // Initial states are set at time 0, including the from state of every
+  // later entrance, so nothing shows before its own entrance plays.
   timeline.set(s2, { autoAlpha: 0 }, 0);
+  timeline.set(el('kicker'), { y: 24, autoAlpha: 0 }, 0);
+  timeline.set(el('metric-card'), { y: 40, autoAlpha: 0 }, 0);
 
   // Beat 1 (0-4.6s): the headline settles, then the kicker rises in behind it.
   macroSettle(timeline, el('headline'), { at: 0.2, startScale: 2.4, duration: 0.85 });

@@ -96,25 +96,25 @@ and never decorate it with circles, dots or blobs.
 
 The five themes are starting points, and a film for each brand should not sit on the same one. Art-direct the ground on the `mk-stage` element itself: leave out `mk-theme-*`, and set `style` with your own `background`, the accent trio `--mk-accent`, `--mk-accent-2`, `--mk-glow` (the drifting light and the glow read them), and for a **light** ground also the ink, line, fill and surface variables so type and cards stay readable. A dark ground keeps the kit's light ink and needs only the background and accent trio.
 
-Warm paper (light):
+Warm paper, solid (light):
 
 ```html
-<main class="mk-stage" style="--mk-accent:#c2410c;--mk-accent-2:#f59e0b;--mk-glow:rgba(245,158,11,.28);--mk-ink:#2b1d12;--mk-ink-2:rgba(43,29,18,.66);--mk-ink-3:rgba(43,29,18,.42);--mk-line:rgba(43,29,18,.12);--mk-line-strong:rgba(43,29,18,.2);--mk-fill:rgba(194,65,12,.06);--mk-fill-2:rgba(194,65,12,.1);--mk-surface:linear-gradient(180deg,#fffaf2,#fff3e0);--mk-surface-flat:#fffaf2;color:var(--mk-ink);background:radial-gradient(900px 700px at 20% 10%,rgba(255,255,255,.7),transparent 60%),linear-gradient(160deg,#fbf1e1 0%,#f6dfbd 100%)">
+<main class="mk-stage" style="--mk-accent:#c2410c;--mk-accent-2:#f59e0b;--mk-glow:rgba(245,158,11,.28);--mk-ink:#2b1d12;--mk-ink-2:rgba(43,29,18,.66);--mk-ink-3:rgba(43,29,18,.42);--mk-line:rgba(43,29,18,.12);--mk-line-strong:rgba(43,29,18,.2);--mk-fill:rgba(194,65,12,.06);--mk-fill-2:rgba(194,65,12,.1);--mk-surface:#fffaf2;--mk-surface-flat:#fffaf2;color:var(--mk-ink);background:#f8ecd9">
 ```
 
-Saturated brand colour (dark ink off, white type):
+Saturated brand colour, solid (white type):
 
 ```html
-<main class="mk-stage" style="--mk-accent:#ffffff;--mk-accent-2:#ffd6e7;--mk-glow:rgba(255,255,255,.28);background:radial-gradient(1100px 800px at 80% 0%,rgba(255,255,255,.22),transparent 60%),linear-gradient(150deg,#e11d74 0%,#9d174d 100%)">
+<main class="mk-stage" style="--mk-accent:#ffffff;--mk-accent-2:#ffd6e7;--mk-glow:rgba(255,255,255,.28);background:#d61a6b">
 ```
 
-Deep forest with amber light (dark):
+Deep forest with one amber light (dark):
 
 ```html
-<main class="mk-stage" style="--mk-accent:#f59e0b;--mk-accent-2:#fbbf24;--mk-glow:rgba(251,191,36,.3);background:radial-gradient(1000px 700px at 78% 8%,rgba(251,191,36,.16),transparent 62%),linear-gradient(165deg,#0b1a14 0%,#102a20 100%)">
+<main class="mk-stage" style="--mk-accent:#f59e0b;--mk-accent-2:#fbbf24;--mk-glow:rgba(251,191,36,.3);background:radial-gradient(1000px 700px at 78% 8%,rgba(251,191,36,.16),transparent 62%),#0e1f17">
 ```
 
-Vary the recipe, do not copy it: take the colours from the brand, change the angle and where the light sits, and keep the ground lit and never flat or empty. A ground made this way needs no `mk-horizon`.
+Vary the recipe, do not copy it: take the colours from the brand. A solid brand colour is a complete ground — the runtime already drifts and breathes light across it — so start there, and add one soft light source only when the mood needs depth. A multi-colour gradient ground is the exception: use one only when the brand itself is a gradient or the request asks for it. A ground made this way needs no `mk-horizon`.
 
 Optional layers, none of them required: `mk-horizon` for the glowing planet rim
 along the bottom (never resize or reposition it), `mk-horizon mk-horizon-top` for an
@@ -164,7 +164,7 @@ this film's content.
 <section data-scene="scene-01" data-edit="scene-01">
   <div class="mk-center mk-vstack mk-middle" style="--gap:32px">
     <span class="mk-kicker" data-edit="kicker"><svg class="mk-icon"><use href="#mk-i-sparkle"/></svg> Introducing Relay AI</span>
-    <h1 class="mk-display" data-edit="headline" style="width:1500px">Ship work at <span class="mk-gradient-text">machine speed</span></h1>
+    <h1 class="mk-display" data-edit="headline" style="width:1500px">Ship work at <span style="color:var(--mk-accent)">machine speed</span></h1>
     <p class="mk-subtitle" data-edit="subline" style="width:1100px">Every request triaged, drafted and routed before your team opens Slack.</p>
   </div>
 </section>
@@ -179,7 +179,7 @@ subline rising in behind it.
 <section data-scene="scene-01" data-edit="scene-01">
   <div class="mk-vstack" style="--gap:28px;position:absolute;left:160px;top:300px;width:1100px;align-items:flex-start;text-align:left">
     <span class="mk-kicker" data-edit="kicker">Requests, unsorted</span>
-    <h1 class="mk-display" data-edit="headline">Feedback arrives <span class="mk-gradient-text">everywhere</span></h1>
+    <h1 class="mk-display" data-edit="headline">Feedback arrives everywhere</h1>
   </div>
 </section>
 ```
@@ -335,8 +335,9 @@ brand to sign off.
 ## 6. Other pieces
 
 - Text: `mk-display`, `mk-headline`, `mk-title`, `mk-subtitle`, `mk-body`,
-  `mk-label`, `mk-kicker`; accents `mk-gradient-text`, `mk-glow-text`,
-  `mk-highlight`.
+  `mk-label`, `mk-kicker`; accents `mk-highlight`, `mk-glow-text` and, at most
+  once per film and only for a brand that uses gradient type, `mk-gradient-text`.
+  Most statements need no accent at all.
 - Layout: `mk-center`, `mk-abs`, `mk-vstack`, `mk-hstack`, `mk-grid` (`--cols`,
   `--gap`), `mk-middle`, `mk-spread`.
 - Surfaces: `mk-card`, `mk-glass`, `mk-liquid`, `mk-window`.

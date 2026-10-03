@@ -69,6 +69,8 @@ The editor scrubs backwards, so the timeline is seeked out of order constantly. 
 t.fromTo(el, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, immediateRender: false }, at);
 ```
 
+`immediateRender: false` also means the from state waits for `at`: until then the element sits at its CSS state, fully visible, and then snaps away to animate in. When this is the element's first entrance, set its from state at time 0 as well — `t.set(el, { autoAlpha: 0 }, 0)` — so the first frames do not flash it.
+
 Text that changes mid-film is driven from a proxy so it restores on rewind:
 
 ```js

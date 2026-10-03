@@ -19,9 +19,11 @@ reference and complete beat templates follow this skill. Compose from them.
 
 The reference films share five qualities. Every beat should have all five.
 
-1. **A lit ground.** Deep indigo with a glowing horizon, violet into teal, pale
-   sky light, saturated brand blue, or a bright wallpaper under glass — never a
-   flat page colour. The ground is one continuous surface for the whole film.
+1. **A chosen ground.** A solid brand colour, a solid near-black or warm
+   neutral, one soft light source on a dark field, or a bright wallpaper under
+   glass — never default white or grey. Most strong films sit on a solid or
+   near-solid colour; a multi-stop colour gradient is one option among these,
+   not the default. The ground is one continuous surface for the whole film.
 2. **One big subject, placed on purpose.** A headline, a product window, a proof card or a
    cluster of glass — filling roughly half to three quarters of the frame width.
    Big enough to read from across a room.
@@ -71,7 +73,10 @@ no substitute shape is needed to cover the cut.
 ## Type
 
 - The beat's claim uses `mk-display` or `mk-headline` — nothing smaller.
-- One highlighted phrase per statement with `mk-gradient-text`.
+- Emphasis is rare. Most statements need none: weight and size carry them. When
+  one phrase must stand out, give it the solid accent (`color:var(--mk-accent)`)
+  or `mk-highlight`. Use `mk-gradient-text` at most once per film, and only when
+  the brand itself uses gradient type.
 - `mk-subtitle` carries a supporting line; `mk-label` and `mk-kicker` carry
   categories. Body copy is rare in a film: if it is a paragraph, cut it.
 
@@ -81,6 +86,8 @@ Redesign before animating if a beat has any of these:
 
 - a hand-written ground, card or table instead of the kit's
 - a flat stage colour with a single blurred circle on it
+- gradients by reflex: a two-colour gradient ground plus gradient text in every
+  headline, when nothing in the brand asks for either
 - the subject in a corner, or cropped by the frame edge
 - the beat's main claim in anything smaller than `mk-headline`
 - an interface with no icons, no badges, no avatars and no numbers
