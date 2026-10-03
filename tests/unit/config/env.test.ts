@@ -133,6 +133,7 @@ describe('parseEnvironment', () => {
   it('parses Bakong settings with KHQR-safe defaults', () => {
     const environment = parseEnvironment({ ...valid, BAKONG_TOKEN: 'token', BAKONG_ACCOUNT_ID: 'motify@aclb', BAKONG_API_BASE_URL: 'https://kh-proxy.motify.example/' });
     expect(environment.bakong).toEqual({
+      mode: 'live',
       apiBaseUrl: 'https://kh-proxy.motify.example',
       token: 'token',
       accountId: 'motify@aclb',
@@ -229,5 +230,38 @@ describe('parseEnvironment', () => {
     expect(parseEnvironment({ ...valid, MOTIFY_AGENT_MAX_VALIDATION_RETRIES: '0' }).motifyAgentMaxValidationRetries).toBe(0);
     expect(() => parseEnvironment({ ...valid, MOTIFY_AGENT_MAX_VALIDATION_RETRIES: '-1' })).toThrow('MOTIFY_AGENT_MAX_VALIDATION_RETRIES');
     expect(() => parseEnvironment({ ...valid, MOTIFY_AGENT_MAX_VALIDATION_RETRIES: '11' })).toThrow('MOTIFY_AGENT_MAX_VALIDATION_RETRIES');
+  });
+
+  it('defaults credit packs to the published credit pricing', () => {
+    expect(parseEnvironment(valid).creditPacks.map((pack) => [pack.id, pack.priceCents, pack.credits])).toEqual([
+      ['credits-30', 250, 30], ['credits-65', 500, 65], ['credits-135', 1_000, 135],
+      ['credits-350', 2_500, 350], ['credits-720', 5_000, 720], ['credits-1450', 10_000, 1_450],
+    ]);
+  });
+
+  it('reads credit packs from CREDIT_PACKS and allows none', () => {
+    expect(parseEnvironment({ ...valid, CREDIT_PACKS: ' 1.99:20 , 9:100 ' }).creditPacks).toEqual([
+      { id: 'credits-20', priceCents: 199, currency: 'USD', credits: 20 },
+      { id: 'credits-100', priceCents: 900, currency: 'USD', credits: 100 },
+    ]);
+    expect(parseEnvironment({ ...valid, CREDIT_PACKS: '' }).creditPacks).toEqual([]);
+  });
+
+  it('rejects credit packs a KHQR cannot carry', () => {
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '5' })).toThrow('CREDIT_PACKS');
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '0:30' })).toThrow('CREDIT_PACKS');
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '2.555:30' })).toThrow('CREDIT_PACKS');
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '5:1.5' })).toThrow('CREDIT_PACKS');
+    expect(() => parseEnvironment({ ...valid, CREDIT_PACKS: '5:65,6:65' })).toThrow('same credit amount');
+  });
+
+  it('runs Bakong in sandbox without a token, but never in production', () => {
+    const development = { ...valid, NODE_ENV: 'development', SESSION_COOKIE_SECURE: 'false' };
+    expect(parseEnvironment({ ...development, BAKONG_MODE: 'sandbox' }).bakong).toMatchObject({
+      mode: 'sandbox', token: null, accountId: 'motify.sandbox@devb',
+    });
+    expect(parseEnvironment({ ...development, BAKONG_TOKEN: 'token', BAKONG_ACCOUNT_ID: 'motify@aclb' }).bakong).toMatchObject({ mode: 'live' });
+    expect(() => parseEnvironment({ ...valid, BAKONG_MODE: 'sandbox' })).toThrow('BAKONG_MODE=sandbox is refused');
+    expect(() => parseEnvironment({ ...development, BAKONG_MODE: 'test' })).toThrow();
   });
 });

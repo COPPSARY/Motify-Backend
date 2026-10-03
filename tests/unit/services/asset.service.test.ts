@@ -7,6 +7,7 @@ import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 
+import { ObjectNotFoundError } from '../../../packages/object-storage/types.js';
 import type { DatabaseAssetRepository } from '../../../src/repositories/asset.repository.js';
 import { AssetService } from '../../../src/services/asset.service.js';
 import { LocalFilesystemObjectStorage } from '../../../packages/object-storage/local-filesystem.js';
@@ -164,6 +165,15 @@ describe('AssetService read access', () => {
       expiresIn: 300,
     });
     expect(storage.createSignedReadUrl).toHaveBeenCalledWith(asset.objectKey, 300);
+  });
+
+  it('answers 404 rather than 500 when the file behind a ready asset is gone', async () => {
+    const asset = { id: 'asset-id', objectKey: 'workspaces/ws/assets/a/object' };
+    const repository = { getReadableForUser: vi.fn().mockResolvedValue({ asset, role: 'viewer' }) };
+    const storage = { createSignedReadUrl: vi.fn().mockRejectedValue(new ObjectNotFoundError(asset.objectKey)) };
+    const service = new AssetService(repository as never, storage as never);
+
+    await expect(service.createAccess('user-id', 'asset-id')).rejects.toMatchObject({ status: 404, code: 'ASSET_FILE_MISSING' });
   });
 
   it('returns a signed download URL for remote object storage', async () => {

@@ -7,6 +7,7 @@ import { requireCsrf } from '../middleware/authentication.js';
 export function createBillingRoutes(controller: PaymentController) {
   const router = Router();
   router.get('/plans', asyncHandler(controller.listPlans));
+  router.get('/credit-packs', asyncHandler(controller.listCreditPacks));
   return router;
 }
 
@@ -20,5 +21,7 @@ export function createWorkspaceBillingRoutes(controller: PaymentController) {
 export function createPaymentRoutes(controller: PaymentController) {
   const router = Router();
   router.get('/:paymentId', asyncHandler(controller.getPayment));
+  // Answers 404 unless BAKONG_MODE=sandbox.
+  router.post('/:paymentId/sandbox', requireCsrf, asyncHandler(controller.simulatePayment));
   return router;
 }

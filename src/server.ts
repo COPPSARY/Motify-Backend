@@ -11,6 +11,7 @@ import { sql } from 'drizzle-orm';
 
 import { BakongClient, bakongTokenExpiry } from '../packages/bakong/client.js';
 import { generateDynamicKhqr } from '../packages/bakong/khqr.js';
+import { SandboxBakongGateway } from '../packages/bakong/sandbox.js';
 import { SupabaseAuthProvider } from '../packages/auth/supabase-provider.js';
 import { TokenVault } from '../packages/auth/token-vault.js';
 import { createMotifyAgentRunner } from '../packages/ai/agent/motify-agent.js';
@@ -25,6 +26,7 @@ import { ProjectController, type ProjectControllerService } from './controllers/
 import { MotionMessageController, type MotionMessageService } from './controllers/motion-message.controller.js';
 import { AssetController, type AssetControllerService } from './controllers/asset.controller.js';
 import { AudioController, type AudioControllerService } from './controllers/audio.controller.js';
+import { BrandController, type BrandControllerService } from './controllers/brand.controller.js';
 import { CreditController, type CreditControllerService } from './controllers/credit.controller.js';
 import { WorkspaceController, type WorkspaceControllerService } from './controllers/workspace.controller.js';
 import { PaymentController, type PaymentControllerService } from './controllers/payment.controller.js';
@@ -35,6 +37,7 @@ import { DatabaseAccountProvisioner, DatabaseAuthFlowStore, DatabaseSessionStore
 import { DatabaseProjectRepository } from './repositories/project.repository.js';
 import { DatabaseAssetRepository } from './repositories/asset.repository.js';
 import { DatabaseAudioRepository } from './repositories/audio.repository.js';
+import { DatabaseBrandRepository } from './repositories/brand.repository.js';
 import { DatabaseCreditRepository } from './repositories/credit.repository.js';
 import { DatabaseMotionGraphRepository } from './repositories/motion-graph.repository.js';
 import { DatabaseWorkspaceRepository } from './repositories/workspace.repository.js';
@@ -44,6 +47,7 @@ import { createProjectRoutes, createWorkspaceProjectRoutes } from './routes/proj
 import { createMotionMessageRoutes } from './routes/motion-message.routes.js';
 import { createAssetRoutes, createProjectAssetRoutes, createWorkspaceAssetRoutes } from './routes/asset.routes.js';
 import { createAudioRoutes, createProjectAudioRoutes, createWorkspaceAudioRoutes } from './routes/audio.routes.js';
+import { createBrandRoutes } from './routes/brand.routes.js';
 import { createCreditRoutes } from './routes/credit.routes.js';
 import { createWorkspaceRoutes } from './routes/workspace.routes.js';
 import { createBillingRoutes, createPaymentRoutes, createWorkspaceBillingRoutes } from './routes/payment.routes.js';
@@ -54,6 +58,7 @@ import { createProjectRunLock, InMemoryRunLeaseStore } from './services/project-
 import { ProjectService } from './services/project.service.js';
 import { AssetService } from './services/asset.service.js';
 import { AudioService } from './services/audio.service.js';
+import { BrandService } from './services/brand.service.js';
 import { CreditService, toCredits } from './services/credit.service.js';
 import { SupabaseObjectStorage } from '../packages/object-storage/supabase-storage.js';
 import { WorkspaceService } from './services/workspace.service.js';
@@ -69,6 +74,7 @@ interface AppOptions {
     motionMessages?: MotionMessageService;
     assets?: AssetControllerService;
     audio?: AudioControllerService;
+    brand?: BrandControllerService;
     credits?: CreditControllerService;
     payments?: PaymentControllerService;
   };
@@ -112,6 +118,7 @@ export function createApp(options: AppOptions) {
   const motionMessageController = options.services.motionMessages ? new MotionMessageController(options.services.motionMessages) : null;
   const assetController = options.services.assets ? new AssetController(options.services.assets) : null;
   const audioController = options.services.audio ? new AudioController(options.services.audio) : null;
+  const brandController = options.services.brand ? new BrandController(options.services.brand) : null;
   const creditController = options.services.credits ? new CreditController(options.services.credits) : null;
   const paymentController = options.services.payments ? new PaymentController(options.services.payments) : null;
 
@@ -126,6 +133,10 @@ export function createApp(options: AppOptions) {
     app.use('/v1/workspaces/:workspaceId/audio', requireAuthentication, createWorkspaceAudioRoutes(audioController));
     app.use('/v1/projects/:projectId/audio', requireAuthentication, createProjectAudioRoutes(audioController));
     app.use('/v1/audio', requireAuthentication, createAudioRoutes(audioController));
+  }
+  if (brandController) {
+    app.use('/v1/brand', requireAuthentication, createBrandRoutes(brandController));
+    app.use('/v1/workspaces/:workspaceId/brand', requireAuthentication, createBrandRoutes(brandController));
   }
   if (creditController) app.use('/v1/credits', requireAuthentication, createCreditRoutes(creditController));
   if (paymentController) {
@@ -165,6 +176,7 @@ export async function startServer() {
   const assetRepository = new DatabaseAssetRepository(db);
   const assetService = new AssetService(assetRepository, objectStorage);
   const audioService = new AudioService(new DatabaseAudioRepository(db), assetRepository, objectStorage);
+  const brandService = new BrandService(new DatabaseBrandRepository(db), assetRepository, assetService);
   const creditRepository = new DatabaseCreditRepository(db);
   // Lets the editor show what a request will cost before it is sent. Only
   // meaningful when requests are actually charged for.
@@ -215,11 +227,12 @@ export async function startServer() {
     billing,
     // Runs for one project are serialized because they share its agent thread.
     createProjectRunLock(new InMemoryRunLeaseStore()),
+    brandService,
   );
   const payments = createPaymentService(environment, db, logger);
   const app = createApp({
     services: {
-      auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService, audio: audioService, credits,
+      auth, sessions, workspaces, projects, motionMessages: generations, assets: assetService, audio: audioService, brand: brandService, credits,
       ...(payments ? { payments } : {}),
     },
     frontendOrigins: environment.frontendOrigins,
@@ -249,6 +262,15 @@ export async function startServer() {
   void sweepHolds();
   const holdSweeper = setInterval(() => void sweepHolds(), 5 * 60 * 1000);
   holdSweeper.unref();
+  // Plan credits expire at the end of the period they were granted for.
+  const expireCredits = () => creditRepository.expireCredits(new Date())
+    .then((expired) => { if (expired) logger.info({ expired }, 'Expired plan credits'); })
+    .catch((error: unknown) => {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Credit expiry sweep failed');
+    });
+  void expireCredits();
+  const expirySweeper = setInterval(() => void expireCredits(), 5 * 60 * 1000);
+  expirySweeper.unref();
 
   server.listen(environment.apiPort, environment.apiHost, () => {
     logger.info({ port: environment.apiPort }, 'Motify API started');
@@ -274,6 +296,7 @@ export async function startServer() {
       server.closeIdleConnections();
     });
     clearInterval(holdSweeper);
+    clearInterval(expirySweeper);
     await pool.end();
     logger.info('Motify API stopped');
   })();
@@ -288,7 +311,11 @@ export function createPaymentService(environment: ReturnType<typeof parseEnviron
     logger.info('Bakong payments disabled: set BAKONG_TOKEN and BAKONG_ACCOUNT_ID to enable them');
     return null;
   }
-  const expiry = bakongTokenExpiry(bakong.token);
+  const sandbox = bakong.mode === 'sandbox' ? new SandboxBakongGateway() : null;
+  if (sandbox) {
+    logger.warn('Bakong SANDBOX mode: no request reaches Bakong and no money moves; settle checkouts with POST /v1/payments/:id/sandbox');
+  }
+  const expiry = bakong.token ? bakongTokenExpiry(bakong.token) : null;
   if (expiry) {
     const daysLeft = Math.floor((expiry.getTime() - Date.now()) / 86_400_000);
     if (daysLeft < 14) logger.warn({ expiresAt: expiry.toISOString(), daysLeft }, 'BAKONG_TOKEN expires soon; renew it at api-bakong.nbc.gov.kh');
@@ -301,13 +328,15 @@ export function createPaymentService(environment: ReturnType<typeof parseEnviron
   };
   return new PaymentService(
     new DatabasePaymentRepository(db),
-    new BakongClient({ baseUrl: bakong.apiBaseUrl, token: bakong.token }),
+    sandbox ?? new BakongClient({ baseUrl: bakong.apiBaseUrl, token: bakong.token! }),
     {
       plans: environment.billingPlans,
+      creditPacks: environment.creditPacks,
       receiverAccountId: bakong.accountId,
       generateKhqr: (payment) => generateDynamicKhqr(receiver, payment),
       qrTtlMs: bakong.qrTtlSeconds * 1000,
       logger,
+      ...(sandbox ? { sandbox } : {}),
     },
   );
 }

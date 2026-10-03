@@ -239,7 +239,7 @@ Repair passes are billed (default). Alternative: bill only the first-pass genera
 
 # Later, not in these two phases
 
-- Monthly plan grants (Starter 150, Pro 300, Studio 750) and top-up packs, with Stripe. Both add ledger kinds; nothing in Phases 1 and 2 needs rework.
-- Credit expiry and rollover rules.
+- ~~Monthly plan grants and top-up packs~~ Built with Bakong KHQR: a paid plan adds `PLAN_GRANT`, a paid credit pack adds `PACK_PURCHASE`, both referencing the payment (see `docs/api.md`, Billing).
+- ~~Credit expiry and rollover rules~~ Built: plan credits expire at the end of their own plan period (no rollover); signup and pack credits never expire. Migration `0020_credit_expiry` adds `credit_grants` batches kept in step by a ledger trigger, so reserve, settle and refund are unchanged.
 - Per-workspace balances for team plans. Balances live on the user for now.
 - Abuse limits on free signups (disposable emails, many accounts per device), which matters more once 50 free credits are on offer.

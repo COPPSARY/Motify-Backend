@@ -1,6 +1,7 @@
 import type { GenerationAudioTrack } from '../../packages/ai/agent/dependencies.js';
 import { assetKind } from '../../packages/object-storage/asset-validation.js';
 import type { PrivateObjectStorage } from '../../packages/object-storage/types.js';
+import { orMissingFile } from './missing-file.js';
 import { AppError } from '../errors.js';
 import type { DatabaseAssetRepository } from '../repositories/asset.repository.js';
 import type { AudioTrackMetadataInput, AudioTrackRecord, DatabaseAudioRepository } from '../repositories/audio.repository.js';
@@ -94,7 +95,7 @@ export class AudioService {
     const expiresIn = 300;
     const url = this.storage.bucket === 'local'
       ? `/v1/audio/${trackId}/download`
-      : await this.storage.createSignedReadUrl(track.objectKey, expiresIn);
+      : await orMissingFile(this.storage.createSignedReadUrl(track.objectKey, expiresIn));
     return { url, expiresIn };
   }
 
@@ -104,7 +105,7 @@ export class AudioService {
     if (this.storage.bucket === 'local') {
       return { ...base, kind: 'file' as const, path: await this.storage.resolvePath(track.objectKey) };
     }
-    return { ...base, kind: 'redirect' as const, url: await this.storage.createSignedReadUrl(track.objectKey, 300) };
+    return { ...base, kind: 'redirect' as const, url: await orMissingFile(this.storage.createSignedReadUrl(track.objectKey, 300)) };
   }
 
   async listProjectTracks(userId: string, projectId: string) {

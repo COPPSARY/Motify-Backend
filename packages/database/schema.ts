@@ -32,10 +32,13 @@ export const artifactKind = pgEnum('artifact_kind', [
 ]);
 export const artifactRetention = pgEnum('artifact_retention', ['TEMPORARY', 'PROJECT']);
 export const audioTrackScope = pgEnum('audio_track_scope', ['WORKSPACE', 'SYSTEM']);
-export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RESERVE', 'SETTLE', 'REFUND', 'ADJUSTMENT']);
+export const creditEntryKind = pgEnum('credit_entry_kind', ['SIGNUP_GRANT', 'RESERVE', 'SETTLE', 'REFUND', 'ADJUSTMENT', 'PLAN_GRANT', 'PACK_PURCHASE', 'EXPIRE']);
 export const billingPlan = pgEnum('billing_plan', ['starter', 'pro', 'studio']);
 export const paymentCurrency = pgEnum('payment_currency', ['USD', 'KHR']);
 export const paymentStatus = pgEnum('payment_status', ['PENDING', 'PAID', 'EXPIRED', 'FAILED']);
+export const brandAssetRole = pgEnum('brand_asset_role', ['LOGO', 'FAVICON', 'LOGO_VARIANT', 'SCREENSHOT', 'IMAGE', 'ICON', 'FONT']);
+export const brandSource = pgEnum('brand_source', ['MANUAL', 'SITE_INTELLIGENCE']);
+export const paymentKind = pgEnum('payment_kind', ['PLAN', 'CREDIT_PACK']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
@@ -275,6 +278,8 @@ export const creditLedger = pgTable('credit_ledger', {
   inputTokens: integer('input_tokens'),
   outputTokens: integer('output_tokens'),
   model: text('model'),
+  /** Set on PLAN_GRANT rows: when the credits granted expire. Other credits never expire. */
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('credit_ledger_user_created_idx').on(table.userId, table.createdAt.desc(), table.id.desc()),
@@ -284,11 +289,49 @@ export const creditLedger = pgTable('credit_ledger', {
   check('credit_ledger_amount_check', sql`${table.amount} <> 0 or ${table.kind} = 'SETTLE'`),
 ]);
 
+/**
+ * A batch of expiring credits: one per PLAN_GRANT. The credit_ledger_grants trigger
+ * (migration 0020) draws spends from the batch that expires soonest and returns refunds
+ * to the batches they came from; the expiry sweep empties a batch past `expires_at` with
+ * an EXPIRE ledger row. A user's permanent credits are their balance minus `remaining`.
+ */
+export const creditGrants = pgTable('credit_grants', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ledgerId: uuid('ledger_id').notNull().unique().references(() => creditLedger.id, { onDelete: 'cascade' }),
+  amount: integer('amount').notNull(),
+  remaining: integer('remaining').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  expiredAt: timestamp('expired_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('credit_grants_user_open_idx').on(table.userId, table.expiresAt).where(sql`${table.remaining} > 0`),
+  check('credit_grants_amount_check', sql`${table.amount} > 0`),
+  check('credit_grants_remaining_check', sql`${table.remaining} >= 0 and ${table.remaining} <= ${table.amount}`),
+]);
+
+/** How much of a batch each spend (by ledger reference) took, so a refund can put it back. */
+export const creditGrantUses = pgTable('credit_grant_uses', {
+  grantId: uuid('grant_id').notNull().references(() => creditGrants.id, { onDelete: 'cascade' }),
+  referenceId: uuid('reference_id').notNull(),
+  units: integer('units').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.grantId, table.referenceId] }),
+  index('credit_grant_uses_reference_idx').on(table.referenceId),
+  check('credit_grant_uses_units_check', sql`${table.units} >= 0`),
+]);
+
 export const payments = pgTable('payments', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
-  plan: billingPlan('plan').notNull(),
+  kind: paymentKind('kind').default('PLAN').notNull(),
+  /** Set when `kind` is PLAN. */
+  plan: billingPlan('plan'),
+  /** Set when `kind` is CREDIT_PACK: the pack id bought, kept for the record. */
+  creditPack: text('credit_pack'),
+  /** Credits this payment adds to the buyer once PAID, in hundredths, fixed at checkout. */
+  creditUnits: integer('credit_units').default(0).notNull(),
   amountMinor: integer('amount_minor').notNull(),
   currency: paymentCurrency('currency').notNull(),
   billNumber: text('bill_number').notNull().unique(),
@@ -308,6 +351,9 @@ export const payments = pgTable('payments', {
   index('payments_pending_expiry_idx').on(table.expiresAt).where(sql`${table.status} = 'PENDING'`),
   check('payments_amount_check', sql`${table.amountMinor} > 0`),
   check('payments_paid_check', sql`${table.status} <> 'PAID' or (${table.paidAt} is not null and ${table.bakongHash} is not null)`),
+  check('payments_kind_check', sql`(${table.kind} = 'PLAN' and ${table.plan} is not null and ${table.creditPack} is null)
+    or (${table.kind} = 'CREDIT_PACK' and ${table.plan} is null and ${table.creditPack} is not null and ${table.creditUnits} > 0)`),
+  check('payments_credit_units_check', sql`${table.creditUnits} >= 0`),
 ]);
 
 export const workspaceSubscriptions = pgTable('workspace_subscriptions', {
@@ -320,4 +366,43 @@ export const workspaceSubscriptions = pgTable('workspace_subscriptions', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   check('workspace_subscriptions_period_check', sql`${table.currentPeriodEnd} > ${table.currentPeriodStart}`),
+]);
+
+/**
+ * A workspace's Brand DNA. `dna` is the versioned document in
+ * `packages/brand/brand-dna.ts`; `provenance` records who set each field
+ * (a person or Site Intelligence). One brand per workspace today; the separate
+ * id leaves room for several later without re-keying `brand_assets`.
+ */
+export const brandProfiles = pgTable('brand_profiles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  schemaVersion: integer('schema_version').default(1).notNull(),
+  dna: jsonb('dna').$type<Record<string, unknown>>().default({}).notNull(),
+  provenance: jsonb('provenance').$type<Record<string, unknown>>().default({}).notNull(),
+  revision: integer('revision').default(1).notNull(),
+  updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('brand_profiles_workspace_unique').on(table.workspaceId),
+  check('brand_profiles_revision_check', sql`${table.revision} >= 1`),
+]);
+
+/** Uploaded images that belong to a brand: its logo, favicon, screenshots and icons. */
+export const brandAssets = pgTable('brand_assets', {
+  brandId: uuid('brand_id').notNull().references(() => brandProfiles.id, { onDelete: 'cascade' }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  role: brandAssetRole('role').notNull(),
+  label: text('label'),
+  source: brandSource('source').default('MANUAL').notNull(),
+  /** The page an extractor found the image on; null for uploads. */
+  sourceUrl: text('source_url'),
+  addedBy: uuid('added_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.brandId, table.assetId] }),
+  index('brand_assets_asset_idx').on(table.assetId),
+  uniqueIndex('brand_assets_singular_role_unique').on(table.brandId, table.role).where(sql`${table.role} in ('LOGO', 'FAVICON')`),
 ]);

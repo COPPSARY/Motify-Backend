@@ -25,6 +25,8 @@ export interface ValidationReport {
 export interface GenerationValidationOptions {
     requiredAssetTokens?: readonly string[];
     requiredAudioTokens?: readonly string[];
+    /** Asset tokens the composition may use without being required to, such as brand images. */
+    optionalAssetTokens?: readonly string[];
 }
 
 type HtmlNode = DefaultTreeAdapterMap['node'];
@@ -41,7 +43,7 @@ export function validateMotifyGeneration(
     const warnings: ValidationError[] = [];
     validateHtml(generation.compositionHtml, errors);
     validateTimeline(generation.timelineJs, errors);
-    validateAssetTokens(generation.compositionHtml, options.requiredAssetTokens ?? [], errors);
+    validateAssetTokens(generation.compositionHtml, options.requiredAssetTokens ?? [], options.optionalAssetTokens ?? [], errors);
     validateAudioTokens(generation.compositionHtml, options.requiredAudioTokens ?? [], errors);
     validateStyleSystem(generation.compositionHtml, warnings);
     validateMotionVocabulary(generation.timelineJs, warnings);
@@ -101,8 +103,8 @@ function validateMotionVocabulary(source: string, warnings: ValidationError[]): 
     );
 }
 
-function validateAssetTokens(html: string, required: readonly string[], errors: ValidationError[]): void {
-    const allowed = new Set(required);
+function validateAssetTokens(html: string, required: readonly string[], optional: readonly string[], errors: ValidationError[]): void {
+    const allowed = new Set([...required, ...optional].map((token) => token.toLowerCase()));
     const tokens = new Set(html.match(/motify-asset:\/\/[0-9a-f-]{36}/gi) ?? []);
     for (const token of required) {
         const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -110,7 +112,7 @@ function validateAssetTokens(html: string, required: readonly string[], errors: 
         if (!visible) add(errors, 'REQUIRED_ASSET_MISSING', `Required asset '${token}' is not used in a visible source.`, 'compositionHtml');
     }
     for (const token of tokens) {
-        if (!allowed.has(token)) add(errors, 'UNKNOWN_ASSET_TOKEN', `Unknown Motify asset token '${token}'.`, 'compositionHtml');
+        if (!allowed.has(token.toLowerCase())) add(errors, 'UNKNOWN_ASSET_TOKEN', `Unknown Motify asset token '${token}'.`, 'compositionHtml');
     }
 }
 

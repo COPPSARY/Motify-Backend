@@ -27,3 +27,14 @@ export const DEFAULT_PLANS: Readonly<Record<PlanId, Omit<BillingPlan, 'id' | 'cu
 };
 
 export const DEFAULT_PERIOD_DAYS = 30;
+
+export interface CreditPack {
+  /** `credits-<n>`, from the credit amount, so it stays stable when packs are reordered. */
+  id: string;
+  priceCents: number;
+  currency: 'USD';
+  credits: number;
+}
+
+/** price:credits pairs, the format of CREDIT_PACKS. Mirrors the published credit pricing. */
+export const DEFAULT_CREDIT_PACKS = '2.50:30,5:65,10:135,25:350,50:720,100:1450';

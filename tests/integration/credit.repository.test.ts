@@ -152,8 +152,8 @@ describe.skipIf(!databaseUrl)('credits in the database', () => {
       await db.insert(creditLedger).values({ userId: first.id, kind: 'ADJUSTMENT', amount: -2500 });
 
       const service = new CreditService(new DatabaseCreditRepository(db));
-      await expect(service.getBalance(first.id)).resolves.toEqual({ balance: 25 });
-      await expect(service.getBalance(second.id)).resolves.toEqual({ balance: 50 });
+      await expect(service.getBalance(first.id)).resolves.toEqual({ balance: 25, permanent: 25, expiring: [] });
+      await expect(service.getBalance(second.id)).resolves.toEqual({ balance: 50, permanent: 50, expiring: [] });
       const history = await service.listHistory(second.id, { limit: 20 });
       expect(history.entries).toHaveLength(1);
       expect(history.entries[0]).toMatchObject({ kind: 'SIGNUP_GRANT', amount: 50 });

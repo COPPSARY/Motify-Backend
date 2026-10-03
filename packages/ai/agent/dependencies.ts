@@ -1,3 +1,4 @@
+import type { BrandAssetRole, BrandDna } from '../../brand/brand-dna.js';
 import type { ValidationError } from '../validation/generation-validator.js';
 import type { MotifyGeneration } from './generation-schema.js';
 import type { ModelProviderName } from './errors.js';
@@ -20,6 +21,26 @@ export interface GenerationAudioTrack {
     moodTags: string[];
     bpm: number | null;
     durationMs: number;
+}
+
+/** A brand image the model may place, by its `motify-asset://` token. */
+export interface GenerationBrandAsset {
+    assetId: string;
+    role: BrandAssetRole;
+    label: string | null;
+    fileName: string;
+    contentType: string;
+    width: number | null;
+    height: number | null;
+}
+
+/**
+ * The workspace's Brand DNA as a generation sees it. Loaded server-side for
+ * every message, so the brand never depends on what the editor chose to send.
+ */
+export interface GenerationBrand {
+    dna: BrandDna;
+    assets: GenerationBrandAsset[];
 }
 
 export interface ModelImageInput {
@@ -147,6 +168,7 @@ export interface MotionGraphInput {
     revision?: number;
     assets?: ModelImageInput[];
     audio?: GenerationAudioTrack[];
+    brand?: GenerationBrand;
 }
 
 // A LangGraph superstep count, not a tool-call count. Each real model turn

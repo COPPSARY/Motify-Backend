@@ -7,6 +7,8 @@ import { completeGeneration, readWorkspaceFiles } from '../workspace-generation.
 export interface ValidateGenerationToolOptions {
     requiredAssetTokens?: readonly string[];
     requiredAudioTokens?: readonly string[];
+    /** Asset tokens the film may use without having to, such as brand images. */
+    optionalAssetTokens?: readonly string[];
     /** Called with every report this tool returns, so a caller can count how often a film fails. */
     onReport?: (report: ValidationReport) => void;
 }
@@ -31,6 +33,7 @@ export function createValidateGenerationTool(options: ValidateGenerationToolOpti
             const report = validateMotifyGeneration(completed.generation, {
                 requiredAssetTokens: options.requiredAssetTokens ?? [],
                 requiredAudioTokens: options.requiredAudioTokens ?? [],
+                optionalAssetTokens: options.optionalAssetTokens ?? [],
             });
             options.onReport?.(report);
             return JSON.stringify(report);

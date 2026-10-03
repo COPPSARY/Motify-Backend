@@ -13,6 +13,7 @@ import {
 } from './dependencies.js';
 import { ModelProviderError, normalizeProviderError } from './errors.js';
 import { motifyGenerationDraftSchema, type MotifyGenerationDraft } from './generation-schema.js';
+import { brandAssetTokens, describeBrand } from '../prompts/brand.prompt.js';
 import { validateMotifyGeneration, type ValidationError } from '../validation/generation-validator.js';
 import { buildMotifySystemPrompt } from './system-prompt.js';
 import { createFinalizeGenerationTool, type FinalizeOutcome } from './tools/finalize-generation.tool.js';
@@ -95,6 +96,12 @@ export function createMotifyAgentRunner(dependencies: MotifyAgentDependencies): 
             .map((image) => `motify-asset://${image.assetId}`);
         const requiredAudioTokens = (input.audio ?? [])
             .map((track) => `motify-audio://${track.trackId}`);
+        // Brand images may be placed but never have to be. Tokens the saved project already
+        // carries stay legal, so an edit still validates after its logo was swapped out of the brand.
+        const optionalAssetTokens = [
+            ...brandAssetTokens(input.brand),
+            ...(existing?.compositionHtml.match(ASSET_TOKEN) ?? []),
+        ];
 
         // The agent may fix a film that fails validation, but only so many times: after the first
         // attempt and `maxValidationRetries` retries the run is cut off, instead of spending tokens on a
@@ -152,7 +159,7 @@ export function createMotifyAgentRunner(dependencies: MotifyAgentDependencies): 
                 }
                 // Validation is a gate, not advice: a film with broken HTML or JS, or one that leaves
                 // out an image or audio track the user attached, must never become a saved revision.
-                const report = validateMotifyGeneration(completed.generation, { requiredAssetTokens, requiredAudioTokens });
+                const report = validateMotifyGeneration(completed.generation, { requiredAssetTokens, requiredAudioTokens, optionalAssetTokens });
                 if (report.errors.length > 0) {
                     noteValidationFailure(report.errors);
                     return JSON.stringify({
@@ -176,6 +183,7 @@ export function createMotifyAgentRunner(dependencies: MotifyAgentDependencies): 
             createValidateGenerationTool({
                 requiredAssetTokens,
                 requiredAudioTokens,
+                optionalAssetTokens,
                 onReport: (report) => { if (report.errors.length > 0) noteValidationFailure(report.errors); },
             }),
             finalizeTool,
@@ -355,6 +363,8 @@ function buildFinalizedResponse(
     return undefined;
 }
 
+const ASSET_TOKEN = /motify-asset:\/\/[0-9a-f-]{36}/gi;
+
 function describeModel(model: MotifyAgentDependencies['model']): string {
     const named = model as unknown as { model?: string; modelName?: string };
     return named.model ?? named.modelName ?? 'unknown';
@@ -392,6 +402,7 @@ function buildMessages(
     if (assetsSection) parts.push(assetsSection);
     const audioSection = describeAudioSection(input.audio ?? []);
     if (audioSection) parts.push(audioSection);
+    if (input.brand) parts.push(describeBrand(input.brand));
     const content = buildUserContent(parts.join('\n\n'), input.assets ?? []);
     messages.push(new HumanMessage({ content }));
     return messages;

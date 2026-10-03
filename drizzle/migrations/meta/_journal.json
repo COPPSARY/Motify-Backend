@@ -124,8 +124,36 @@
     {
       "idx": 17,
       "version": "7",
+      "when": 1790900000000,
+      "tag": "0017_credit_purchases",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0018_brand_dna",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0019_brand_fonts",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0020_credit_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
       "when": 1791400000000,
-      "tag": "0017_remove_agent_memory_tables",
+      "tag": "0021_remove_agent_memory_tables",
       "breakpoints": true
     }
   ]
